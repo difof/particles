@@ -26,7 +26,7 @@ build/bin/Debug/particles
 
 # TODO
 
-- [ ] Dependencies
+- [x] Dependencies
     - imgui
     - raylib
     - rlimgui
@@ -34,7 +34,31 @@ build/bin/Debug/particles
     - nlohmann/json
     - tinydir
     - catch2
-- [ ] raylib + imgui window helloworld
-- [ ] basic unit test for example
-- [ ] draw into render texture and into window
-- [ ] draw configurable via imgui
+- [x] raylib + imgui window helloworld
+- [x] draw into render texture and into window
+- [x] draw random circles
+- [x] move those circles over time
+- [ ] apply the basic formula
+- [ ] apply radii cap
+- [ ] bounds repel
+- [ ] bounds borders
+- [ ] mouse drag to move camera
+- [ ] mouse scroll to zoom also with + and - keys
+- [ ] camera smoothing
+- [ ] actions at mouse:
+    - B: bomb with repel in area
+    - S: spray random stuff
+- [ ] optimize sqrt and math
+- [ ] smooth the math
+- [ ] uniform grid (linked list maybe)
+- [ ] vertex shader to make it nice
+- [ ] move on to compute shader
+- [ ] UI: general stats
+    - [ ] fps, timestep, num particles
+    - [ ] per particle group stats: num, color
+- [ ] UI: editor
+    - [ ] world settings
+    - [ ] particle editor
+    - [ ] save/load config
+- [ ] draw lines between particles, width based on bi-directional force
+- [ ] heatmap
