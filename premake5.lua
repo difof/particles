@@ -82,8 +82,6 @@ end
 
 local maxosx_deployment_target = "export MACOSX_DEPLOYMENT_TARGET=10.15; "
 
-if not os.isdir("src/static") then os.mkdir("src/static") end
-
 workspace "particles"
     location "build"
     configurations { "Debug", "Release" }
