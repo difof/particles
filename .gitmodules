@@ -1,0 +1,20 @@
+[submodule "extlib/fmt"]
+	path = extlib/fmt
+	url = https://github.com/fmtlib/fmt
+[submodule "extlib/catch2"]
+	path = extlib/catch2
+	url = https://github.com/catchorg/Catch2
+[submodule "extlib/imgui"]
+	path = extlib/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "extlib/rlimgui"]
+	path = extlib/rlimgui
+	url = https://github.com/raylib-extras/rlImGui
+[submodule "extlib/raylib"]
+	path = extlib/raylib
+	url = https://github.com/raysan5/raylib
+	branch = master
+[submodule "extlib/tinydir"]
+	path = extlib/tinydir
+	url = https://github.com/cxong/tinydir
+	branch = master
