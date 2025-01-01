@@ -1,0 +1,33 @@
+version: "3.44"
+
+tasks:
+  premake:
+    desc: Generate project build files
+    sources:
+      - src/**/*.hpp
+      - src/**/*.cpp
+    generates:
+      - build/Makefile
+      - build/*.make
+    cmd: premake gmake2
+
+  build:
+    desc: Build project
+    sources:
+      - build/Makefile
+      - build/*.make
+    generates:
+      - build/obj/*.o
+    deps:
+      - premake
+    cmd: make -C build -j4 particles
+
+  run:
+    desc: Run project
+    deps:
+      - build
+    cmd: build/bin/Debug/particles
+
+  clean:
+    desc: Clean builds
+    cmd: make -C build clean
