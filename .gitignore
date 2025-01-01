@@ -1,0 +1,5 @@
+*.make
+build/
+src/static
+*_swig_wrap.cpp
+imgui.ini
