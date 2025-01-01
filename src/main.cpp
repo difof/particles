@@ -1,42 +1,78 @@
 #include <stdio.h>
+#include <raylib.h>
+#include <imgui.h>
+#include <rlImGui.h>
+#include <cstdlib>
+#include <ctime>
+#include <vector>
+#include <cstddef>
+#include <cmath>
+#include <random>
+#include <algorithm>
 
-#ifdef __cplusplus
-extern "C"
+void ui()
 {
-#endif
-#include <lua.h>
-#ifdef __cplusplus
+    rlImGuiBegin();
+
+    bool open = true;
+    ImGui::ShowDemoWindow(&open);
+
+    open = true;
+    if (ImGui::Begin("Test Window", &open))
+    {
+    }
+    ImGui::End();
+
+    rlImGuiEnd();
 }
-#endif
 
-#include "script_container.hpp"
+int rand_n(int max)
+{
+    return rand() % (max + 1);
+}
 
-extern "C" int luaopen_support(lua_State *L);
-extern "C" int luaopen_rl(lua_State *L);
-extern "C" int luaopen_imgui(lua_State *L);
+void render(int w, int h, RenderTexture2D texture)
+{
+    BeginTextureMode(texture);
+    ClearBackground(BLACK);
+
+    for (int i = 0; i < 1000; i++)
+    {
+        int x = rand_n(w);
+        int y = rand_n(h);
+        DrawCircle(x, y, 10, WHITE);
+    }
+
+    EndTextureMode();
+}
 
 int main(int argc, char *argv[])
 {
-    ScriptContainer *script = nullptr;
-    try
-    {
-        script = new ScriptContainer(true);
-        auto state = script->getLuaState();
-        luaopen_support(state);
-        luaopen_rl(state);
-        luaopen_imgui(state);
+    srand(time(0));
 
-        script->doScriptFromFile("test_data/basic_sand.moon");
-    }
-    catch (const std::exception &e)
+    int screenWidth = 1280;
+    int screenHeight = 800;
+
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+    InitWindow(screenWidth, screenHeight, "raylib-Extras [ImGui] example - simple ImGui Demo");
+    SetTargetFPS(144);
+    rlImGuiSetup(true);
+
+    RenderTexture2D target = LoadRenderTexture(screenWidth, screenHeight);
+
+    while (!WindowShouldClose())
     {
-        fprintf(stderr, "Error: %s\n", e.what());
+        render(screenWidth, screenHeight, target);
+
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawTextureRec(target.texture, (Rectangle){0, 0, (float)target.texture.width, (float)-target.texture.height}, (Vector2){0, 0}, WHITE);
+        // ui();
+        EndDrawing();
     }
 
-    if (script != nullptr)
-    {
-        delete script;
-    }
+    rlImGuiShutdown();
+    CloseWindow();
 
     return 0;
 }
