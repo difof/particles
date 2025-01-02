@@ -6,6 +6,9 @@ tasks:
     sources:
       - src/**/*.hpp
       - src/**/*.cpp
+      - src/**/*.h
+      - src/**/*.c
+      - premake5.lua
     generates:
       - build/Makefile
       - build/*.make
