@@ -27,12 +27,24 @@ struct DrawBuffers
 struct SimConfig
 {
     float bounds_width, bounds_height;
-    float bounds_force, bounds_radius;
-    float interact_radius;
+    float bounds_force, bounds_radius; // (unused by JS exactness; keep if you want)
+    float interact_radius;             // (unused when using per-group radii2)
+
+    // --- JS parameters ---
+    float time_scale = 1.0f;   // settings.time_scale
+    float viscosity = 0.0f;    // settings.viscosity  (0..1)
+    float gravity = 0.0f;      // settings.gravity    (adds to fy)
+    float wallRepel = 0.0f;    // settings.wallRepel  (margin d); 0 disables
+    float wallStrength = 0.1f; // strength constant used in JS
+
+    // optional pulse (set to 0 to disable)
+    float pulse = 0.0f;
+    float pulse_x = 0.0f;
+    float pulse_y = 0.0f;
 
     std::atomic<bool> sim_running{true};
-    std::atomic<int> target_tps;    // set from UI
-    std::atomic<int> effective_tps; // read in UI
+    std::atomic<int> target_tps{0};
+    std::atomic<int> effective_tps{0};
     std::atomic<bool> interpolate{false};
 };
 
@@ -55,8 +67,32 @@ class World
     std::vector<Interaction> interactions;
 
     std::vector<Color> g_colors;
-
+    std::vector<int> p_group;  // size N: group index per particle
+    std::vector<float> rules;  // size G*G: rules[src*G + dst]
+    std::vector<float> radii2; // size G: interaction radius^2 for source group
 public:
+    void finalize_groups()
+    {
+        const int G = get_groups_size();
+        p_group.assign(get_particles_size(), 0);
+        for (int g = 0; g < G; ++g)
+        {
+            for (int i = get_group_start(g); i < get_group_end(g); ++i)
+                p_group[i] = g;
+        }
+    }
+    void init_rule_tables(int G)
+    {
+        rules.assign(G * G, 0.f);
+        radii2.assign(G, 0.f);
+    }
+    void set_rule(int g_src, int g_dst, float v) { rules[g_src * get_groups_size() + g_dst] = v; }
+    void set_r2(int g_src, float r2) { radii2[g_src] = r2; }
+
+    int group_of(int i) const { return p_group[i]; }
+    float rule_val(int gsrc, int gdst) const { return rules[gsrc * get_groups_size() + gdst]; }
+    float r2_of(int gsrc) const { return radii2[gsrc]; }
+
     int add_group(int count, Color color)
     {
         if (count <= 0)
@@ -158,80 +194,125 @@ void simulate_once(World &world, SimConfig &scfg)
     fx.assign(N, 0.0f);
     fy.assign(N, 0.0f);
 
-    const float R = scfg.interact_radius;
-    const float R2 = R * R;
+    const int G = world.get_groups_size();
 
-    const int rules = world.get_interactions_size();
-    for (int ridx = 0; ridx < rules; ++ridx)
-    {
-        const Interaction &rule = world.interaction_at(ridx);
-        const int a0 = world.get_group_start(rule.g_src);
-        const int a1 = world.get_group_end(rule.g_src);
-        const int b0 = world.get_group_start(rule.g_dst);
-        const int b1 = world.get_group_end(rule.g_dst);
-
-        for (int i = a0; i < a1; ++i)
-        {
-            const float pix = world.get_px(i);
-            const float piy = world.get_py(i);
-
-            float accx = 0.f, accy = 0.f;
-
-            for (int j = b0; j < b1; ++j)
-            {
-                if (rule.g_src == rule.g_dst && j == i)
-                {
-                    // self
-                    continue;
-                }
-                const float pjx = world.get_px(j);
-                const float pjy = world.get_py(j);
-
-                const float dx = pix - pjx;
-                const float dy = piy - pjy;
-                const float d2 = dx * dx + dy * dy;
-
-                if (d2 > 0.f && d2 < R2)
-                {
-                    const float invd = 1.0f / std::sqrt(d2);
-                    const float F = rule.force * invd;
-                    accx += F * dx;
-                    accy += F * dy;
-                }
-            }
-
-            fx[i] += accx;
-            fy[i] += accy;
-        }
-    }
-
-    // integrate + bounds repel + damping
+    // === 1) accumulate forces (matches JS) ===
     for (int i = 0; i < N; ++i)
     {
-        float px = world.get_px(i);
-        float py = world.get_py(i);
+        const float ax = world.get_px(i);
+        const float ay = world.get_py(i);
+        const int gi = world.group_of(i);
+        const float r2 = world.r2_of(gi);
+
+        float sumx = 0.f, sumy = 0.f;
+
+        // pairwise interactions
+        for (int j = 0; j < N; ++j)
+        {
+            const float bx = world.get_px(j);
+            const float by = world.get_py(j);
+
+            const float dx = ax - bx;
+            const float dy = ay - by;
+
+            // skip exact self only
+            if (dx == 0.f && dy == 0.f)
+                continue;
+
+            const float d2 = dx * dx + dy * dy;
+            if (d2 < r2 && d2 > 0.f)
+            {
+                const int gj = world.group_of(j);
+                const float g = world.rule_val(gi, gj); // rules[src][dst]
+                const float invd = 1.0f / std::sqrt(d2);
+                const float F = g * invd;
+                sumx += F * dx;
+                sumy += F * dy;
+            }
+        }
+
+        // pulse, if enabled
+        if (scfg.pulse != 0.f)
+        {
+            const float dx = ax - scfg.pulse_x;
+            const float dy = ay - scfg.pulse_y;
+            const float d2 = dx * dx + dy * dy;
+            if (d2 > 0.f)
+            {
+                // JS: F = 100 * pulse / (d * time_scale) with d = sqrt(d2)
+                const float d = std::sqrt(d2);
+                const float Fp = 100.f * scfg.pulse / (d * scfg.time_scale);
+                sumx += Fp * dx;
+                sumy += Fp * dy;
+            }
+        }
+
+        // wall repel, if enabled (linear inside margin d)
+        if (scfg.wallRepel > 0.f)
+        {
+            const float d = scfg.wallRepel;
+            const float strength = scfg.wallStrength; // JS used 0.1
+            if (ax < d)
+                sumx += (d - ax) * strength;
+            if (ax > scfg.bounds_width - d)
+                sumx += (scfg.bounds_width - d - ax) * strength;
+            if (ay < d)
+                sumy += (d - ay) * strength;
+            if (ay > scfg.bounds_height - d)
+                sumy += (scfg.bounds_height - d - ay) * strength;
+        }
+
+        // gravity (adds to fy)
+        sumy += scfg.gravity;
+
+        fx[i] = sumx;
+        fy[i] = sumy;
+    }
+
+    // === 2) velocity update (viscosity mix + time_scale) ===
+    const float vmix = (1.0f - scfg.viscosity);
+    for (int i = 0; i < N; ++i)
+    {
+        const float vx = world.get_vx(i) * vmix + fx[i] * scfg.time_scale;
+        const float vy = world.get_vy(i) * vmix + fy[i] * scfg.time_scale;
+        world.set_vx(i, vx);
+        world.set_vy(i, vy);
+    }
+
+    // === 3) position update + mirror bounce (exact JS borders) ===
+    const float W = scfg.bounds_width;
+    const float H = scfg.bounds_height;
+
+    for (int i = 0; i < N; ++i)
+    {
+        float x = world.get_px(i) + world.get_vx(i);
+        float y = world.get_py(i) + world.get_vy(i);
         float vx = world.get_vx(i);
         float vy = world.get_vy(i);
 
-        // apply_bounds_repel_inplace(px, py, vx, vy, scfg);
+        if (x < 0.f)
+        {
+            x = -x;
+            vx = -vx;
+        }
+        if (x >= W)
+        {
+            x = 2.f * W - x;
+            vx = -vx;
+        }
+        if (y < 0.f)
+        {
+            y = -y;
+            vy = -vy;
+        }
+        if (y >= H)
+        {
+            y = 2.f * H - y;
+            vy = -vy;
+        }
 
-        vx = (vx + fx[i]) * 0.5f;
-        vy = (vy + fy[i]) * 0.5f;
-        px += vx;
-        py += vy;
-
-        // clamp to bounds
-        if (px < 0)
-            px = 0;
-        else if (px > scfg.bounds_width)
-            px = scfg.bounds_width;
-        if (py < 0)
-            py = 0;
-        else if (py > scfg.bounds_height)
-            py = scfg.bounds_height;
-
-        world.set_px(i, px);
-        world.set_py(i, py);
+        world.set_px(i, x);
+        world.set_py(i, y);
         world.set_vx(i, vx);
         world.set_vy(i, vy);
     }
@@ -341,10 +422,12 @@ static void seed_world(World &world, const SimConfig &scfg)
     std::uniform_real_distribution<float> rx(0.f, scfg.bounds_width);
     std::uniform_real_distribution<float> ry(0.f, scfg.bounds_height);
 
-    const int gA = world.add_group(200, GOLD);
-    const int gB = world.add_group(200, SKYBLUE);
-    const int gC = world.add_group(200, LIME);
+    const int gG = world.add_group(500, GREEN);
+    const int gR = world.add_group(500, RED);
+    const int gO = world.add_group(500, ORANGE);
+    const int gB = world.add_group(500, BLUE);
 
+    // positions/velocities
     const int N = world.get_particles_size();
     for (int i = 0; i < N; ++i)
     {
@@ -354,25 +437,46 @@ static void seed_world(World &world, const SimConfig &scfg)
         world.set_vy(i, 0.f);
     }
 
-    // interactions (signed force; + attract, - repel)
-    world.add_interaction(gA, gA, -20.f);
-    world.add_interaction(gA, gB, +10.f);
-    world.add_interaction(gA, gC, -15.f);
+    // finalize per-particle group vector
+    world.finalize_groups();
 
-    world.add_interaction(gB, gA, -10.f);
-    world.add_interaction(gB, gB, -20.f);
-    world.add_interaction(gB, gC, +12.f);
+    // Rules matrix + radii² (example values matching your old signs/mags)
+    const int G = world.get_groups_size();
+    world.init_rule_tables(G);
 
-    world.add_interaction(gC, gA, +15.f);
-    world.add_interaction(gC, gB, -12.f);
-    world.add_interaction(gC, gC, -20.f);
+    // set per-source radii² (JS uses settings.radii2Array[a.group])
+    auto r = 80.f; // pick per-group if you like
+    world.set_r2(gG, r * r);
+    world.set_r2(gR, r * r);
+    world.set_r2(gO, r * r);
+    world.set_r2(gB, r * r);
+
+    world.set_rule(gG, gG, +0.9261392140761018);
+    world.set_rule(gG, gR, -0.8341653244569898);
+    world.set_rule(gG, gO, +0.2809289274737239);
+    world.set_rule(gG, gB, -0.0642730798572301);
+
+    world.set_rule(gR, gG, -0.4617096465080976);
+    world.set_rule(gR, gR, +0.4914243463426828);
+    world.set_rule(gR, gO, +0.2760726027190685);
+    world.set_rule(gR, gB, +0.6413487386889756);
+
+    world.set_rule(gO, gG, -0.7874764292500913);
+    world.set_rule(gO, gR, +0.2337338547222316);
+    world.set_rule(gO, gO, -0.0241123312152922);
+    world.set_rule(gO, gB, -0.7487592226825655);
+
+    world.set_rule(gB, gG, +0.5655814143829048);
+    world.set_rule(gB, gR, +0.9484694371931255);
+    world.set_rule(gB, gO, -0.3605288732796907);
+    world.set_rule(gB, gB, +0.4411409106105566);
 }
 
 void run()
 {
-    int screenW = 1280;
-    int screenH = 800;
-    int panelW = screenW * .23;
+    int screenW = 2000;
+    int screenH = 900;
+    int panelW = 400; // screenW * .23;
     int texW = screenW - panelW;
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
 
@@ -385,6 +489,13 @@ void run()
         scfg.interact_radius = 80.;
         scfg.target_tps = 30;
         scfg.interpolate = false;
+
+        scfg.time_scale = 1.0f;
+        scfg.viscosity = 0.05f;   // try 0.0..0.2 like the JS UI
+        scfg.gravity = 0.0f;      // same default as JS unless you set it
+        scfg.wallRepel = 0.0f;    // set >0 to enable (pixels)
+        scfg.wallStrength = 0.1f; // JS constant
+        scfg.pulse = 0.0f;        // set to non-zero to match JS pulse feature
     }
 
     DrawBuffers dbuf;
