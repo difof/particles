@@ -13,7 +13,6 @@
 #include <mutex>
 #include <atomic>
 
-// --- NEW: Uniform grid for spatial hashing ---
 struct UniformGrid
 {
     float cell = 64.f;      // side length of a cell (auto-picked)
@@ -76,8 +75,6 @@ struct DrawBuffers
 struct SimConfig
 {
     float bounds_width, bounds_height;
-    float bounds_force, bounds_radius; // (unused by JS exactness; keep if you want)
-    float interact_radius;             // (unused when using per-group radii2)
 
     // --- JS parameters ---
     float time_scale = 1.0f;   // settings.time_scale
@@ -113,8 +110,6 @@ class World
     // p_start, p_end
     std::vector<int> groups;
 
-    std::vector<Interaction> interactions;
-
     std::vector<Color> g_colors;
     std::vector<int> p_group;  // size N: group index per particle
     std::vector<float> rules;  // size G*G: rules[src*G + dst]
@@ -142,6 +137,11 @@ public:
     float rule_val(int gsrc, int gdst) const { return rules[gsrc * get_groups_size() + gdst]; }
     float r2_of(int gsrc) const { return radii2[gsrc]; }
 
+    const float *rules_row(int gsrc) const
+    {
+        return &rules[gsrc * get_groups_size()];
+    }
+
     float max_interaction_radius() const
     {
         float maxr2 = 0.f;
@@ -165,17 +165,8 @@ public:
         return g_colors.size() - 1;
     }
 
-    int add_interaction(int g_src, int g_dst, float force)
-    {
-        interactions.push_back({g_src, g_dst, force});
-        return interactions.size() - 1;
-    }
-
     // TODO: group/interaction add/remove
 
-    Interaction *get_interaction(int i) { return &interactions[i]; }
-    const Interaction &interaction_at(int i) const { return interactions[i]; }
-    const Interaction *get_interaction(int i) const { return &interactions[i]; }
     Color *get_group_color(int g) { return &g_colors[g]; }
 
     int get_groups_size() const { return (int)groups.size() / 2; }
@@ -183,7 +174,6 @@ public:
     int get_group_end(int g) const { return groups[g * 2 + 1]; }
     int get_group_size(int g) const { return get_group_end(g) - get_group_start(g); }
 
-    int get_interactions_size() { return interactions.size(); }
     int get_particles_size() { return particles.size() / 4; }
 
     inline float get_px(int idx) const { return particles[idx * 4 + 0]; }
@@ -232,10 +222,6 @@ void render_ui(const WindowConfig &wcfg, World &world, SimConfig &scfg)
         {
             scfg.target_tps.store(tps, std::memory_order_relaxed);
         }
-
-        ImGui::SliderFloat("Interact radius", &scfg.interact_radius, 10.f, 200.f, "%.0f");
-        ImGui::SliderFloat("Bounds force", &scfg.bounds_force, 0.f, 200.f, "%.0f");
-        ImGui::SliderFloat("Bounds radius", &scfg.bounds_radius, 0.f, 200.f, "%.0f");
     }
     ImGui::End();
     ImGui::PopStyleVar();
@@ -251,14 +237,8 @@ void simulate_once(World &world, SimConfig &scfg)
     fx.assign(N, 0.0f);
     fy.assign(N, 0.0f);
 
-    const int G = world.get_groups_size();
-
-    // --- NEW: Build uniform grid for this step ---
-    // Pick cell size based on the largest effective interaction radius (guarantees 3x3 coverage).
+    // --- Build uniform grid for this step (cell = max interact radius) ---
     float maxR = world.max_interaction_radius();
-    if (maxR <= 0.f)
-        maxR = scfg.interact_radius; // fallback to global if per-group not set
-    // Ensure at least 1px to avoid degenerate division
     maxR = std::max(1.0f, maxR);
 
     static thread_local UniformGrid grid;
@@ -271,57 +251,72 @@ void simulate_once(World &world, SimConfig &scfg)
         { return world.get_py(i); },
         scfg.bounds_width, scfg.bounds_height);
 
-    // === 1) accumulate forces (now via 3×3 neighborhood) ===
+    // For quick coord reads of neighbors
+    const float *P = world.raw().data(); // [px,py,vx,vy] per particle
+    const float invCell = 1.0f / grid.cell;
+    static const int OFFS[9][2] = {
+        {-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {0, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}};
+    constexpr float EPS = 1e-12f;
+
+    // === 1) accumulate forces (grid 3×3) ===
     for (int i = 0; i < N; ++i)
     {
-        const float ax = world.get_px(i);
-        const float ay = world.get_py(i);
+        const float ax = P[i * 4 + 0];
+        const float ay = P[i * 4 + 1];
         const int gi = world.group_of(i);
-        const float r2 = world.r2_of(gi); // per-source radius²
+        const float r2 = world.r2_of(gi);
         if (r2 <= 0.f)
-            continue; // no interactions if zero
+        {
+            fx[i] = 0.f;
+            fy[i] = 0.f;
+            continue;
+        }
 
         float sumx = 0.f, sumy = 0.f;
 
-        // locate cell of i
-        int cx = (int)std::floor(std::min(std::max(0.0f, ax), std::nextafter(scfg.bounds_width, 0.0f)) / grid.cell);
-        int cy = (int)std::floor(std::min(std::max(0.0f, ay), std::nextafter(scfg.bounds_height, 0.0f)) / grid.cell);
+        // Cell index (positions are inside [0..W/H] due to bounce; clamp top edge)
+        int cx = (int)(ax * invCell);
+        int cy = (int)(ay * invCell);
+        if (cx >= grid.cols)
+            cx = grid.cols - 1;
+        if (cy >= grid.rows)
+            cy = grid.rows - 1;
 
-        // scan 3x3 neighbors
-        for (int oy = -1; oy <= 1; ++oy)
+        // Fetch row once: rules[gi][*]
+        const float *__restrict row = world.rules_row(gi);
+
+        // Scan 3×3 neighbor cells
+        for (int k = 0; k < 9; ++k)
         {
-            for (int ox = -1; ox <= 1; ++ox)
+            const int nci = grid.cellIndex(cx + OFFS[k][0], cy + OFFS[k][1]);
+            if (nci < 0)
+                continue;
+
+            for (int j = grid.head[nci]; j != -1; j = grid.next[j])
             {
-                int nci = grid.cellIndex(cx + ox, cy + oy);
-                if (nci < 0)
+                if (j == i)
                     continue;
 
-                // iterate linked list in this neighbor cell
-                for (int j = grid.head[nci]; j != -1; j = grid.next[j])
+                const float bx = P[j * 4 + 0];
+                const float by = P[j * 4 + 1];
+
+                const float dx = ax - bx;
+                const float dy = ay - by;
+                const float d2 = dx * dx + dy * dy;
+
+                if (d2 > 0.f && d2 < r2)
                 {
-                    if (j == i)
-                        continue;
-
-                    const float bx = world.get_px(j);
-                    const float by = world.get_py(j);
-
-                    const float dx = ax - bx;
-                    const float dy = ay - by;
-                    const float d2 = dx * dx + dy * dy;
-                    if (d2 > 0.f && d2 < r2)
-                    {
-                        const int gj = world.group_of(j);
-                        const float g = world.rule_val(gi, gj);
-                        const float invd = 1.0f / std::sqrt(d2);
-                        const float F = g * invd;
-                        sumx += F * dx;
-                        sumy += F * dy;
-                    }
+                    const int gj = world.group_of(j);
+                    const float g = row[gj];
+                    const float invd = 1.0f / std::sqrt(std::max(d2, EPS)); // safe and stable
+                    const float F = g * invd;
+                    sumx += F * dx;
+                    sumy += F * dy;
                 }
             }
         }
 
-        // pulse (unchanged)
+        // Pulse (same stability guard)
         if (scfg.pulse != 0.f)
         {
             const float dx = ax - scfg.pulse_x;
@@ -329,14 +324,14 @@ void simulate_once(World &world, SimConfig &scfg)
             const float d2 = dx * dx + dy * dy;
             if (d2 > 0.f)
             {
-                const float d = std::sqrt(d2);
-                const float Fp = 100.f * scfg.pulse / (d * scfg.time_scale);
+                const float invd = 1.0f / std::sqrt(std::max(d2, EPS));
+                const float Fp = (100.f * scfg.pulse * invd) / scfg.time_scale; // 100*pulse/(d*time_scale)
                 sumx += Fp * dx;
                 sumy += Fp * dy;
             }
         }
 
-        // wall repel (unchanged)
+        // Wall repel (unchanged)
         if (scfg.wallRepel > 0.f)
         {
             const float d = scfg.wallRepel;
@@ -351,7 +346,7 @@ void simulate_once(World &world, SimConfig &scfg)
                 sumy += (scfg.bounds_height - d - ay) * strength;
         }
 
-        // gravity (unchanged)
+        // Gravity
         sumy += scfg.gravity;
 
         fx[i] = sumx;
@@ -510,10 +505,11 @@ static void seed_world(World &world, const SimConfig &scfg)
     std::uniform_real_distribution<float> rx(0.f, scfg.bounds_width);
     std::uniform_real_distribution<float> ry(0.f, scfg.bounds_height);
 
-    const int gG = world.add_group(500, GREEN);
-    const int gR = world.add_group(500, RED);
-    const int gO = world.add_group(500, ORANGE);
-    const int gB = world.add_group(500, BLUE);
+    int sz = 1000;
+    const int gG = world.add_group(sz, GREEN);
+    const int gR = world.add_group(sz, RED);
+    const int gO = world.add_group(sz, ORANGE);
+    const int gB = world.add_group(sz, BLUE);
 
     // positions/velocities
     const int N = world.get_particles_size();
@@ -572,16 +568,13 @@ void run()
     {
         scfg.bounds_width = static_cast<float>(wcfg.render_width);
         scfg.bounds_height = static_cast<float>(wcfg.screen_height);
-        scfg.bounds_force = 1.;
-        scfg.bounds_radius = 40.;
-        scfg.interact_radius = 80.;
         scfg.target_tps = 30;
         scfg.interpolate = false;
 
         scfg.time_scale = 1.0f;
         scfg.viscosity = 0.05f;   // try 0.0..0.2 like the JS UI
         scfg.gravity = 0.0f;      // same default as JS unless you set it
-        scfg.wallRepel = 0.0f;    // set >0 to enable (pixels)
+        scfg.wallRepel = 1.0f;    // set >0 to enable (pixels)
         scfg.wallStrength = 0.1f; // JS constant
         scfg.pulse = 0.0f;        // set to non-zero to match JS pulse feature
     }
