@@ -23,13 +23,30 @@ tasks:
       - build/obj/*.o
     deps:
       - premake
-    cmd: make -C build -j4 particles
+    cmd: make -C build config=debug -j4 particles
+
+  build-release:
+    desc: Build project (Release)
+    sources:
+      - build/Makefile
+      - build/*.make
+    generates:
+      - build/obj/*.o
+    deps:
+      - premake
+    cmd: make -C build config=release -j4 particles
 
   run:
     desc: Run project
     deps:
       - build
     cmd: build/bin/Debug/particles
+
+  run-release:
+    desc: Run project
+    deps:
+      - build-release
+    cmd: build/bin/Release/particles
 
   clean:
     desc: Clean builds
