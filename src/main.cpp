@@ -111,22 +111,25 @@ struct WindowConfig
 
 struct DrawBuffers
 {
-    std::vector<float> pos[2]; // [i*2+0]=px, [i*2+1]=py
-    std::atomic<int> front{0}; // index of readable buffer
+    std::vector<float> pos[2];          // [i*2+0]=px, [i*2+1]=py
+    std::atomic<int> front{0};          // index of readable buffer
+    std::atomic<long long> stamp_ns[2]; // monotonic time for each buffer
+
+    DrawBuffers()
+    {
+        stamp_ns[0].store(0, std::memory_order_relaxed);
+        stamp_ns[1].store(0, std::memory_order_relaxed);
+    }
 };
 
 struct SimConfig
 {
     float bounds_width, bounds_height;
-
-    // Tunables (atomic -> UI writes are race-free)
-    std::atomic<float> time_scale{1.0f};   // settings.time_scale
-    std::atomic<float> viscosity{0.0f};    // 0..1
-    std::atomic<float> gravity{0.0f};      // adds to fy each step
-    std::atomic<float> wallRepel{0.0f};    // margin distance; 0 disables
-    std::atomic<float> wallStrength{0.1f}; // strength at the wall
-
-    // Pulse (0 disables)
+    std::atomic<float> time_scale{1.0f};
+    std::atomic<float> viscosity{0.0f};
+    std::atomic<float> gravity{0.0f};
+    std::atomic<float> wallRepel{0.0f};
+    std::atomic<float> wallStrength{0.1f};
     std::atomic<float> pulse{0.0f};
     std::atomic<float> pulse_x{0.0f};
     std::atomic<float> pulse_y{0.0f};
@@ -134,16 +137,12 @@ struct SimConfig
     std::atomic<bool> sim_running{true};
     std::atomic<int> target_tps{0};
     std::atomic<int> effective_tps{0};
+
+    // interpolation controls
     std::atomic<bool> interpolate{false};
+    std::atomic<float> interp_delay_ms{16.0f}; // render one small step behind
 
-    // UI -> sim handoff for safe world reseed
     std::atomic<bool> reset_requested{false};
-};
-
-struct Interaction
-{
-    int g_src, g_dst;
-    float force;
 };
 
 class World
@@ -286,10 +285,20 @@ void render_ui(const WindowConfig &wcfg, World &world, SimConfig &scfg)
         if (ImGui::SliderInt("Target TPS", &tps, 0, 240, "%d", ImGuiSliderFlags_AlwaysClamp))
             scfg.target_tps.store(tps, std::memory_order_relaxed);
 
-        // Interpolate (currently unused in draw, but exposed)
+        // Interpolate (based on render framerate; uses last two sim snapshots)
         bool interpolate = scfg.interpolate.load(std::memory_order_relaxed);
         if (ImGui::Checkbox("Interpolate", &interpolate))
             scfg.interpolate.store(interpolate, std::memory_order_relaxed);
+
+        // Only show delay slider if interpolation is on
+        if (interpolate)
+        {
+            float delay_ms = scfg.interp_delay_ms.load(std::memory_order_relaxed);
+            if (ImGui::SliderFloat("Interp delay (ms)", &delay_ms, 0.0f, 50.0f, "%.1f"))
+            {
+                scfg.interp_delay_ms.store(delay_ms, std::memory_order_relaxed);
+            }
+        }
 
         // Time scale
         float time_scale = scfg.time_scale.load(std::memory_order_relaxed);
@@ -618,6 +627,8 @@ void simulation_thread_func(World &world, SimConfig &scfg, DrawBuffers &dbuf)
             const int N = world.get_particles_size();
             dbuf.pos[0].assign(N * 2, 0.f);
             dbuf.pos[1].assign(N * 2, 0.f);
+            dbuf.stamp_ns[0].store(0, std::memory_order_relaxed);
+            dbuf.stamp_ns[1].store(0, std::memory_order_relaxed);
             dbuf.front.store(0, std::memory_order_release);
 
             scfg.reset_requested.store(false, std::memory_order_release);
@@ -639,6 +650,14 @@ void simulation_thread_func(World &world, SimConfig &scfg, DrawBuffers &dbuf)
             dbuf.pos[back][i * 2 + 0] = world.get_px(i);
             dbuf.pos[back][i * 2 + 1] = world.get_py(i);
         }
+
+        // stamp time for this snapshot (monotonic)
+        auto tnow_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                           clock::now().time_since_epoch())
+                           .count();
+        dbuf.stamp_ns[back].store(tnow_ns, std::memory_order_relaxed);
+
+        // publish
         dbuf.front.store(back, std::memory_order_release);
 
         // effective TPS
@@ -666,15 +685,94 @@ void simulation_thread_func(World &world, SimConfig &scfg, DrawBuffers &dbuf)
     }
 }
 
-void render_tex(World &world, const DrawBuffers &dbuf)
+void render_tex(World &world, const DrawBuffers &dbuf, const SimConfig &scfg)
 {
     ClearBackground(BLACK);
-    // read which buffer is front
-    const int front = dbuf.front.load(std::memory_order_acquire);
-    const std::vector<float> &pos = dbuf.pos[front];
 
-    // draw each group with its color
+    const bool doInterp = scfg.interpolate.load(std::memory_order_relaxed);
+
+    // Take a stable read of 'front'
+    int f1 = dbuf.front.load(std::memory_order_acquire);
+    int p0 = 1 - f1; // previous
+    int p1 = f1;     // current
+
+    // Grab timestamps
+    long long t0 = dbuf.stamp_ns[p0].load(std::memory_order_relaxed);
+    long long t1 = dbuf.stamp_ns[p1].load(std::memory_order_relaxed);
+
+    // references to buffers
+    const std::vector<float> &pos0 = dbuf.pos[p0];
+    const std::vector<float> &pos1 = dbuf.pos[p1];
+
     const int G = world.get_groups_size();
+
+    // Stable check: if front flipped mid-read, just skip interpolation this frame
+    if (doInterp)
+    {
+        int f2 = dbuf.front.load(std::memory_order_relaxed);
+        if (f2 != f1)
+        {
+            // fall through and draw current only
+            goto DRAW_CURRENT_ONLY;
+        }
+    }
+
+    if (doInterp && t0 > 0 && t1 > 0 && t1 > t0 &&
+        pos0.size() == pos1.size() && !pos1.empty())
+    {
+        // compute alpha using a small "render delay" so target time lies in [t0, t1]
+        const float delay_ms = scfg.interp_delay_ms.load(std::memory_order_relaxed);
+        const long long now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                     std::chrono::steady_clock::now().time_since_epoch())
+                                     .count();
+        const long long target_ns = now_ns - (long long)(delay_ms * 1'000'000.0f);
+
+        // Clamp target into [t0, t1] to avoid extrapolation
+        float alpha = 0.0f;
+        if (target_ns <= t0)
+        {
+            alpha = 0.0f; // draw previous
+        }
+        else if (target_ns >= t1)
+        {
+            alpha = 1.0f; // draw current
+        }
+        else
+        {
+            alpha = float(target_ns - t0) / float(t1 - t0);
+        }
+
+        // draw each group with its color, interpolating positions
+        for (int g = 0; g < G; ++g)
+        {
+            const int start = world.get_group_start(g);
+            const int end = world.get_group_end(g);
+            const Color col = *world.get_group_color(g);
+
+            for (int i = start; i < end; ++i)
+            {
+                const size_t base = (size_t)i * 2;
+                if (base + 1 >= pos1.size())
+                    break;
+
+                const float x0 = pos0[base + 0];
+                const float y0 = pos0[base + 1];
+                const float x1 = pos1[base + 0];
+                const float y1 = pos1[base + 1];
+
+                const float x = x0 + (x1 - x0) * alpha;
+                const float y = y0 + (y1 - y0) * alpha;
+
+                DrawCircleV(Vector2{x, y}, 1.5f, col);
+            }
+        }
+        return;
+    }
+
+DRAW_CURRENT_ONLY:
+{
+    // No interpolation path (unchanged behavior)
+    const std::vector<float> &pos = dbuf.pos[dbuf.front.load(std::memory_order_acquire)];
     for (int g = 0; g < G; ++g)
     {
         const int start = world.get_group_start(g);
@@ -683,17 +781,15 @@ void render_tex(World &world, const DrawBuffers &dbuf)
 
         for (int i = start; i < end; ++i)
         {
-            // guard in case sizes changed (they don't in this demo)
             const size_t base = (size_t)i * 2;
             if (base + 1 >= pos.size())
                 break;
             const float x = pos[base + 0];
             const float y = pos[base + 1];
-
-            // small point (DrawPixelV could alias; small circle is clearer)
             DrawCircleV(Vector2{x, y}, 1.5f, col);
         }
     }
+}
 }
 
 void run()
@@ -711,6 +807,7 @@ void run()
 
         scfg.target_tps.store(0, std::memory_order_relaxed);
         scfg.interpolate.store(false, std::memory_order_relaxed);
+        scfg.interp_delay_ms.store(16.0f, std::memory_order_relaxed);
 
         scfg.time_scale.store(1.0f, std::memory_order_relaxed);
         scfg.viscosity.store(0.1f, std::memory_order_relaxed);
@@ -739,7 +836,7 @@ void run()
     while (!WindowShouldClose())
     {
         BeginTextureMode(tex);
-        render_tex(world, dbuf);
+        render_tex(world, dbuf, scfg);
         EndTextureMode();
 
         BeginDrawing();
