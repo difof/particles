@@ -16,7 +16,7 @@
 // Choose at build: -DUSE_X86_SSE or -DUSE_ARM_NEON
 #if defined(USE_X86_SSE)
 #include <xmmintrin.h>
-#elif defined(USE_ARM_NEON)
+#elif defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
 
@@ -34,7 +34,7 @@ inline float rsqrt_fast(float x)
     float y0 = _mm_cvtss_f32(y);
     // One NR step → ~1e-4 relative error
     return rsqrt_nr_once(x, y0);
-#elif defined(USE_ARM_NEON)
+#elif defined(__ARM_NEON)
     float32x2_t vx = vdup_n_f32(x);
     float32x2_t y = vrsqrte_f32(vx); // initial approx
     // One NR step using NEON recip-sqrt iterations
@@ -349,11 +349,12 @@ static void seed_world(World &world, const SimConfig &scfg)
     std::uniform_real_distribution<float> rx(0.f, scfg.bounds_width);
     std::uniform_real_distribution<float> ry(0.f, scfg.bounds_height);
 
-    int sz = 1500;
+    int sz = 1800;
     const int gG = world.add_group(sz, GREEN);
     const int gR = world.add_group(sz, RED);
     const int gO = world.add_group(sz, ORANGE);
     const int gB = world.add_group(sz, BLUE);
+    const int gP = world.add_group(sz, PURPLE); // New PURPLE group
 
     // positions/velocities
     const int N = world.get_particles_size();
@@ -378,26 +379,38 @@ static void seed_world(World &world, const SimConfig &scfg)
     world.set_r2(gR, r * r);
     world.set_r2(gO, r * r);
     world.set_r2(gB, r * r);
+    world.set_r2(gP, r * r); // PURPLE radius
 
     world.set_rule(gG, gG, +0.9261392140761018);
     world.set_rule(gG, gR, -0.8341653244569898);
     world.set_rule(gG, gO, +0.2809289274737239);
     world.set_rule(gG, gB, -0.0642730798572301);
+    world.set_rule(gG, gP, +0.5); // G->P: attracted
 
     world.set_rule(gR, gG, -0.4617096465080976);
     world.set_rule(gR, gR, +0.4914243463426828);
     world.set_rule(gR, gO, +0.2760726027190685);
     world.set_rule(gR, gB, +0.6413487386889756);
+    world.set_rule(gR, gP, -0.7); // R->P: repelled
 
     world.set_rule(gO, gG, -0.7874764292500913);
     world.set_rule(gO, gR, +0.2337338547222316);
     world.set_rule(gO, gO, -0.0241123312152922);
     world.set_rule(gO, gB, -0.7487592226825655);
+    world.set_rule(gO, gP, +0.2); // O->P: weakly attracted
 
     world.set_rule(gB, gG, +0.5655814143829048);
     world.set_rule(gB, gR, +0.9484694371931255);
     world.set_rule(gB, gO, -0.3605288732796907);
     world.set_rule(gB, gB, +0.4411409106105566);
+    world.set_rule(gB, gP, -0.3); // B->P: weakly repelled
+
+    // PURPLE's rules (unique/cool):
+    world.set_rule(gP, gG, std::sin(1.0)); // P->G: oscillatory
+    world.set_rule(gP, gR, std::cos(2.0)); // P->R: oscillatory
+    world.set_rule(gP, gO, +1.0);          // P->O: strongly attracted
+    world.set_rule(gP, gB, -1.0);          // P->B: strongly repelled
+    world.set_rule(gP, gP, +0.0);          // P->P: neutral
 }
 
 void simulate_once(World &world, SimConfig &scfg)
@@ -685,8 +698,8 @@ void render_tex(World &world, const DrawBuffers &dbuf)
 
 void run()
 {
-    int screenW = 2000;
-    int screenH = 900;
+    int screenW = 3800;
+    int screenH = 1000;
     int panelW = 400; // screenW * .23;
     int texW = screenW - panelW;
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
@@ -714,8 +727,8 @@ void run()
     DrawBuffers dbuf;
     World world;
 
-    SetWindowMonitor(1);
     InitWindow(wcfg.screen_width, wcfg.screen_height, "Particles");
+    // SetWindowMonitor(0);
     SetTargetFPS(60);
     rlImGuiSetup(true);
 
