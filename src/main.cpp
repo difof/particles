@@ -13,6 +13,49 @@
 #include <mutex>
 #include <atomic>
 
+// Choose at build: -DUSE_X86_SSE or -DUSE_ARM_NEON
+#if defined(USE_X86_SSE)
+#include <xmmintrin.h>
+#elif defined(USE_ARM_NEON)
+#include <arm_neon.h>
+#endif
+
+inline float rsqrt_nr_once(float x, float y0)
+{
+    // One Newton–Raphson refinement: y_{n+1} = y_n * (1.5 - 0.5*x*y_n^2)
+    return y0 * (1.5f - 0.5f * x * y0 * y0);
+}
+
+inline float rsqrt_fast(float x)
+{
+#if defined(USE_X86_SSE)
+    __m128 vx = _mm_set_ss(x);
+    __m128 y = _mm_rsqrt_ss(vx); // ~12-bit accurate
+    float y0 = _mm_cvtss_f32(y);
+    // One NR step → ~1e-4 relative error
+    return rsqrt_nr_once(x, y0);
+#elif defined(USE_ARM_NEON)
+    float32x2_t vx = vdup_n_f32(x);
+    float32x2_t y = vrsqrte_f32(vx); // initial approx
+    // One NR step using NEON recip-sqrt iterations
+    // y = y * (1.5 - 0.5*x*y*y)
+    float32x2_t y2 = vmul_f32(y, y);
+    float32x2_t halfx = vmul_n_f32(vx, 0.5f);
+    float32x2_t threehalves = vdup_n_f32(1.5f);
+    y = vmul_f32(y, vsub_f32(threehalves, vmul_f32(halfx, y2)));
+    return vget_lane_f32(y, 0);
+#else
+    // Scalar fallback: Quake-style bit hack + one NR step
+    // Good speedup on -O3; accurate enough for forces
+    float xhalf = 0.5f * x;
+    int i = *(int *)&x; // type-pun (OK on most compilers; or use std::bit_cast in C++20)
+    i = 0x5f3759df - (i >> 1);
+    float y = *(float *)&i;
+    y = y * (1.5f - xhalf * y * y); // one NR step
+    return y;
+#endif
+}
+
 struct UniformGrid
 {
     float cell = 64.f;      // side length of a cell (auto-picked)
@@ -76,22 +119,25 @@ struct SimConfig
 {
     float bounds_width, bounds_height;
 
-    // --- JS parameters ---
-    float time_scale = 1.0f;   // settings.time_scale
-    float viscosity = 0.0f;    // settings.viscosity  (0..1)
-    float gravity = 0.0f;      // settings.gravity    (adds to fy)
-    float wallRepel = 0.0f;    // settings.wallRepel  (margin d); 0 disables
-    float wallStrength = 0.1f; // strength constant used in JS
+    // Tunables (atomic -> UI writes are race-free)
+    std::atomic<float> time_scale{1.0f};   // settings.time_scale
+    std::atomic<float> viscosity{0.0f};    // 0..1
+    std::atomic<float> gravity{0.0f};      // adds to fy each step
+    std::atomic<float> wallRepel{0.0f};    // margin distance; 0 disables
+    std::atomic<float> wallStrength{0.1f}; // strength at the wall
 
-    // optional pulse (set to 0 to disable)
-    float pulse = 0.0f;
-    float pulse_x = 0.0f;
-    float pulse_y = 0.0f;
+    // Pulse (0 disables)
+    std::atomic<float> pulse{0.0f};
+    std::atomic<float> pulse_x{0.0f};
+    std::atomic<float> pulse_y{0.0f};
 
     std::atomic<bool> sim_running{true};
     std::atomic<int> target_tps{0};
     std::atomic<int> effective_tps{0};
     std::atomic<bool> interpolate{false};
+
+    // UI -> sim handoff for safe world reseed
+    std::atomic<bool> reset_requested{false};
 };
 
 struct Interaction
@@ -165,7 +211,25 @@ public:
         return g_colors.size() - 1;
     }
 
-    // TODO: group/interaction add/remove
+    void reset(bool shrink = false)
+    {
+        particles.clear();
+        groups.clear();
+        g_colors.clear();
+        p_group.clear();
+        rules.clear();
+        radii2.clear();
+
+        if (shrink)
+        {
+            std::vector<float>().swap(particles);
+            std::vector<int>().swap(groups);
+            std::vector<Color>().swap(g_colors);
+            std::vector<int>().swap(p_group);
+            std::vector<float>().swap(rules);
+            std::vector<float>().swap(radii2);
+        }
+    }
 
     Color *get_group_color(int g) { return &g_colors[g]; }
 
@@ -194,8 +258,9 @@ void render_ui(const WindowConfig &wcfg, World &world, SimConfig &scfg)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.);
     ImGui::Begin("main", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
-    ImGui::SetWindowPos(ImVec2{0., 0.}, ImGuiCond_Always);
-    ImGui::SetWindowSize(ImVec2{static_cast<float>(wcfg.panel_width), static_cast<float>(wcfg.screen_height)}, ImGuiCond_Always);
+    ImGui::SetWindowPos(ImVec2{0.f, 0.f}, ImGuiCond_Always);
+    ImGui::SetWindowSize(ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height}, ImGuiCond_Always);
+
     {
         ImGui::SeparatorText("Stats");
         ImGui::Text("FPS: %d", GetFPS());
@@ -211,20 +276,128 @@ void render_ui(const WindowConfig &wcfg, World &world, SimConfig &scfg)
         {
             ImGui::TextUnformatted("Particles per group:");
             for (int g = 0; g < G; ++g)
-            {
                 ImGui::BulletText("G%d: %d", g, world.get_group_size(g));
-            }
         }
 
         ImGui::SeparatorText("Sim Config");
+
+        // Target TPS
         int tps = scfg.target_tps.load(std::memory_order_relaxed);
-        if (ImGui::SliderInt("Target TPS", &tps, 0, 60, "%d", ImGuiSliderFlags_AlwaysClamp))
-        {
+        if (ImGui::SliderInt("Target TPS", &tps, 0, 240, "%d", ImGuiSliderFlags_AlwaysClamp))
             scfg.target_tps.store(tps, std::memory_order_relaxed);
+
+        // Interpolate (currently unused in draw, but exposed)
+        bool interpolate = scfg.interpolate.load(std::memory_order_relaxed);
+        if (ImGui::Checkbox("Interpolate", &interpolate))
+            scfg.interpolate.store(interpolate, std::memory_order_relaxed);
+
+        // Time scale
+        float time_scale = scfg.time_scale.load(std::memory_order_relaxed);
+        if (ImGui::SliderFloat("Time Scale", &time_scale, 0.01f, 2.0f, "%.3f", ImGuiSliderFlags_Logarithmic))
+            scfg.time_scale.store(time_scale, std::memory_order_relaxed);
+
+        // Viscosity
+        float viscosity = scfg.viscosity.load(std::memory_order_relaxed);
+        if (ImGui::SliderFloat("Viscosity", &viscosity, 0.0f, 1.0f, "%.3f"))
+            scfg.viscosity.store(viscosity, std::memory_order_relaxed);
+
+        // Gravity
+        float gravity = scfg.gravity.load(std::memory_order_relaxed);
+        if (ImGui::SliderFloat("Gravity", &gravity, -2.0f, 2.0f, "%.3f"))
+            scfg.gravity.store(gravity, std::memory_order_relaxed);
+
+        // Walls
+        float wallRepel = scfg.wallRepel.load(std::memory_order_relaxed);
+        if (ImGui::SliderFloat("Wall Repel (px)", &wallRepel, 0.0f, 200.0f, "%.1f"))
+            scfg.wallRepel.store(wallRepel, std::memory_order_relaxed);
+
+        float wallStrength = scfg.wallStrength.load(std::memory_order_relaxed);
+        if (ImGui::SliderFloat("Wall Strength", &wallStrength, 0.0f, 1.0f, "%.3f"))
+            scfg.wallStrength.store(wallStrength, std::memory_order_relaxed);
+
+        // Pulse
+        float pulse = scfg.pulse.load(std::memory_order_relaxed);
+        if (ImGui::SliderFloat("Pulse", &pulse, -2.0f, 2.0f, "%.3f"))
+            scfg.pulse.store(pulse, std::memory_order_relaxed);
+
+        // Pulse position (clamped to bounds)
+        float px = scfg.pulse_x.load(std::memory_order_relaxed);
+        float py = scfg.pulse_y.load(std::memory_order_relaxed);
+        if (ImGui::DragFloat2("Pulse Pos (x,y)", &px, 1.0f, 0.0f, 0.0f, "%.0f"))
+        {
+            px = std::clamp(px, 0.0f, scfg.bounds_width);
+            py = std::clamp(py, 0.0f, scfg.bounds_height);
+            scfg.pulse_x.store(px, std::memory_order_relaxed);
+            scfg.pulse_y.store(py, std::memory_order_relaxed);
         }
+
+        // Safe reset/reseed (handled by sim thread)
+        if (ImGui::Button("Reset world"))
+            scfg.reset_requested.store(true, std::memory_order_release);
     }
+
     ImGui::End();
     ImGui::PopStyleVar();
+}
+
+// simple seeding
+static void seed_world(World &world, const SimConfig &scfg)
+{
+    world.reset(false);
+
+    std::mt19937 rng{std::random_device{}()};
+    std::uniform_real_distribution<float> rx(0.f, scfg.bounds_width);
+    std::uniform_real_distribution<float> ry(0.f, scfg.bounds_height);
+
+    int sz = 1500;
+    const int gG = world.add_group(sz, GREEN);
+    const int gR = world.add_group(sz, RED);
+    const int gO = world.add_group(sz, ORANGE);
+    const int gB = world.add_group(sz, BLUE);
+
+    // positions/velocities
+    const int N = world.get_particles_size();
+    for (int i = 0; i < N; ++i)
+    {
+        world.set_px(i, rx(rng));
+        world.set_py(i, ry(rng));
+        world.set_vx(i, 0.f);
+        world.set_vy(i, 0.f);
+    }
+
+    // finalize per-particle group vector
+    world.finalize_groups();
+
+    // Rules matrix + radii² (example values matching your old signs/mags)
+    const int G = world.get_groups_size();
+    world.init_rule_tables(G);
+
+    // set per-source radii² (JS uses settings.radii2Array[a.group])
+    auto r = 100.f; // pick per-group if you like
+    world.set_r2(gG, r * r);
+    world.set_r2(gR, r * r);
+    world.set_r2(gO, r * r);
+    world.set_r2(gB, r * r);
+
+    world.set_rule(gG, gG, +0.9261392140761018);
+    world.set_rule(gG, gR, -0.8341653244569898);
+    world.set_rule(gG, gO, +0.2809289274737239);
+    world.set_rule(gG, gB, -0.0642730798572301);
+
+    world.set_rule(gR, gG, -0.4617096465080976);
+    world.set_rule(gR, gR, +0.4914243463426828);
+    world.set_rule(gR, gO, +0.2760726027190685);
+    world.set_rule(gR, gB, +0.6413487386889756);
+
+    world.set_rule(gO, gG, -0.7874764292500913);
+    world.set_rule(gO, gR, +0.2337338547222316);
+    world.set_rule(gO, gO, -0.0241123312152922);
+    world.set_rule(gO, gB, -0.7487592226825655);
+
+    world.set_rule(gB, gG, +0.5655814143829048);
+    world.set_rule(gB, gR, +0.9484694371931255);
+    world.set_rule(gB, gO, -0.3605288732796907);
+    world.set_rule(gB, gB, +0.4411409106105566);
 }
 
 void simulate_once(World &world, SimConfig &scfg)
@@ -233,11 +406,20 @@ void simulate_once(World &world, SimConfig &scfg)
     if (N == 0)
         return;
 
+    // snapshot config (avoid repeated atomic loads)
+    const float k_time_scale = scfg.time_scale.load(std::memory_order_relaxed);
+    const float k_viscosity = scfg.viscosity.load(std::memory_order_relaxed);
+    const float k_gravity = scfg.gravity.load(std::memory_order_relaxed);
+    const float k_wallRepel = scfg.wallRepel.load(std::memory_order_relaxed);
+    const float k_wallStrength = scfg.wallStrength.load(std::memory_order_relaxed);
+    const float k_pulse = scfg.pulse.load(std::memory_order_relaxed);
+    const float k_pulse_x = scfg.pulse_x.load(std::memory_order_relaxed);
+    const float k_pulse_y = scfg.pulse_y.load(std::memory_order_relaxed);
+
     static thread_local std::vector<float> fx, fy;
     fx.assign(N, 0.0f);
     fy.assign(N, 0.0f);
 
-    // --- Build uniform grid for this step (cell = max interact radius) ---
     float maxR = world.max_interaction_radius();
     maxR = std::max(1.0f, maxR);
 
@@ -251,14 +433,12 @@ void simulate_once(World &world, SimConfig &scfg)
         { return world.get_py(i); },
         scfg.bounds_width, scfg.bounds_height);
 
-    // For quick coord reads of neighbors
-    const float *P = world.raw().data(); // [px,py,vx,vy] per particle
+    const float *P = world.raw().data();
     const float invCell = 1.0f / grid.cell;
-    static const int OFFS[9][2] = {
-        {-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {0, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}};
+    static const int OFFS[9][2] = {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {0, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}};
     constexpr float EPS = 1e-12f;
 
-    // === 1) accumulate forces (grid 3×3) ===
+    // accumulate forces
     for (int i = 0; i < N; ++i)
     {
         const float ax = P[i * 4 + 0];
@@ -267,14 +447,12 @@ void simulate_once(World &world, SimConfig &scfg)
         const float r2 = world.r2_of(gi);
         if (r2 <= 0.f)
         {
-            fx[i] = 0.f;
-            fy[i] = 0.f;
+            fx[i] = fy[i] = 0.f;
             continue;
         }
 
         float sumx = 0.f, sumy = 0.f;
 
-        // Cell index (positions are inside [0..W/H] due to bounce; clamp top edge)
         int cx = (int)(ax * invCell);
         int cy = (int)(ay * invCell);
         if (cx >= grid.cols)
@@ -282,10 +460,8 @@ void simulate_once(World &world, SimConfig &scfg)
         if (cy >= grid.rows)
             cy = grid.rows - 1;
 
-        // Fetch row once: rules[gi][*]
         const float *__restrict row = world.rules_row(gi);
 
-        // Scan 3×3 neighbor cells
         for (int k = 0; k < 9; ++k)
         {
             const int nci = grid.cellIndex(cx + OFFS[k][0], cy + OFFS[k][1]);
@@ -299,7 +475,6 @@ void simulate_once(World &world, SimConfig &scfg)
 
                 const float bx = P[j * 4 + 0];
                 const float by = P[j * 4 + 1];
-
                 const float dx = ax - bx;
                 const float dy = ay - by;
                 const float d2 = dx * dx + dy * dy;
@@ -308,7 +483,9 @@ void simulate_once(World &world, SimConfig &scfg)
                 {
                     const int gj = world.group_of(j);
                     const float g = row[gj];
-                    const float invd = 1.0f / std::sqrt(std::max(d2, EPS)); // safe and stable
+                    // const float invd = 1.0f / std::sqrt(std::max(d2, EPS));
+                    const float invd = rsqrt_fast(std::max(d2, EPS));
+
                     const float F = g * invd;
                     sumx += F * dx;
                     sumy += F * dy;
@@ -316,54 +493,56 @@ void simulate_once(World &world, SimConfig &scfg)
             }
         }
 
-        // Pulse (same stability guard)
-        if (scfg.pulse != 0.f)
+        // Pulse
+        if (k_pulse != 0.f)
         {
-            const float dx = ax - scfg.pulse_x;
-            const float dy = ay - scfg.pulse_y;
+            const float dx = ax - k_pulse_x;
+            const float dy = ay - k_pulse_y;
             const float d2 = dx * dx + dy * dy;
             if (d2 > 0.f)
             {
-                const float invd = 1.0f / std::sqrt(std::max(d2, EPS));
-                const float Fp = (100.f * scfg.pulse * invd) / scfg.time_scale; // 100*pulse/(d*time_scale)
+                // const float invd = 1.0f / std::sqrt(std::max(d2, EPS));
+                const float invd = rsqrt_fast(std::max(d2, EPS));
+
+                const float Fp = (100.f * k_pulse * invd) / k_time_scale;
                 sumx += Fp * dx;
                 sumy += Fp * dy;
             }
         }
 
-        // Wall repel (unchanged)
-        if (scfg.wallRepel > 0.f)
+        // Walls
+        if (k_wallRepel > 0.f)
         {
-            const float d = scfg.wallRepel;
-            const float strength = scfg.wallStrength;
+            const float d = k_wallRepel;
+            const float s = k_wallStrength;
             if (ax < d)
-                sumx += (d - ax) * strength;
+                sumx += (d - ax) * s;
             if (ax > scfg.bounds_width - d)
-                sumx += (scfg.bounds_width - d - ax) * strength;
+                sumx += (scfg.bounds_width - d - ax) * s;
             if (ay < d)
-                sumy += (d - ay) * strength;
+                sumy += (d - ay) * s;
             if (ay > scfg.bounds_height - d)
-                sumy += (scfg.bounds_height - d - ay) * strength;
+                sumy += (scfg.bounds_height - d - ay) * s;
         }
 
         // Gravity
-        sumy += scfg.gravity;
+        sumy += k_gravity;
 
         fx[i] = sumx;
         fy[i] = sumy;
     }
 
-    // === 2) velocity update (unchanged) ===
-    const float vmix = (1.0f - scfg.viscosity);
+    // velocity update
+    const float vmix = (1.0f - k_viscosity);
     for (int i = 0; i < N; ++i)
     {
-        const float vx = world.get_vx(i) * vmix + fx[i] * scfg.time_scale;
-        const float vy = world.get_vy(i) * vmix + fy[i] * scfg.time_scale;
+        const float vx = world.get_vx(i) * vmix + fx[i] * k_time_scale;
+        const float vy = world.get_vy(i) * vmix + fy[i] * k_time_scale;
         world.set_vx(i, vx);
         world.set_vy(i, vy);
     }
 
-    // === 3) position update + mirror bounce (unchanged) ===
+    // position update (unchanged)
     const float W = scfg.bounds_width;
     const float H = scfg.bounds_height;
     for (int i = 0; i < N; ++i)
@@ -411,13 +590,26 @@ void simulation_thread_func(World &world, SimConfig &scfg, DrawBuffers &dbuf)
     int window_steps = 0;
 
     // ensure buffers sized
-    const int N = world.get_particles_size();
-    dbuf.pos[0].assign(N * 2, 0.f);
-    dbuf.pos[1].assign(N * 2, 0.f);
+    const int N0 = world.get_particles_size();
+    dbuf.pos[0].assign(N0 * 2, 0.f);
+    dbuf.pos[1].assign(N0 * 2, 0.f);
     dbuf.front.store(0, std::memory_order_relaxed);
 
     while (scfg.sim_running.load(std::memory_order_relaxed))
     {
+        // --- apply reset request (UI -> sim) ---
+        if (scfg.reset_requested.load(std::memory_order_acquire))
+        {
+            seed_world(world, scfg); // mutate world only on sim thread
+
+            const int N = world.get_particles_size();
+            dbuf.pos[0].assign(N * 2, 0.f);
+            dbuf.pos[1].assign(N * 2, 0.f);
+            dbuf.front.store(0, std::memory_order_release);
+
+            scfg.reset_requested.store(false, std::memory_order_release);
+        }
+
         const int tps = scfg.target_tps.load(std::memory_order_relaxed);
 
         simulate_once(world, scfg);
@@ -425,19 +617,18 @@ void simulation_thread_func(World &world, SimConfig &scfg, DrawBuffers &dbuf)
 
         // fill back buffer
         int back = 1 - dbuf.front.load(std::memory_order_relaxed);
-        if ((int)dbuf.pos[back].size() != world.get_particles_size() * 2)
-        {
-            dbuf.pos[back].assign(world.get_particles_size() * 2, 0.f);
-        }
-        for (int i = 0, n = world.get_particles_size(); i < n; ++i)
+        const int N = world.get_particles_size();
+        if ((int)dbuf.pos[back].size() != N * 2)
+            dbuf.pos[back].assign(N * 2, 0.f);
+
+        for (int i = 0; i < N; ++i)
         {
             dbuf.pos[back][i * 2 + 0] = world.get_px(i);
             dbuf.pos[back][i * 2 + 1] = world.get_py(i);
         }
-        // publish
         dbuf.front.store(back, std::memory_order_release);
 
-        // update effective TPS once per second window
+        // effective TPS
         auto now = clock::now();
         if (now - window_start >= 1s)
         {
@@ -449,22 +640,16 @@ void simulation_thread_func(World &world, SimConfig &scfg, DrawBuffers &dbuf)
             window_start = now;
         }
 
-        // unlimited mode: no sleep
         if (tps <= 0)
-            continue;
+            continue; // unlimited
 
-        // schedule next tick and sleep
         const nanoseconds step = nanoseconds(1'000'000'000LL / tps);
         next += step;
         now = clock::now();
         if (next > now)
-        {
             std::this_thread::sleep_until(next);
-        }
         else
-        {
             next = now; // drop drift
-        }
     }
 }
 
@@ -498,64 +683,6 @@ void render_tex(World &world, const DrawBuffers &dbuf)
     }
 }
 
-// simple seeding
-static void seed_world(World &world, const SimConfig &scfg)
-{
-    std::mt19937 rng{std::random_device{}()};
-    std::uniform_real_distribution<float> rx(0.f, scfg.bounds_width);
-    std::uniform_real_distribution<float> ry(0.f, scfg.bounds_height);
-
-    int sz = 1000;
-    const int gG = world.add_group(sz, GREEN);
-    const int gR = world.add_group(sz, RED);
-    const int gO = world.add_group(sz, ORANGE);
-    const int gB = world.add_group(sz, BLUE);
-
-    // positions/velocities
-    const int N = world.get_particles_size();
-    for (int i = 0; i < N; ++i)
-    {
-        world.set_px(i, rx(rng));
-        world.set_py(i, ry(rng));
-        world.set_vx(i, 0.f);
-        world.set_vy(i, 0.f);
-    }
-
-    // finalize per-particle group vector
-    world.finalize_groups();
-
-    // Rules matrix + radii² (example values matching your old signs/mags)
-    const int G = world.get_groups_size();
-    world.init_rule_tables(G);
-
-    // set per-source radii² (JS uses settings.radii2Array[a.group])
-    auto r = 80.f; // pick per-group if you like
-    world.set_r2(gG, r * r);
-    world.set_r2(gR, r * r);
-    world.set_r2(gO, r * r);
-    world.set_r2(gB, r * r);
-
-    world.set_rule(gG, gG, +0.9261392140761018);
-    world.set_rule(gG, gR, -0.8341653244569898);
-    world.set_rule(gG, gO, +0.2809289274737239);
-    world.set_rule(gG, gB, -0.0642730798572301);
-
-    world.set_rule(gR, gG, -0.4617096465080976);
-    world.set_rule(gR, gR, +0.4914243463426828);
-    world.set_rule(gR, gO, +0.2760726027190685);
-    world.set_rule(gR, gB, +0.6413487386889756);
-
-    world.set_rule(gO, gG, -0.7874764292500913);
-    world.set_rule(gO, gR, +0.2337338547222316);
-    world.set_rule(gO, gO, -0.0241123312152922);
-    world.set_rule(gO, gB, -0.7487592226825655);
-
-    world.set_rule(gB, gG, +0.5655814143829048);
-    world.set_rule(gB, gR, +0.9484694371931255);
-    world.set_rule(gB, gO, -0.3605288732796907);
-    world.set_rule(gB, gB, +0.4411409106105566);
-}
-
 void run()
 {
     int screenW = 2000;
@@ -566,22 +693,26 @@ void run()
 
     SimConfig scfg = {};
     {
-        scfg.bounds_width = static_cast<float>(wcfg.render_width);
-        scfg.bounds_height = static_cast<float>(wcfg.screen_height);
-        scfg.target_tps = 30;
-        scfg.interpolate = false;
+        scfg.bounds_width = (float)wcfg.render_width;
+        scfg.bounds_height = (float)wcfg.screen_height;
 
-        scfg.time_scale = 1.0f;
-        scfg.viscosity = 0.05f;   // try 0.0..0.2 like the JS UI
-        scfg.gravity = 0.0f;      // same default as JS unless you set it
-        scfg.wallRepel = 1.0f;    // set >0 to enable (pixels)
-        scfg.wallStrength = 0.1f; // JS constant
-        scfg.pulse = 0.0f;        // set to non-zero to match JS pulse feature
+        scfg.target_tps.store(0, std::memory_order_relaxed);
+        scfg.interpolate.store(false, std::memory_order_relaxed);
+
+        scfg.time_scale.store(1.0f, std::memory_order_relaxed);
+        scfg.viscosity.store(0.1f, std::memory_order_relaxed);
+        scfg.gravity.store(0.0f, std::memory_order_relaxed);
+        scfg.wallRepel.store(40.0f, std::memory_order_relaxed);
+        scfg.wallStrength.store(0.1f, std::memory_order_relaxed);
+        scfg.pulse.store(0.0f, std::memory_order_relaxed);
+        scfg.pulse_x.store(scfg.bounds_width * 0.5f, std::memory_order_relaxed);
+        scfg.pulse_y.store(scfg.bounds_height * 0.5f, std::memory_order_relaxed);
+
+        scfg.reset_requested.store(true);
     }
 
     DrawBuffers dbuf;
     World world;
-    seed_world(world, scfg);
 
     SetWindowMonitor(1);
     InitWindow(wcfg.screen_width, wcfg.screen_height, "Particles");
