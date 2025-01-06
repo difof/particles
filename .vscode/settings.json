@@ -1,4 +1,12 @@
 {
     "cmake.configureOnOpen": false,
     "dotnet.defaultSolution": "disable",
+    "files.associations": {
+        ".fantomasignore": "ignore",
+        "*.fs": "fsharp",
+        "*.fsproj": "xml",
+        "queue": "cpp",
+        "atomic": "cpp",
+        "condition_variable": "cpp"
+    },
 }
