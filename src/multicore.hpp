@@ -1,143 +1,87 @@
 #ifndef __MULTICORE_HPP
 #define __MULTICORE_HPP
 
-#include <vector>
-#include <thread>
+#include <algorithm>
+#include <concepts>
+#include <condition_variable>
+#include <functional>
+#include <latch>
 #include <mutex>
 #include <queue>
-#include <condition_variable>
+#include <thread>
+#include <vector>
 
-// Leave 1 core for render thread and 1 for OS
-inline int compute_sim_threads()
-{
-    unsigned hc = std::thread::hardware_concurrency();
-    if (hc <= 2)
-        return 1;
-    return int(hc) - 2;
-}
+using Job = std::function<void()>;
 
-struct Latch
-{
-    std::mutex m;
-    std::condition_variable cv;
-    int count = 0;
-    void add(int n)
-    {
-        std::lock_guard<std::mutex> lock(m);
-        count += n;
-    }
-    void count_down()
-    {
-        std::lock_guard<std::mutex> lock(m);
-        if (--count == 0)
-            cv.notify_all();
-    }
-    void wait()
-    {
-        std::unique_lock<std::mutex> lock(m);
-        cv.wait(lock, [&]
-                { return count == 0; });
-    }
+template <typename F>
+concept Kernel = requires(F f, int a, int b) {
+    { f(a, b) } -> std::same_as<void>;
 };
 
-class ThreadPool
-{
-public:
-    explicit ThreadPool(int threads = -1) { start(threads); }
-    ~ThreadPool() { stop(); }
-
-    void resize(int threads)
-    {
-        stop();
-        start(threads);
+// Leave 1 core for render thread and 1 for OS
+inline int compute_sim_threads() {
+    unsigned int num_threads = std::thread::hardware_concurrency();
+    if (num_threads <= 2) {
+        return 1;
     }
 
-    // enqueue a job
-    void enqueue(std::function<void()> f)
-    {
-        {
-            std::lock_guard<std::mutex> lock(q_m);
-            tasks.push(std::move(f));
-        }
-        q_cv.notify_one();
-    }
+    return int(num_threads) - 2;
+}
 
-    // parallel_for using this pool
-    template <typename F>
-    void parallel_for_n(int N, F fn)
-    {
-        if (N <= 0)
+class SimulationThreadPool {
+  public:
+    explicit SimulationThreadPool(int threads = -1);
+    ~SimulationThreadPool();
+
+    SimulationThreadPool(const SimulationThreadPool &) = delete;
+    SimulationThreadPool(SimulationThreadPool &&) = delete;
+    SimulationThreadPool &operator=(const SimulationThreadPool &) = delete;
+    SimulationThreadPool &operator=(SimulationThreadPool &&) = delete;
+
+    void resize(int threads);
+
+    template <Kernel F>
+    void parallel_for_n(int n_items, F fn) {
+        if (n_items <= 0)
             return;
-        int T = std::max(1, (int)workers.size());
-        if (T == 1 || N < 1024)
-        {
-            fn(0, N);
+
+        int num_threads = std::max(1, static_cast<int>(m_workers.size()));
+        if (num_threads == 1 || n_items < 1024) {
+            fn(0, n_items);
             return;
         }
 
-        int block = (N + T - 1) / T;
-        int jobs = (N + block - 1) / block;
-        Latch latch;
-        latch.add(jobs);
+        int block = (n_items + num_threads - 1) / num_threads;
+        int jobs = (n_items + block - 1) / block;
+        std::latch job_latch(jobs);
 
-        for (int t = 0; t < jobs; ++t)
-        {
-            int s = t * block;
-            int e = std::min(N, s + block);
-            enqueue([s, e, &fn, &latch]()
-                    {
-                fn(s,e);
-                latch.count_down(); });
+        for (int thread = 0; thread < jobs; ++thread) {
+            int start = thread * block;
+            int end_exclusive = std::min(n_items, start + block);
+
+            enqueue([start, end_exclusive, &fn, &job_latch] {
+                fn(start, end_exclusive);
+                job_latch.count_down();
+            });
         }
-        latch.wait();
+
+        job_latch.wait();
     }
 
-private:
-    std::vector<std::thread> workers;
-    std::mutex q_m;
-    std::condition_variable q_cv;
-    std::queue<std::function<void()>> tasks;
-    bool stopping = false;
+  private:
+    void start(
+        int threads); // Throws std::logic_error if called while already started
+    void stop();      // Throws std::logic_error if called when not started
 
-    void start(int threads)
-    {
-        int T = threads <= 0 ? compute_sim_threads() : threads;
-        T = std::max(1, T);
-        stopping = false;
-        workers.reserve(T);
-        for (int i = 0; i < T; ++i)
-        {
-            workers.emplace_back([this]()
-                                 {
-                for (;;) {
-                    std::function<void()> job;
-                    {
-                        std::unique_lock<std::mutex> lock(q_m);
-                        q_cv.wait(lock, [this]{ return stopping || !tasks.empty(); });
-                        if (stopping && tasks.empty()) return;
-                        job = std::move(tasks.front());
-                        tasks.pop();
-                    }
-                    job();
-                } });
-        }
-    }
+    void enqueue(Job f);
+    void worker_thread();
 
-    void stop()
-    {
-        {
-            std::lock_guard<std::mutex> lock(q_m);
-            stopping = true;
-        }
-        q_cv.notify_all();
-        for (auto &t : workers)
-            if (t.joinable())
-                t.join();
-        workers.clear();
-        // drain any leftover (should be none)
-        std::queue<std::function<void()>> empty;
-        std::swap(tasks, empty);
-    }
+  private:
+    std::vector<std::thread> m_workers;
+    std::mutex m_tasks_mutex;
+    std::condition_variable m_tasks_signal;
+    std::queue<Job> m_tasks;
+    bool m_stopping = false;
 };
 
 #endif
