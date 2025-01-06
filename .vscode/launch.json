@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug",
+            "name": "Debug Particles",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/Debug/particles",
@@ -11,14 +11,7 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
-            "MIMode": "lldb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "type synthetic add --python-class gdbprinter.DebuggerPrinter",
-                    "ignoreFailures": true
-                }
-            ],
+            "MIMode": "lldb", // Use "gdb" if on Linux
             "preLaunchTask": "build-debug"
         }
     ]

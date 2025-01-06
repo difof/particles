@@ -4,19 +4,16 @@
         {
             "label": "build-debug",
             "type": "shell",
-            "command": "premake gmake2 && make -C build -j8 particles config=debug",
+            "command": "task build-debug",
             "group": {
                 "kind": "build",
                 "isDefault": true
-            }
-        },
-        {
-            "label": "test-script",
-            "type": "shell",
-            "command": "premake gmake2 && make test_script && bin/tests/Debug/test_script",
-            "group": {
-                "kind": "test",
-                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always"
             }
         }
     ]
