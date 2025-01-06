@@ -14,8 +14,8 @@ tasks:
       - build/*.make
     cmd: premake gmake2
 
-  build:
-    desc: Build project
+  build-debug:
+    desc: Build project (Debug)
     sources:
       - build/Makefile
       - build/*.make
@@ -32,20 +32,24 @@ tasks:
       - build/*.make
     generates:
       - build/obj/*.o
+    aliases:
+      - build
     deps:
       - premake
     cmd: make -C build config=release -j4 particles
 
-  run:
+  run-debug:
     desc: Run project
     deps:
-      - build
+      - build-debug
     cmd: build/bin/Debug/particles
 
   run-release:
     desc: Run project
     deps:
       - build-release
+    aliases:
+      - run
     cmd: build/bin/Release/particles
 
   clean:
