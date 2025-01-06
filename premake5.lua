@@ -103,10 +103,6 @@ project "extlib_raylib"
 project "particles"
     projectBase()
 
-    excludes {
-        "src/examples/raygui/*",
-    }
-
     linkFmt()
     linkTinydir()
     linkRaylib()
@@ -116,9 +112,11 @@ project "particles"
     filter "configurations:Debug"
         defines { "DEBUG" }
         symbols "On"
+        optimize "Off"
 
     filter "configurations:Release"
         defines { "NDEBUG" }
         optimize "On"
+        buildoptions { "-O3", "-ffast-math", "-fno-math-errno", "-fno-trapping-math" }
 
 unitTest "test_script"
