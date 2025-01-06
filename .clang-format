@@ -1,0 +1,7 @@
+# .clang-format
+BasedOnStyle: LLVM
+BreakBeforeBraces: Attach
+AllowShortLambdasOnASingleLine: None
+LambdaBodyIndentation: Signature
+IndentWidth: 4
+AlwaysBreakTemplateDeclarations: Yes
