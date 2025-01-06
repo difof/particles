@@ -53,7 +53,7 @@ local function projectBase()
     objdir "build/obj/%{cfg.buildcfg}"
 
     buildoptions { 
-        "-std=c++17",
+        "-std=c++20",
         "-Wno-deprecated-declarations",
         "-Wno-c++11-narrowing",
     }
