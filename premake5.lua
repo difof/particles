@@ -113,6 +113,8 @@ project "particles"
         defines { "DEBUG" }
         symbols "On"
         optimize "Off"
+        buildoptions { "-fsanitize=address,undefined", "-fno-omit-frame-pointer"}
+        linkoptions { "-fsanitize=address,undefined" }
 
     filter "configurations:Release"
         defines { "NDEBUG" }
