@@ -1,82 +1,89 @@
-#include <raylib.h>
 #include <imgui.h>
+#include <raylib.h>
 #include <rlImGui.h>
 
+#include "drawbuffer.hpp"
+#include "mailboxes.hpp"
 #include "math.hpp"
 #include "multicore.hpp"
-#include "uniformgrid.hpp"
-#include "world.hpp"
+#include "renderer.hpp"
+#include "simulation.hpp"
 #include "types.hpp"
 #include "ui.hpp"
-#include "simulation.hpp"
-#include "renderer.hpp"
+#include "uniformgrid.hpp"
+#include "world.hpp"
 
-void run()
-{
+void run() {
     InitWindow(1080, 800, "Particles");
+
     int monitor = GetCurrentMonitor();
-    int screenW = GetMonitorWidth(monitor);
-    int screenH = GetMonitorHeight(monitor) - 50;
+    int screenW = GetMonitorWidth(monitor) * .9;
+    int screenH = GetMonitorHeight(monitor) - 60;
     int panelW = 400; // screenW * .23;
     int texW = screenW - panelW;
+
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
 
-    SimConfig scfg = {};
+    SimulationConfigSnapshot scfg = {};
     {
         scfg.bounds_width = (float)wcfg.render_width;
         scfg.bounds_height = (float)wcfg.screen_height;
 
-        scfg.target_tps.store(0, std::memory_order_relaxed);
-        scfg.interpolate.store(false, std::memory_order_relaxed);
-        scfg.interp_delay_ms.store(16.0f, std::memory_order_relaxed);
-
-        scfg.time_scale.store(1.0f, std::memory_order_relaxed);
-        scfg.viscosity.store(0.1f, std::memory_order_relaxed);
-        scfg.gravity.store(0.0f, std::memory_order_relaxed);
-        scfg.wallRepel.store(40.0f, std::memory_order_relaxed);
-        scfg.wallStrength.store(0.1f, std::memory_order_relaxed);
-        scfg.pulse.store(0.0f, std::memory_order_relaxed);
-        scfg.pulse_x.store(scfg.bounds_width * 0.5f, std::memory_order_relaxed);
-        scfg.pulse_y.store(scfg.bounds_height * 0.5f, std::memory_order_relaxed);
-
-        scfg.sim_threads.store(-1, std::memory_order_relaxed); // Auto
-        scfg.reset_requested.store(true);
+        scfg.target_tps = 0;
+        scfg.interpolate = true;
+        scfg.interp_delay_ms = 50.0f;
+        scfg.time_scale = 1.0f;
+        scfg.viscosity = 0.1f;
+        scfg.wallRepel = 40.0f;
+        scfg.wallStrength = 0.1f;
+        scfg.sim_threads = 1;
     }
 
-    DrawBuffers dbuf;
+    SimulationConfigBuffer scfgb;
+    scfgb.publish(scfg);
+
+    DrawBuffer dbuf;
     World world;
+    StatsBuffer statsb;
+    CommandQueue cmdq;
 
     // InitWindow(wcfg.screen_width, wcfg.screen_height, "Particles");
     SetWindowSize(wcfg.screen_width, wcfg.screen_height);
     SetWindowPosition(0, 0);
-    SetWindowMonitor(GetCurrentMonitor());
+    SetWindowMonitor(1);
     SetTargetFPS(60);
     rlImGuiSetup(true);
 
-    RenderTexture2D tex = LoadRenderTexture(wcfg.render_width, wcfg.screen_height);
+    RenderTexture2D tex =
+        LoadRenderTexture(wcfg.render_width, wcfg.screen_height);
 
-    std::thread sim_thread(simulation_thread_func, std::ref(world), std::ref(scfg), std::ref(dbuf));
+    std::thread sim_thread(simulation_thread_func, std::ref(world),
+                           std::ref(scfgb), std::ref(dbuf), std::ref(cmdq),
+                           std::ref(statsb));
 
-    while (!WindowShouldClose())
-    {
+    while (!WindowShouldClose()) {
         BeginTextureMode(tex);
-        render_tex(world, dbuf, scfg);
+        render_tex(world, dbuf, scfgb);
         EndTextureMode();
 
         BeginDrawing();
         ClearBackground(BLACK);
 
-        // render texture must be y-flipped due to default OpenGL coordinates (left-bottom)
-        DrawTextureRec(tex.texture, (Rectangle){0, 0, (float)tex.texture.width, (float)-tex.texture.height}, (Vector2){wcfg.panel_width, 0}, WHITE);
+        // render texture must be y-flipped due to default OpenGL coordinates
+        // (left-bottom)
+        DrawTextureRec(tex.texture,
+                       (Rectangle){0, 0, (float)tex.texture.width,
+                                   (float)-tex.texture.height},
+                       (Vector2){wcfg.panel_width, 0}, WHITE);
 
         rlImGuiBegin();
-        render_ui(wcfg, world, scfg);
+        render_ui(wcfg, world, scfgb, statsb, cmdq);
         rlImGuiEnd();
 
         EndDrawing();
     }
 
-    scfg.sim_running.store(false, std::memory_order_relaxed);
+    cmdq.push({SimCommand::Kind::Quit});
     sim_thread.join();
 
     rlImGuiShutdown();
@@ -84,8 +91,7 @@ void run()
     CloseWindow();
 }
 
-int main()
-{
+int main() {
     run();
     return 0;
 }

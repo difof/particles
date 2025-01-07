@@ -1,130 +1,106 @@
 #ifndef __UI_HPP
 #define __UI_HPP
 
-#include <raylib.h>
 #include <imgui.h>
 #include <mutex>
+#include <raylib.h>
 #include <thread>
 
+#include "mailboxes.hpp"
 #include "multicore.hpp"
-#include "world.hpp"
 #include "types.hpp"
+#include "world.hpp"
 
-void render_ui(const WindowConfig &wcfg, World &world, SimConfig &scfg)
-{
+void render_ui(const WindowConfig &wcfg, World &world,
+               SimulationConfigBuffer &scfgb, StatsBuffer &statsb,
+               CommandQueue &cmdq) {
+
+    SimulationConfigSnapshot scfg = scfgb.acquire();
+    SimStatsSnapshot stats = statsb.acquire();
+
+    bool scfg_updated = false;
+    auto check_scfg_update = [&scfg_updated](bool s) {
+        if (s) {
+            scfg_updated = true;
+        }
+    };
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.);
-    ImGui::Begin("main", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
+    ImGui::Begin("main", NULL,
+                 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDecoration |
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_NoTitleBar);
     ImGui::SetWindowPos(ImVec2{0.f, 0.f}, ImGuiCond_Always);
-    ImGui::SetWindowSize(ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height}, ImGuiCond_Always);
+    ImGui::SetWindowSize(
+        ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height},
+        ImGuiCond_Always);
 
     {
         ImGui::SeparatorText("Stats");
-        ImGui::Text("FPS: %d", GetFPS());
-        ImGui::SameLine();
-        ImGui::Text("TPS: %d", scfg.effective_tps.load(std::memory_order_relaxed));
-        ImGui::Text("Sim Bounds: %.0f x %.0f", scfg.bounds_width, scfg.bounds_height);
-
-        const int G = world.get_groups_size();
-        const int N = world.get_particles_size();
-        ImGui::Text("Num particles: %d", N);
-        ImGui::Text("Num groups: %d", G);
-        if (G > 0)
         {
-            ImGui::TextUnformatted("Particles per group:");
-            for (int g = 0; g < G; ++g)
-                ImGui::BulletText("G%d: %d", g, world.get_group_size(g));
+            ImGui::Text("FPS: %d", GetFPS());
+            ImGui::SameLine();
+            ImGui::Text("TPS: %d", stats.effective_tps);
+            ImGui::Text("Last step: %.3f ms", stats.last_step_ns / 1e6);
+            ImGui::Text("Particles: %d  Groups: %d  Threads: %d",
+                        stats.particles, stats.groups, stats.sim_threads);
+            ImGui::Text("Sim Bounds: %.0f x %.0f", scfg.bounds_width,
+                        scfg.bounds_height);
+
+            ImGui::SeparatorText("Controls");
+            if (ImGui::Button("Reset world")) {
+                cmdq.push({SimCommand::Kind::ResetWorld});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Quit sim")) {
+                cmdq.push({SimCommand::Kind::Quit});
+            }
         }
 
         ImGui::SeparatorText("Sim Config");
-
-        // Target TPS
-        int tps = scfg.target_tps.load(std::memory_order_relaxed);
-        if (ImGui::SliderInt("Target TPS", &tps, 0, 240, "%d", ImGuiSliderFlags_AlwaysClamp))
-            scfg.target_tps.store(tps, std::memory_order_relaxed);
-
-        // Interpolate (based on render framerate; uses last two sim snapshots)
-        bool interpolate = scfg.interpolate.load(std::memory_order_relaxed);
-        if (ImGui::Checkbox("Interpolate", &interpolate))
-            scfg.interpolate.store(interpolate, std::memory_order_relaxed);
-
-        // Only show delay slider if interpolation is on
-        if (interpolate)
         {
-            float delay_ms = scfg.interp_delay_ms.load(std::memory_order_relaxed);
-            if (ImGui::SliderFloat("Interp delay (ms)", &delay_ms, 0.0f, 50.0f, "%.1f"))
-            {
-                scfg.interp_delay_ms.store(delay_ms, std::memory_order_relaxed);
+            check_scfg_update(ImGui::SliderInt("Target TPS", &scfg.target_tps,
+                                               0, 240, "%d",
+                                               ImGuiSliderFlags_AlwaysClamp));
+            check_scfg_update(
+                ImGui::Checkbox("Interpolate", &scfg.interpolate));
+            if (scfg.interpolate) {
+                check_scfg_update(ImGui::SliderFloat("Interp delay (ms)",
+                                                     &scfg.interp_delay_ms,
+                                                     0.0f, 50.0f, "%.1f"));
             }
+            check_scfg_update(ImGui::SliderFloat("Time Scale", &scfg.time_scale,
+                                                 0.01f, 2.0f, "%.3f",
+                                                 ImGuiSliderFlags_Logarithmic));
+            check_scfg_update(ImGui::SliderFloat("Viscosity", &scfg.viscosity,
+                                                 0.0f, 1.0f, "%.3f"));
+            check_scfg_update(ImGui::SliderFloat(
+                "Wall Repel (px)", &scfg.wallRepel, 0.0f, 200.0f, "%.1f"));
+            check_scfg_update(ImGui::SliderFloat(
+                "Wall Strength", &scfg.wallStrength, 0.0f, 1.0f, "%.3f"));
         }
-
-        // Time scale
-        float time_scale = scfg.time_scale.load(std::memory_order_relaxed);
-        if (ImGui::SliderFloat("Time Scale", &time_scale, 0.01f, 2.0f, "%.3f", ImGuiSliderFlags_Logarithmic))
-            scfg.time_scale.store(time_scale, std::memory_order_relaxed);
-
-        // Viscosity
-        float viscosity = scfg.viscosity.load(std::memory_order_relaxed);
-        if (ImGui::SliderFloat("Viscosity", &viscosity, 0.0f, 1.0f, "%.3f"))
-            scfg.viscosity.store(viscosity, std::memory_order_relaxed);
-
-        // Gravity
-        float gravity = scfg.gravity.load(std::memory_order_relaxed);
-        if (ImGui::SliderFloat("Gravity", &gravity, -2.0f, 2.0f, "%.3f"))
-            scfg.gravity.store(gravity, std::memory_order_relaxed);
-
-        // Walls
-        float wallRepel = scfg.wallRepel.load(std::memory_order_relaxed);
-        if (ImGui::SliderFloat("Wall Repel (px)", &wallRepel, 0.0f, 200.0f, "%.1f"))
-            scfg.wallRepel.store(wallRepel, std::memory_order_relaxed);
-
-        float wallStrength = scfg.wallStrength.load(std::memory_order_relaxed);
-        if (ImGui::SliderFloat("Wall Strength", &wallStrength, 0.0f, 1.0f, "%.3f"))
-            scfg.wallStrength.store(wallStrength, std::memory_order_relaxed);
-
-        // Pulse
-        float pulse = scfg.pulse.load(std::memory_order_relaxed);
-        if (ImGui::SliderFloat("Pulse", &pulse, -2.0f, 2.0f, "%.3f"))
-            scfg.pulse.store(pulse, std::memory_order_relaxed);
-
-        // Pulse position (clamped to bounds)
-        float px = scfg.pulse_x.load(std::memory_order_relaxed);
-        float py = scfg.pulse_y.load(std::memory_order_relaxed);
-        if (ImGui::DragFloat2("Pulse Pos (x,y)", &px, 1.0f, 0.0f, 0.0f, "%.0f"))
-        {
-            px = std::clamp(px, 0.0f, scfg.bounds_width);
-            py = std::clamp(py, 0.0f, scfg.bounds_height);
-            scfg.pulse_x.store(px, std::memory_order_relaxed);
-            scfg.pulse_y.store(py, std::memory_order_relaxed);
-        }
-
-        // Safe reset/reseed (handled by sim thread)
-        if (ImGui::Button("Reset world"))
-            scfg.reset_requested.store(true, std::memory_order_release);
 
         { // MULTICORE
             unsigned hc = std::thread::hardware_concurrency();
-            int max_threads = std::max(1, (int)hc - 2); // keep 2 free: render + OS
-            int sim_thr = scfg.sim_threads.load(std::memory_order_relaxed);
+            int max_threads =
+                std::max(1, (int)hc - 2); // keep 2 free: render + OS
 
             ImGui::SeparatorText("Parallelism");
             ImGui::Text("HW threads: %u", hc ? hc : 1);
-            bool auto_mode = (sim_thr <= 0);
-            if (ImGui::Checkbox("Auto (HW-2)", &auto_mode))
-            {
-                scfg.sim_threads.store(auto_mode ? -1 : std::min(2, max_threads), std::memory_order_relaxed);
+            bool auto_mode = (scfg.sim_threads <= 0);
+            if (ImGui::Checkbox("Auto (HW-2)", &auto_mode)) {
+                scfg.sim_threads = auto_mode ? -1 : std::min(1, max_threads);
+                check_scfg_update(true);
             }
-            if (!auto_mode)
-            {
-                if (ImGui::SliderInt("Sim threads", &sim_thr, 1, max_threads, "%d", ImGuiSliderFlags_AlwaysClamp))
-                {
-                    scfg.sim_threads.store(sim_thr, std::memory_order_relaxed);
-                }
-            }
-            else
-            {
+            if (!auto_mode) {
+                check_scfg_update(ImGui::SliderInt(
+                    "Sim threads", &scfg.sim_threads, 1, max_threads, "%d",
+                    ImGuiSliderFlags_AlwaysClamp));
+            } else {
                 ImGui::BeginDisabled();
                 int auto_val = std::max(1, (int)compute_sim_threads());
-                ImGui::SliderInt("Sim threads", &auto_val, 1, max_threads, "%d");
+                ImGui::SliderInt("Sim threads", &auto_val, 1, max_threads,
+                                 "%d");
                 ImGui::EndDisabled();
             }
         }
@@ -132,6 +108,10 @@ void render_ui(const WindowConfig &wcfg, World &world, SimConfig &scfg)
 
     ImGui::End();
     ImGui::PopStyleVar();
+
+    if (scfg_updated) {
+        scfgb.publish(scfg);
+    }
 }
 
 #endif
