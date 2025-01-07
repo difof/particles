@@ -2,6 +2,7 @@
 #define __UNIFORM_GRID_HPP
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <vector>
@@ -49,22 +50,39 @@ class UniformGrid {
                       float height) {
         // assume resize already called for current N and bounds
         std::fill(m_head.begin(), m_head.end(), -1);
-        if ((int)m_next.size() != count) {
+        if ((int)m_next.size() != count)
             m_next.assign(count, -1);
-        }
+
+        // Debug sanity (helps catch mismatched resize/build)
+#ifndef NDEBUG
+        assert(m_cols > 0 && m_rows > 0);
+        assert((int)m_head.size() == m_cols * m_rows);
+        assert((int)m_next.size() == count);
+#endif
+
+        // Precompute safe upper bounds for integer clamp
+        const int max_cx = m_cols - 1;
+        const int max_cy = m_rows - 1;
+        const float inv_cell = 1.0f / m_cell;
 
         for (int i = 0; i < count; ++i) {
             float x = getx(i);
             float y = gety(i);
 
-            // Clamp to [0, W/H) so indices are valid (positions bounce into
-            // range)
-            x = std::min(std::max(0.0f, x), std::nextafter(width, 0.0f));
-            y = std::min(std::max(0.0f, y), std::nextafter(height, 0.0f));
+            // Handle NaNs/infs robustly
+            if (!std::isfinite(x) || !std::isfinite(y)) {
+                // Either skip or clamp to something valid. Clamping to 0 is
+                // safe:
+                x = 0.0f;
+                y = 0.0f;
+            }
 
-            int cx = (int)std::floor(x / m_cell);
-            int cy = (int)std::floor(y / m_cell);
-            int ci = cellIndex(cx, cy);
+            // Compute integer cell indices and CLAMP THE INDICES
+            int cx = (int)std::floor(x * inv_cell);
+            int cy = (int)std::floor(y * inv_cell);
+            cx = std::clamp(cx, 0, max_cx);
+            cy = std::clamp(cy, 0, max_cy);
+            const int ci = cy * m_cols + cx;
 
             // push-front into list
             m_next[i] = m_head[ci];
