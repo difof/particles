@@ -8,8 +8,6 @@
 #include "simulation/world.hpp"
 #include "types.hpp"
 #include "ui.hpp"
-#include "uniformgrid.hpp"
-#include "world.hpp"
 
 void run() {
     InitWindow(1080, 800, "Particles");
