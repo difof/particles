@@ -3,11 +3,11 @@
 #include <rlImGui.h>
 
 #include "mailbox/mailbox.hpp"
-#include "renderer.hpp"
+#include "render/rendertarget.hpp"
+#include "render/ui.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
 #include "types.hpp"
-#include "ui.hpp"
 
 void run() {
     InitWindow(1080, 800, "Particles");

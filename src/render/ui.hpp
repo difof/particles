@@ -6,10 +6,10 @@
 #include <raylib.h>
 #include <thread>
 
-#include "mailbox/mailbox.hpp"
-#include "simulation/multicore.hpp"
-#include "simulation/world.hpp"
-#include "types.hpp"
+#include "../mailbox/mailbox.hpp"
+#include "../simulation/multicore.hpp"
+#include "../simulation/world.hpp"
+#include "../types.hpp"
 
 void render_ui(const WindowConfig &wcfg, World &world,
                mailbox::SimulationConfig &scfgb,

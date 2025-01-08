@@ -1,10 +1,10 @@
 #ifndef __RENDERER_HPP
 #define __RENDERER_HPP
 
-#include "mailbox/mailbox.hpp"
-#include "simulation/simulation.hpp"
-#include "simulation/world.hpp"
-#include "types.hpp"
+#include "../mailbox/mailbox.hpp"
+#include "../simulation/simulation.hpp"
+#include "../simulation/world.hpp"
+#include "../types.hpp"
 
 const float particle_size = 1.5f;
 
