@@ -312,16 +312,106 @@ void simulation_thread_func(World &world, SimulationConfigBuffer &scfgb,
             switch (c.kind) {
             case SimCommand::Kind::ResetWorld:
                 seed_world(world, scfg);
-                window_steps = 0; // reset tps window
+                window_steps = 0;
                 window_start = clock::now();
                 break;
+
+            case SimCommand::Kind::ApplyRules:
+                if (c.rules) {
+                    const int G = world.get_groups_size();
+                    const RulePatch &p = *c.rules;
+                    if (p.groups == G && p.hot) {
+                        // Hot apply: only change r2 and rule matrix
+                        for (int g = 0; g < G; ++g) {
+                            world.set_r2(g, p.r2[g]);
+                        }
+                        // rules row-major
+                        for (int i = 0; i < G; ++i) {
+                            const float *row = p.rules.data() + i * G;
+                            for (int j = 0; j < G; ++j) {
+                                world.set_rule(i, j, row[j]);
+                            }
+                        }
+                        // no reseed, keep positions/velocities
+                    } else {
+                        // Group count/order changed or explicit cold apply
+                        // requested Re-init rule tables and reseed (Assumes
+                        // groups already adjusted via Add/Remove commands
+                        // beforehand)
+                        const int Gnow = world.get_groups_size();
+                        world.init_rule_tables(Gnow);
+                        for (int g = 0; g < std::min(Gnow, p.groups); ++g) {
+                            world.set_r2(g, p.r2[g]);
+                        }
+                        for (int i = 0; i < std::min(Gnow, p.groups); ++i) {
+                            const float *row = p.rules.data() + i * p.groups;
+                            for (int j = 0; j < std::min(Gnow, p.groups); ++j) {
+                                world.set_rule(i, j, row[j]);
+                            }
+                        }
+                        seed_world(world, scfg); // positions reset (explicit)
+                        window_steps = 0;
+                        window_start = clock::now();
+                    }
+                }
+                break;
+
+            case SimCommand::Kind::AddGroup:
+                if (c.add_group) {
+                    const auto &ag = *c.add_group;
+                    world.add_group(ag.size, ag.color);
+                    world.finalize_groups(); // updates starts/ends
+                    world.init_rule_tables(world.get_groups_size());
+                    // default: zero rules; set radius for the new group index
+                    int gn = world.get_groups_size() - 1;
+                    world.set_r2(gn, ag.r2);
+                    // Seed new particles positions/velocities (simple random)
+                    // Reuse seed_world mechanics but keep existing ones:
+                    {
+                        std::mt19937 rng{std::random_device{}()};
+                        std::uniform_real_distribution<float> rx(
+                            0.f, scfg.bounds_width);
+                        std::uniform_real_distribution<float> ry(
+                            0.f, scfg.bounds_height);
+                        const int start = world.get_group_start(gn);
+                        const int end = world.get_group_end(gn);
+                        for (int i = start; i < end; ++i) {
+                            world.set_px(i, rx(rng));
+                            world.set_py(i, ry(rng));
+                            world.set_vx(i, 0.f);
+                            world.set_vy(i, 0.f);
+                        }
+                    }
+                }
+                break;
+
+            case SimCommand::Kind::RemoveGroup:
+                // TODO: add world.remove_group
+                // if (c.rem_group) {
+                //     int gi = c.rem_group->group_index;
+                //     const int G = world.get_groups_size();
+                //     if (gi >= 0 && gi < G) {
+                //         world.remove_group(
+                //             gi); // assumes your World exposes this
+                //         world.finalize_groups();
+                //         world.init_rule_tables(world.get_groups_size());
+                //         // safest path: reseed (order changed)
+                //         seed_world(world, scfg);
+                //         window_steps = 0;
+                //         window_start = clock::now();
+                //     }
+                // }
+                break;
+
             case SimCommand::Kind::Quit:
                 running = false;
                 break;
             }
         }
-        if (!running)
+
+        if (!running) {
             break;
+        }
 
         const int tps = scfg.target_tps;
 
