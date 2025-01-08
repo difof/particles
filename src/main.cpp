@@ -62,12 +62,14 @@ void run() {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        // render texture must be y-flipped due to default OpenGL coordinates
-        // (left-bottom)
-        DrawTextureRec(tex.texture,
-                       (Rectangle){0, 0, (float)tex.texture.width,
-                                   (float)-tex.texture.height},
-                       (Vector2){wcfg.panel_width, 0}, WHITE);
+        {
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawTextureRec(tex.texture,
+                           (Rectangle){0, 0, (float)tex.texture.width,
+                                       (float)-tex.texture.height},
+                           (Vector2){wcfg.panel_width, 0}, WHITE);
+            EndBlendMode();
+        }
 
         rlImGuiBegin();
         render_ui(wcfg, world, scfgb, statsb, cmdq);
