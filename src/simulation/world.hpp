@@ -20,6 +20,8 @@ class World {
     float max_interaction_radius() const;
     int add_group(int count, Color color);
     void reset(bool shrink = false);
+    float rule_val(int gsrc, int gdst) const;
+    const float *rules_row(int gsrc) const;
 
   public:
     inline int get_groups_size() const { return (int)groups.size() / 2; }
@@ -53,14 +55,10 @@ class World {
 
     inline int group_of(int i) const { return p_group[i]; }
 
-    inline float rule_val(int gsrc, int gdst) const {
-        return rules[gsrc * get_groups_size() + gdst];
-    }
-
-    inline float r2_of(int gsrc) const { return radii2[gsrc]; }
-
-    inline const float *rules_row(int gsrc) const {
-        return &rules[gsrc * get_groups_size()];
+    inline float r2_of(int gsrc) const {
+        if ((size_t)gsrc >= radii2.size())
+            return 0.f;
+        return radii2[gsrc];
     }
 
   private:

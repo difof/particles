@@ -8,10 +8,10 @@
 #include <random>
 #include <thread>
 
-#include "mailboxes.hpp"
+#include "../mailbox/mailbox.hpp"
+#include "../types.hpp"
 #include "math.hpp"
 #include "multicore.hpp"
-#include "types.hpp"
 #include "uniformgrid.hpp"
 #include "world.hpp"
 
@@ -22,7 +22,8 @@ inline long long now_ns() {
 }
 
 // simple seeding
-static void seed_world(World &world, SimulationConfigSnapshot &scfg) {
+static void seed_world(World &world,
+                       mailbox::SimulationConfig::Snapshot &scfg) {
     world.reset(false);
 
     std::mt19937 rng{std::random_device{}()};
@@ -87,7 +88,7 @@ static void seed_world(World &world, SimulationConfigSnapshot &scfg) {
     world.set_rule(gP, gP, +3.14);
 }
 
-void simulate_once(World &world, SimulationConfigSnapshot &scfg,
+void simulate_once(World &world, mailbox::SimulationConfig::Snapshot &scfg,
                    SimulationThreadPool &pool) {
     const int particles_count = world.get_particles_size();
     if (particles_count == 0) {
@@ -259,7 +260,7 @@ void simulate_once(World &world, SimulationConfigSnapshot &scfg,
     pool.parallel_for_n(particles_count, pos_kernel);
 }
 
-void publish_draw(World &world, DrawBuffer &dbuf) {
+void publish_draw(World &world, mailbox::DrawBuffer &dbuf) {
     using namespace std::chrono;
     using clock = steady_clock;
 
@@ -275,15 +276,16 @@ void publish_draw(World &world, DrawBuffer &dbuf) {
     dbuf.publish(tnow_ns);
 }
 
-void simulation_thread_func(World &world, SimulationConfigBuffer &scfgb,
-                            DrawBuffer &dbuf, CommandQueue &cmdq,
-                            StatsBuffer &statsb) {
+void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
+                            mailbox::DrawBuffer &dbuf,
+                            mailbox::command::Queue &cmdq,
+                            mailbox::SimulationStats &statsb) {
     using namespace std::chrono;
     using clock = steady_clock;
 
     int last_threads = -9999;
     std::unique_ptr<SimulationThreadPool> pool;
-    SimulationConfigSnapshot scfg = scfgb.acquire();
+    mailbox::SimulationConfig::Snapshot scfg = scfgb.acquire();
 
     auto ensure_pool = [&]() {
         int cfg = scfg.sim_threads;
@@ -308,18 +310,18 @@ void simulation_thread_func(World &world, SimulationConfigBuffer &scfgb,
         ensure_pool();
 
         // process any pending UI commands
-        for (const SimCommand &c : cmdq.drain()) {
+        for (const mailbox::command::Command &c : cmdq.drain()) {
             switch (c.kind) {
-            case SimCommand::Kind::ResetWorld:
+            case mailbox::command::Command::Kind::ResetWorld:
                 seed_world(world, scfg);
                 window_steps = 0;
                 window_start = clock::now();
                 break;
 
-            case SimCommand::Kind::ApplyRules:
+            case mailbox::command::Command::Kind::ApplyRules:
                 if (c.rules) {
                     const int G = world.get_groups_size();
-                    const RulePatch &p = *c.rules;
+                    const mailbox::command::RulePatch &p = *c.rules;
                     if (p.groups == G && p.hot) {
                         // Hot apply: only change r2 and rule matrix
                         for (int g = 0; g < G; ++g) {
@@ -356,7 +358,7 @@ void simulation_thread_func(World &world, SimulationConfigBuffer &scfgb,
                 }
                 break;
 
-            case SimCommand::Kind::AddGroup:
+            case mailbox::command::Command::Kind::AddGroup:
                 if (c.add_group) {
                     const auto &ag = *c.add_group;
                     world.add_group(ag.size, ag.color);
@@ -385,7 +387,7 @@ void simulation_thread_func(World &world, SimulationConfigBuffer &scfgb,
                 }
                 break;
 
-            case SimCommand::Kind::RemoveGroup:
+            case mailbox::command::Command::Kind::RemoveGroup:
                 // TODO: add world.remove_group
                 // if (c.rem_group) {
                 //     int gi = c.rem_group->group_index;
@@ -403,7 +405,7 @@ void simulation_thread_func(World &world, SimulationConfigBuffer &scfgb,
                 // }
                 break;
 
-            case SimCommand::Kind::Quit:
+            case mailbox::command::Command::Kind::Quit:
                 running = false;
                 break;
             }
@@ -432,7 +434,7 @@ void simulation_thread_func(World &world, SimulationConfigBuffer &scfgb,
                 secs = 1;
             last_published_tps = window_steps / secs;
 
-            SimStatsSnapshot st;
+            mailbox::SimulationStats::Snapshot st;
             st.effective_tps = last_published_tps;
             st.particles = world.get_particles_size();
             st.groups = world.get_groups_size();

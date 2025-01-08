@@ -1,20 +1,22 @@
 #ifndef __RENDERER_HPP
 #define __RENDERER_HPP
 
-#include "drawbuffer.hpp"
-#include "simulation.hpp"
+#include "mailbox/mailbox.hpp"
+#include "simulation/simulation.hpp"
+#include "simulation/world.hpp"
 #include "types.hpp"
-#include "world.hpp"
 
-void render_tex(World &world, const DrawBuffer &dbuf,
-                const SimulationConfigBuffer &scfgb) {
-    ClearBackground(BLACK);
+const float particle_size = 3.f;
 
-    SimulationConfigSnapshot scfg = scfgb.acquire();
+void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
+                const mailbox::SimulationConfig &scfgb) {
+    ClearBackground(Color{0, 0, 0, 0});
+
+    mailbox::SimulationConfig::Snapshot scfg = scfgb.acquire();
 
     const bool doInterp = scfg.interpolate;
 
-    DrawBuffer::ReadView view = dbuf.begin_read();
+    mailbox::DrawBuffer::ReadView view = dbuf.begin_read();
     const int G = world.get_groups_size();
 
     if (doInterp && view.t0 > 0 && view.t1 > 0 && view.t1 > view.t0 &&
@@ -53,7 +55,7 @@ void render_tex(World &world, const DrawBuffer &dbuf,
                 const float x1 = pos1[base + 0], y1 = pos1[base + 1];
                 DrawCircleV(
                     Vector2{x0 + (x1 - x0) * alpha, y0 + (y1 - y0) * alpha},
-                    1.5f, col);
+                    particle_size, col);
             }
         }
 
@@ -74,7 +76,8 @@ void render_tex(World &world, const DrawBuffer &dbuf,
                 const size_t base = (size_t)i * 2;
                 if (base + 1 >= pos.size())
                     break;
-                DrawCircleV(Vector2{pos[base + 0], pos[base + 1]}, 1.5f, col);
+                DrawCircleV(Vector2{pos[base + 0], pos[base + 1]},
+                            particle_size, col);
             }
         }
     }

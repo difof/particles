@@ -27,6 +27,26 @@ float World::max_interaction_radius() const {
     return (maxr2 > 0.f) ? std::sqrt(maxr2) : 0.f;
 }
 
+float World::rule_val(int gsrc, int gdst) const {
+    const int G = get_groups_size();
+    if ((size_t)gsrc >= radii2.size())
+        return 0.f;
+    if ((size_t)gdst >= (size_t)G)
+        return 0.f;
+    if (rules.size() < (size_t)G * (size_t)G)
+        return 0.f;
+    return rules[gsrc * G + gdst];
+}
+
+const float *World::rules_row(int gsrc) const {
+    const int G = get_groups_size();
+    if ((size_t)gsrc >= radii2.size())
+        return nullptr;
+    if (rules.size() < (size_t)G * (size_t)G)
+        return nullptr;
+    return &rules[gsrc * G];
+}
+
 int World::add_group(int count, Color color) {
     if (count <= 0) {
         return -1;

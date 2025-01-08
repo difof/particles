@@ -6,17 +6,18 @@
 #include <raylib.h>
 #include <thread>
 
-#include "mailboxes.hpp"
-#include "multicore.hpp"
+#include "mailbox/mailbox.hpp"
+#include "simulation/multicore.hpp"
+#include "simulation/world.hpp"
 #include "types.hpp"
-#include "world.hpp"
 
 void render_ui(const WindowConfig &wcfg, World &world,
-               SimulationConfigBuffer &scfgb, StatsBuffer &statsb,
-               CommandQueue &cmdq) {
+               mailbox::SimulationConfig &scfgb,
+               mailbox::SimulationStats &statsb,
+               mailbox::command::Queue &cmdq) {
 
-    SimulationConfigSnapshot scfg = scfgb.acquire();
-    SimStatsSnapshot stats = statsb.acquire();
+    mailbox::SimulationConfig::Snapshot scfg = scfgb.acquire();
+    mailbox::SimulationStats::Snapshot stats = statsb.acquire();
 
     bool scfg_updated = false;
     auto check_scfg_update = [&scfg_updated](bool s) {
@@ -50,11 +51,11 @@ void render_ui(const WindowConfig &wcfg, World &world,
 
             ImGui::SeparatorText("Controls");
             if (ImGui::Button("Reset world")) {
-                cmdq.push({SimCommand::Kind::ResetWorld});
+                cmdq.push({mailbox::command::Command::Kind::ResetWorld});
             }
             ImGui::SameLine();
             if (ImGui::Button("Quit sim")) {
-                cmdq.push({SimCommand::Kind::Quit});
+                cmdq.push({mailbox::command::Command::Kind::Quit});
             }
         }
 
@@ -134,8 +135,14 @@ void render_ui(const WindowConfig &wcfg, World &world,
                         world.get_group_end(g) - world.get_group_start(g);
 
                     const float *row = world.rules_row(g);
-                    for (int j = 0; j < G; ++j)
-                        editor.rules[g * G + j] = row[j];
+                    if (!row) {
+                        // transient: rules not ready yet
+                        for (int j = 0; j < G; ++j)
+                            editor.rules[g * G + j] = 0.f;
+                    } else {
+                        for (int j = 0; j < G; ++j)
+                            editor.rules[g * G + j] = row[j];
+                    }
                 }
                 editor.dirty = false;
             };
@@ -200,10 +207,11 @@ void render_ui(const WindowConfig &wcfg, World &world,
 
                 // remove button (forces reseed on sim side)
                 if (ImGui::Button("Remove Group")) {
-                    auto cmd = SimCommand{};
-                    cmd.kind = SimCommand::Kind::RemoveGroup;
+                    auto cmd = mailbox::command::Command{};
+                    cmd.kind = mailbox::command::Command::Kind::RemoveGroup;
                     cmd.rem_group =
-                        std::make_shared<RemoveGroupCmd>(RemoveGroupCmd{g});
+                        std::make_shared<mailbox::command::RemoveGroupCmd>(
+                            mailbox::command::RemoveGroupCmd{g});
                     cmdq.push(cmd);
                 }
 
@@ -223,9 +231,9 @@ void render_ui(const WindowConfig &wcfg, World &world,
             ImGui::ColorEdit4("New group color", new_col,
                               ImGuiColorEditFlags_NoInputs);
             if (ImGui::Button("Add Group")) {
-                auto cmd = SimCommand{};
-                cmd.kind = SimCommand::Kind::AddGroup;
-                auto add = std::make_shared<AddGroupCmd>();
+                auto cmd = mailbox::command::Command{};
+                cmd.kind = mailbox::command::Command::Kind::AddGroup;
+                auto add = std::make_shared<mailbox::command::AddGroupCmd>();
                 add->size = std::max(0, new_size);
                 add->r2 = new_r * new_r;
                 add->color = Color{
@@ -245,14 +253,14 @@ void render_ui(const WindowConfig &wcfg, World &world,
                 ImGui::BeginDisabled();
 
             if (ImGui::Button("Apply (hot, no reseed)")) {
-                auto patch = std::make_shared<RulePatch>();
+                auto patch = std::make_shared<mailbox::command::RulePatch>();
                 patch->groups = editor.G;
                 patch->r2 = editor.r2;
                 patch->rules = editor.rules;
                 patch->hot = true;
 
-                auto cmd = SimCommand{};
-                cmd.kind = SimCommand::Kind::ApplyRules;
+                auto cmd = mailbox::command::Command{};
+                cmd.kind = mailbox::command::Command::Kind::ApplyRules;
                 cmd.rules = patch;
                 cmdq.push(cmd);
                 editor.dirty = false;
@@ -265,14 +273,14 @@ void render_ui(const WindowConfig &wcfg, World &world,
             }
             ImGui::SameLine();
             if (ImGui::Button("Apply & Reseed")) {
-                auto patch = std::make_shared<RulePatch>();
+                auto patch = std::make_shared<mailbox::command::RulePatch>();
                 patch->groups = editor.G;
                 patch->r2 = editor.r2;
                 patch->rules = editor.rules;
                 patch->hot = false;
 
-                auto cmd = SimCommand{};
-                cmd.kind = SimCommand::Kind::ApplyRules;
+                auto cmd = mailbox::command::Command{};
+                cmd.kind = mailbox::command::Command::Kind::ApplyRules;
                 cmd.rules = patch;
                 cmdq.push(cmd);
                 editor.dirty = false;

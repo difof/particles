@@ -2,12 +2,10 @@
 #include <raylib.h>
 #include <rlImGui.h>
 
-#include "drawbuffer.hpp"
-#include "mailboxes.hpp"
-#include "math.hpp"
-#include "multicore.hpp"
+#include "mailbox/mailbox.hpp"
 #include "renderer.hpp"
-#include "simulation.hpp"
+#include "simulation/simulation.hpp"
+#include "simulation/world.hpp"
 #include "types.hpp"
 #include "ui.hpp"
 #include "uniformgrid.hpp"
@@ -24,11 +22,15 @@ void run() {
 
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
 
-    SimulationConfigSnapshot scfg = {};
+    World world;
+    mailbox::DrawBuffer dbuf;
+    mailbox::SimulationStats statsb;
+    mailbox::command::Queue cmdq;
+    mailbox::SimulationConfig scfgb;
+    mailbox::SimulationConfig::Snapshot scfg = {};
     {
         scfg.bounds_width = (float)wcfg.render_width;
         scfg.bounds_height = (float)wcfg.screen_height;
-
         scfg.target_tps = 0;
         scfg.interpolate = true;
         scfg.interp_delay_ms = 50.0f;
@@ -38,14 +40,7 @@ void run() {
         scfg.wallStrength = 0.1f;
         scfg.sim_threads = 1;
     }
-
-    SimulationConfigBuffer scfgb;
     scfgb.publish(scfg);
-
-    DrawBuffer dbuf;
-    World world;
-    StatsBuffer statsb;
-    CommandQueue cmdq;
 
     // InitWindow(wcfg.screen_width, wcfg.screen_height, "Particles");
     SetWindowSize(wcfg.screen_width, wcfg.screen_height);
@@ -83,7 +78,7 @@ void run() {
         EndDrawing();
     }
 
-    cmdq.push({SimCommand::Kind::Quit});
+    cmdq.push({mailbox::command::Command::Kind::Quit});
     sim_thread.join();
 
     rlImGuiShutdown();
