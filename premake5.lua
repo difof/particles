@@ -61,7 +61,7 @@ local function projectBase()
         "src/**.h", "src/**.c",
         "src/**.hpp", "src/**.cpp",
     }
-    includedirs { "../src" }
+    includedirs { "src" }
     links { "m", "dl", "pthread" }
     dependson { }
 end

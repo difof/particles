@@ -54,4 +54,4 @@ tasks:
 
   clean:
     desc: Clean builds
-    cmd: make -C build clean
+    cmd: make -C build clean; rm -fr build
