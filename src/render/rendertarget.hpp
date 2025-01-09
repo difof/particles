@@ -1,12 +1,10 @@
-#ifndef __RENDERER_HPP
-#define __RENDERER_HPP
+#ifndef __RENDERTARGET_HPP
+#define __RENDERTARGET_HPP
 
 #include "../mailbox/mailbox.hpp"
-#include "../simulation/simulation.hpp"
 #include "../simulation/world.hpp"
-#include "../types.hpp"
-
-const float particle_size = 1.5f;
+#include "renderconfig.hpp"
+#include <raylib.h>
 
 static inline Color TintRGB(Color c, float k) {
     auto clamp = [](int v) {
@@ -25,24 +23,18 @@ static Texture2D get_glow_tex() {
 
     const int S = 64;
     Image img = GenImageColor(S, S, BLANK);
-
-    // Softer, steeper falloff (quartic-ish) so singles pop more
-    for (int y = 0; y < S; ++y) {
+    for (int y = 0; y < S; ++y)
         for (int x = 0; x < S; ++x) {
             float dx = (x + 0.5f - S * 0.5f) / (S * 0.5f);
             float dy = (y + 0.5f - S * 0.5f) / (S * 0.5f);
             float r = sqrtf(dx * dx + dy * dy);
             float a = 1.0f - r;
-            if (a < 0.0f)
-                a = 0.0f;
-            // steeper center emphasis than quadratic
-            // a = a * a * a * a; // quartic
-            a = a * a; // quadratic: brighter center, still soft edge
+            if (a < 0)
+                a = 0;
+            a = a * a; // quadratic
             unsigned char A = (unsigned char)lrintf(a * 255.0f);
             ImageDrawPixel(&img, x, y, (Color){255, 255, 255, A});
         }
-    }
-
     tex = LoadTextureFromImage(img);
     UnloadImage(img);
     SetTextureFilter(tex, TEXTURE_FILTER_BILINEAR);
@@ -50,57 +42,48 @@ static Texture2D get_glow_tex() {
 }
 
 template <typename PosFn>
-static void
-draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
-                         Texture2D glow, float coreSize,
-                         float outerGlowScale, // big soft halo
-                         float outerGlowAlpha, // alpha-blended halo strength
-                         float innerGlowScale, // small bright halo
-                         float innerAddAlpha   // additive “sparkle”
-) {
+static void draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
+                                     Texture2D glow, float coreSize,
+                                     float outerScale, float outerRGBGain,
+                                     float innerScale, float innerRGBGain) {
     const Rectangle src = {0, 0, (float)glow.width, (float)glow.height};
     const Vector2 org = {0, 0};
 
-    // Pass 1: Big soft halo with ALPHA blending (caps cluster brightness)
+    // Pass 1: big soft halo (alpha blend)
     BeginBlendMode(BLEND_ALPHA);
     for (int g = 0; g < groupsCount; ++g) {
         const int start = world.get_group_start(g);
         const int end = world.get_group_end(g);
-        const Color base = *world.get_group_color(g);
-        const Color tint = TintRGB(base, outerGlowAlpha);
-
+        const Color tint = TintRGB(*world.get_group_color(g), outerRGBGain);
         for (int i = start; i < end; ++i) {
             Vector2 p = posAt(i);
-            Rectangle dest = {p.x - outerGlowScale, p.y - outerGlowScale,
-                              outerGlowScale * 2.0f, outerGlowScale * 2.0f};
-            DrawTexturePro(glow, src, dest, org, 0.0f, tint);
+            Rectangle dest = {p.x - outerScale, p.y - outerScale,
+                              outerScale * 2, outerScale * 2};
+            DrawTexturePro(glow, src, dest, org, 0, tint);
         }
     }
     EndBlendMode();
 
-    // Pass 2: Tiny additive inner halo (just a touch so singles pop)
-    BeginBlendMode(BLEND_ADDITIVE);
+    // Pass 2: small bright halo (alpha too; we mod RGB gain only)
+    BeginBlendMode(BLEND_ALPHA);
     for (int g = 0; g < groupsCount; ++g) {
         const int start = world.get_group_start(g);
         const int end = world.get_group_end(g);
-        const Color base = *world.get_group_color(g);
-        const Color tint = TintRGB(base, innerAddAlpha);
-
+        const Color tint = TintRGB(*world.get_group_color(g), innerRGBGain);
         for (int i = start; i < end; ++i) {
             Vector2 p = posAt(i);
-            Rectangle dest = {p.x - innerGlowScale, p.y - innerGlowScale,
-                              innerGlowScale * 2.0f, innerGlowScale * 2.0f};
-            DrawTexturePro(glow, src, dest, org, 0.0f, tint);
+            Rectangle dest = {p.x - innerScale, p.y - innerScale,
+                              innerScale * 2, innerScale * 2};
+            DrawTexturePro(glow, src, dest, org, 0, tint);
         }
     }
     EndBlendMode();
 
-    // Pass 3: Solid core
+    // Pass 3: solid core
     for (int g = 0; g < groupsCount; ++g) {
         const int start = world.get_group_start(g);
         const int end = world.get_group_end(g);
         const Color col = *world.get_group_color(g);
-
         for (int i = start; i < end; ++i) {
             Vector2 p = posAt(i);
             DrawCircleV(p, coreSize, col);
@@ -108,78 +91,69 @@ draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
     }
 }
 
-void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
-                const mailbox::SimulationConfig &scfgb) {
+inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
+                       const RenderConfig &rcfg) {
     ClearBackground(Color{0, 0, 0, 255});
 
-    mailbox::SimulationConfig::Snapshot scfg = scfgb.acquire();
-    const bool doInterp = scfg.interpolate;
-
-    mailbox::DrawBuffer::ReadView view = dbuf.begin_read();
+    auto view = dbuf.begin_read();
     const int G = world.get_groups_size();
 
     Texture2D glow = get_glow_tex();
+    const float coreSize = rcfg.core_size;
+    const float outerScale = coreSize * rcfg.outer_scale_mul;
+    const float innerScale = coreSize * rcfg.inner_scale_mul;
 
-    /// MARK: Tunables:
-    const float coreSize = particle_size;
-    const float outerScale = coreSize * 14.0f; // wide soft bed
-    const float outerAlpha = 0.60f;            // singles clearly visible
-    const float innerScale = coreSize * 3.0f;  // tight inner glow
-    const float innerAdd = 0.18f; // brighter core accent (RGB only)
+    const bool doInterp = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
+                          view.t1 > view.t0 && view.prev && view.curr &&
+                          view.prev->size() == view.curr->size() &&
+                          !view.curr->empty();
 
-    if (doInterp && view.t0 > 0 && view.t1 > 0 && view.t1 > view.t0 &&
-        view.prev && view.curr && view.prev->size() == view.curr->size() &&
-        !view.curr->empty()) {
+    if (doInterp) {
+        const auto &pos0 = *view.prev;
+        const auto &pos1 = *view.curr;
 
-        const std::vector<float> &pos0 = *view.prev;
-        const std::vector<float> &pos1 = *view.curr;
-
-        const float delay_ms = scfg.interp_delay_ms;
         const long long now_ns =
             std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch())
                 .count();
         const long long target_ns =
-            now_ns - (long long)(delay_ms * 1'000'000.0f);
+            now_ns - (long long)(rcfg.interp_delay_ms * 1'000'000.0f);
 
-        float alpha = 0.0f;
-        if (target_ns <= view.t0)
-            alpha = 0.0f;
-        else if (target_ns >= view.t1)
-            alpha = 1.0f;
-        else
-            alpha = float(target_ns - view.t0) / float(view.t1 - view.t0);
+        float a = (target_ns <= view.t0) ? 0.0f
+                  : (target_ns >= view.t1)
+                      ? 1.0f
+                      : float(target_ns - view.t0) / float(view.t1 - view.t0);
 
-        // Lambda to fetch interpolated position for index i
         auto posAt = [&](int i) -> Vector2 {
-            const size_t base = (size_t)i * 2;
-            if (base + 1 >= pos1.size())
-                return Vector2{0, 0};
-            const float x0 = pos0[base + 0], y0 = pos0[base + 1];
-            const float x1 = pos1[base + 0], y1 = pos1[base + 1];
-            return Vector2{x0 + (x1 - x0) * alpha, y0 + (y1 - y0) * alpha};
+            size_t b = (size_t)i * 2;
+            if (b + 1 >= pos1.size())
+                return {0, 0};
+            float x = pos0[b + 0] + (pos1[b + 0] - pos0[b + 0]) * a;
+            float y = pos0[b + 1] + (pos1[b + 1] - pos0[b + 1]) * a;
+            return {x, y};
         };
 
         draw_particles_with_glow(world, G, posAt, glow, coreSize, outerScale,
-                                 outerAlpha, innerScale, innerAdd);
+                                 rcfg.outer_rgb_gain, innerScale,
+                                 rcfg.inner_rgb_gain);
 
         dbuf.end_read(view);
         return;
     }
 
-    // No interpolation (or mismatched sizes)
+    // No interpolation
     {
-        const std::vector<float> &pos = dbuf.read_current_only();
-
+        const auto &pos = dbuf.read_current_only();
         auto posAt = [&](int i) -> Vector2 {
-            const size_t base = (size_t)i * 2;
-            if (base + 1 >= pos.size())
-                return Vector2{0, 0};
-            return Vector2{pos[base + 0], pos[base + 1]};
+            size_t b = (size_t)i * 2;
+            if (b + 1 >= pos.size())
+                return {0, 0};
+            return {pos[b + 0], pos[b + 1]};
         };
 
         draw_particles_with_glow(world, G, posAt, glow, coreSize, outerScale,
-                                 outerAlpha, innerScale, innerAdd);
+                                 rcfg.outer_rgb_gain, innerScale,
+                                 rcfg.inner_rgb_gain);
     }
 
     dbuf.end_read(view);

@@ -13,14 +13,14 @@
 
 void render_ui(const WindowConfig &wcfg, World &world,
                mailbox::SimulationConfig &scfgb,
-               mailbox::SimulationStats &statsb,
-               mailbox::command::Queue &cmdq) {
+               mailbox::SimulationStats &statsb, mailbox::command::Queue &cmdq,
+               RenderConfig &rcfg) {
 
     mailbox::SimulationConfig::Snapshot scfg = scfgb.acquire();
     mailbox::SimulationStats::Snapshot stats = statsb.acquire();
 
     bool scfg_updated = false;
-    auto check_scfg_update = [&scfg_updated](bool s) {
+    auto mark = [&scfg_updated](bool s) {
         if (s) {
             scfg_updated = true;
         }
@@ -61,25 +61,36 @@ void render_ui(const WindowConfig &wcfg, World &world,
 
         ImGui::SeparatorText("Sim Config");
         { /// MARK: SIM CONFIG
-            check_scfg_update(ImGui::SliderInt("Target TPS", &scfg.target_tps,
-                                               0, 240, "%d",
-                                               ImGuiSliderFlags_AlwaysClamp));
-            check_scfg_update(
-                ImGui::Checkbox("Interpolate", &scfg.interpolate));
-            if (scfg.interpolate) {
-                check_scfg_update(ImGui::SliderFloat("Interp delay (ms)",
-                                                     &scfg.interp_delay_ms,
-                                                     0.0f, 50.0f, "%.1f"));
+            mark(ImGui::SliderInt("Target TPS", &scfg.target_tps, 0, 240, "%d",
+                                  ImGuiSliderFlags_AlwaysClamp));
+            mark(ImGui::SliderFloat("Time Scale", &scfg.time_scale, 0.01f, 2.0f,
+                                    "%.3f", ImGuiSliderFlags_Logarithmic));
+            mark(ImGui::SliderFloat("Viscosity", &scfg.viscosity, 0.0f, 1.0f,
+                                    "%.3f"));
+            mark(ImGui::SliderFloat("Wall Repel (px)", &scfg.wallRepel, 0.0f,
+                                    200.0f, "%.1f"));
+            mark(ImGui::SliderFloat("Wall Strength", &scfg.wallStrength, 0.0f,
+                                    1.0f, "%.3f"));
+        }
+
+        ImGui::SeparatorText("Render");
+        { /// MARK: Render config
+            ImGui::Checkbox("Interpolate", &rcfg.interpolate);
+            if (rcfg.interpolate) {
+                ImGui::SliderFloat("Interp delay (ms)", &rcfg.interp_delay_ms,
+                                   0.0f, 50.0f, "%.1f");
             }
-            check_scfg_update(ImGui::SliderFloat("Time Scale", &scfg.time_scale,
-                                                 0.01f, 2.0f, "%.3f",
-                                                 ImGuiSliderFlags_Logarithmic));
-            check_scfg_update(ImGui::SliderFloat("Viscosity", &scfg.viscosity,
-                                                 0.0f, 1.0f, "%.3f"));
-            check_scfg_update(ImGui::SliderFloat(
-                "Wall Repel (px)", &scfg.wallRepel, 0.0f, 200.0f, "%.1f"));
-            check_scfg_update(ImGui::SliderFloat(
-                "Wall Strength", &scfg.wallStrength, 0.0f, 1.0f, "%.3f"));
+            ImGui::SliderFloat("Core size (px)", &rcfg.core_size, 0.5f, 4.0f,
+                               "%.2f");
+            ImGui::SliderFloat("Outer scale (x core)", &rcfg.outer_scale_mul,
+                               4.0f, 24.0f, "%.1f");
+            ImGui::SliderFloat("Outer RGB gain", &rcfg.outer_rgb_gain, 0.0f,
+                               1.0f, "%.2f");
+            ImGui::SliderFloat("Inner scale (x core)", &rcfg.inner_scale_mul,
+                               1.0f, 8.0f, "%.1f");
+            ImGui::SliderFloat("Inner RGB gain", &rcfg.inner_rgb_gain, 0.0f,
+                               1.0f, "%.2f");
+            ImGui::Checkbox("Final additive blit", &rcfg.final_additive_blit);
         }
 
         ImGui::SeparatorText("Parallelism");
@@ -92,12 +103,12 @@ void render_ui(const WindowConfig &wcfg, World &world,
             bool auto_mode = (scfg.sim_threads <= 0);
             if (ImGui::Checkbox("Auto (HW-2)", &auto_mode)) {
                 scfg.sim_threads = auto_mode ? -1 : std::min(1, max_threads);
-                check_scfg_update(true);
+                mark(true);
             }
             if (!auto_mode) {
-                check_scfg_update(ImGui::SliderInt(
-                    "Sim threads", &scfg.sim_threads, 1, max_threads, "%d",
-                    ImGuiSliderFlags_AlwaysClamp));
+                mark(ImGui::SliderInt("Sim threads", &scfg.sim_threads, 1,
+                                      max_threads, "%d",
+                                      ImGuiSliderFlags_AlwaysClamp));
             } else {
                 ImGui::BeginDisabled();
                 int auto_val = std::max(1, (int)compute_sim_threads());

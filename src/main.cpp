@@ -19,25 +19,21 @@ void run() {
     int texW = screenW - panelW;
 
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
-
+    RenderConfig rcfg;
     World world;
     mailbox::DrawBuffer dbuf;
     mailbox::SimulationStats statsb;
     mailbox::command::Queue cmdq;
     mailbox::SimulationConfig scfgb;
     mailbox::SimulationConfig::Snapshot scfg = {};
-    {
-        scfg.bounds_width = (float)wcfg.render_width;
-        scfg.bounds_height = (float)wcfg.screen_height;
-        scfg.target_tps = 0;
-        scfg.interpolate = true;
-        scfg.interp_delay_ms = 50.0f;
-        scfg.time_scale = 1.0f;
-        scfg.viscosity = 0.1f;
-        scfg.wallRepel = 40.0f;
-        scfg.wallStrength = 0.1f;
-        scfg.sim_threads = 1;
-    }
+    scfg.bounds_width = (float)wcfg.render_width;
+    scfg.bounds_height = (float)wcfg.screen_height;
+    scfg.target_tps = 0;
+    scfg.time_scale = 1.0f;
+    scfg.viscosity = 0.1f;
+    scfg.wallRepel = 40.0f;
+    scfg.wallStrength = 0.1f;
+    scfg.sim_threads = 1;
     scfgb.publish(scfg);
 
     // InitWindow(wcfg.screen_width, wcfg.screen_height, "Particles");
@@ -56,23 +52,25 @@ void run() {
 
     while (!WindowShouldClose()) {
         BeginTextureMode(tex);
-        render_tex(world, dbuf, scfgb);
+        render_tex(world, dbuf, rcfg);
         EndTextureMode();
 
         BeginDrawing();
         ClearBackground(BLACK);
 
         {
-            BeginBlendMode(BLEND_ADDITIVE);
+            if (rcfg.final_additive_blit)
+                BeginBlendMode(BLEND_ADDITIVE);
             DrawTextureRec(tex.texture,
                            (Rectangle){0, 0, (float)tex.texture.width,
                                        (float)-tex.texture.height},
                            (Vector2){wcfg.panel_width, 0}, WHITE);
-            EndBlendMode();
+            if (rcfg.final_additive_blit)
+                EndBlendMode();
         }
 
         rlImGuiBegin();
-        render_ui(wcfg, world, scfgb, statsb, cmdq);
+        render_ui(wcfg, world, scfgb, statsb, cmdq, rcfg);
         rlImGuiEnd();
 
         EndDrawing();

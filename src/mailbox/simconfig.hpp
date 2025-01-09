@@ -18,8 +18,6 @@ class SimulationConfig {
         float wallRepel;
         float wallStrength;
         int target_tps;
-        bool interpolate; // TODO: move to render config
-        float interp_delay_ms;
         int sim_threads;
     };
 
