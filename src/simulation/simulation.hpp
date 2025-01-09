@@ -88,7 +88,8 @@ static void seed_world(World &world,
     world.set_rule(gP, gP, +3.14);
 }
 
-void simulate_once(World &world, mailbox::SimulationConfig::Snapshot &scfg,
+void simulate_once(World &world, UniformGrid &grid,
+                   mailbox::SimulationConfig::Snapshot &scfg,
                    SimulationThreadPool &pool) {
     const int particles_count = world.get_particles_size();
     if (particles_count == 0) {
@@ -108,7 +109,6 @@ void simulate_once(World &world, mailbox::SimulationConfig::Snapshot &scfg,
     maxR = std::max(1.0f, maxR);
 
     // Build the neighbor grid once (read-only after this)
-    UniformGrid grid;
     grid.resize(scfg.bounds_width, scfg.bounds_height, maxR, particles_count);
     grid.build(
         particles_count,
@@ -260,19 +260,50 @@ void simulate_once(World &world, mailbox::SimulationConfig::Snapshot &scfg,
     pool.parallel_for_n(particles_count, pos_kernel);
 }
 
-void publish_draw(World &world, mailbox::DrawBuffer &dbuf) {
-    using namespace std::chrono;
-    using clock = steady_clock;
+void publish_draw(World &world, UniformGrid &ug, mailbox::DrawBuffer &dbuf) {
+    using clock = std::chrono::steady_clock;
 
     const int N = world.get_particles_size();
-    auto &wbuf = dbuf.begin_write(size_t(N) * 2);
+
+    auto &pos = dbuf.begin_write_pos(size_t(N) * 2);
+    auto &vel = dbuf.begin_write_vel(size_t(N) * 2);
+    auto &g = dbuf.begin_write_grid(ug.cols(), ug.rows(), N, ug.cell(),
+                                    ug.width(), ug.height());
+
     for (int i = 0; i < N; ++i) {
-        wbuf[size_t(i) * 2 + 0] = world.get_px(i);
-        wbuf[size_t(i) * 2 + 1] = world.get_py(i);
+        const size_t b = size_t(i) * 2;
+        pos[b + 0] = world.get_px(i);
+        pos[b + 1] = world.get_py(i);
+        vel[b + 0] = world.get_vx(i);
+        vel[b + 1] = world.get_vy(i);
     }
-    auto tnow_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                       clock::now().time_since_epoch())
-                       .count();
+
+    g.head = ug.head(); // size cols*rows
+    g.next = ug.next(); // size N
+
+    // compute per-cell counts and velocity sums
+    const int C = g.cols * g.rows;
+    for (int ci = 0; ci < C; ++ci) {
+        int cnt = 0;
+        float sx = 0.f, sy = 0.f;
+
+        for (int p = g.head[ci]; p != -1; p = g.next[p]) {
+            const size_t b = size_t(p) * 2;
+            sx += vel[b + 0];
+            sy += vel[b + 1];
+            ++cnt;
+        }
+
+        g.count[ci] = cnt;
+        g.sumVx[ci] = sx;
+        g.sumVy[ci] = sy;
+    }
+
+    const long long tnow_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            clock::now().time_since_epoch())
+            .count();
+
     dbuf.publish(tnow_ns);
 }
 
@@ -308,6 +339,7 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
     bool running = true;
     while (running) {
         ensure_pool();
+        UniformGrid grid;
 
         // process any pending UI commands
         for (const mailbox::command::Command &c : cmdq.drain()) {
@@ -419,11 +451,11 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
 
         // measure step time
         auto step_begin_ns = now_ns();
-        simulate_once(world, scfg, *pool);
+        simulate_once(world, grid, scfg, *pool);
         auto step_end_ns = now_ns();
         ++window_steps;
 
-        publish_draw(world, dbuf);
+        publish_draw(world, grid, dbuf);
 
         // publish stats once per second
         auto now = clock::now();

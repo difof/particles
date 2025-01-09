@@ -1,23 +1,26 @@
 #ifndef __RENDERCONFIG_HPP
 #define __RENDERCONFIG_HPP
 
-#include <cstdint>
-
 struct RenderConfig {
-    // Interpolation (render-only)
+    // interpolation
     bool interpolate = true;
     float interp_delay_ms = 50.0f;
 
-    // Glow tunables
-    float core_size = 1.5f;        // solid circle radius
-    float outer_scale_mul = 14.0f; // halo size = core_size * outer_scale_mul
-    float outer_rgb_gain = 0.60f;  // 0..1, scales RGB (alpha stays 255)
-    float inner_scale_mul =
-        3.0f; // small inner halo = core_size * inner_scale_mul
-    float inner_rgb_gain = 0.18f; // 0..1, scales RGB (alpha stays 255)
+    // glow
+    float core_size = 1.5f;
+    float outer_scale_mul = 14.0f;
+    float outer_rgb_gain = 0.60f;
+    float inner_scale_mul = 3.0f;
+    float inner_rgb_gain = 0.18f;
+    bool final_additive_blit = true;
 
-    // Composition
-    bool final_additive_blit = true; // DrawTextureRec with BLEND_ADDITIVE
+    // overlays
+    bool show_density_heat = false;
+    float heat_alpha = 0.6f; // 0..1 overlay opacity
+    bool show_velocity_field = false;
+    float vel_scale = 0.75f;      // px per (avg speed unit)
+    float vel_thickness = 1.0f;   // line thickness
+    bool show_grid_lines = false; // debug cell grid
 };
 
 #endif

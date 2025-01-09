@@ -21,6 +21,8 @@ class UniformGrid {
     UniformGrid &operator=(const UniformGrid &) = delete;
     UniformGrid &operator=(UniformGrid &&) = delete;
 
+    inline float width() const { return m_width; }
+    inline float height() const { return m_height; }
     inline float cell() const { return m_cell; }
     inline int cols() const { return m_cols; }
     inline int rows() const { return m_rows; }
@@ -38,8 +40,12 @@ class UniformGrid {
 
     inline void resize(float width, float height, float cellSize, int count) {
         m_cell = std::max(1.0f, cellSize);
-        m_cols = std::max(1, (int)std::floor(width / m_cell));
-        m_rows = std::max(1, (int)std::floor(height / m_cell));
+        m_width = std::max(1.0f, width);
+        m_height = std::max(1.0f, height);
+
+        // was: floor(...)
+        m_cols = std::max(1, (int)std::ceil(m_width / m_cell));
+        m_rows = std::max(1, (int)std::ceil(m_height / m_cell));
 
         m_head.assign(m_cols * m_rows, -1);
         m_next.assign(count, -1);
@@ -93,6 +99,7 @@ class UniformGrid {
   private:
     // side length of a cell (auto-picked)
     float m_cell = 64.f;
+    float m_width = 64.f, m_height = 64.f; // <— new
 
     // grid size
     int m_cols = 1, m_rows = 1;

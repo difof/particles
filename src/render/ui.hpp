@@ -39,7 +39,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
     {
 
         ImGui::SeparatorText("Stats");
-        { /// MARK: STATS
+        { /// MARK: Stats
             ImGui::Text("FPS: %d", GetFPS());
             ImGui::SameLine();
             ImGui::Text("TPS: %d", stats.effective_tps);
@@ -60,7 +60,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
         }
 
         ImGui::SeparatorText("Sim Config");
-        { /// MARK: SIM CONFIG
+        { /// MARK: Simuation config
             mark(ImGui::SliderInt("Target TPS", &scfg.target_tps, 0, 240, "%d",
                                   ImGuiSliderFlags_AlwaysClamp));
             mark(ImGui::SliderFloat("Time Scale", &scfg.time_scale, 0.01f, 2.0f,
@@ -91,10 +91,21 @@ void render_ui(const WindowConfig &wcfg, World &world,
             ImGui::SliderFloat("Inner RGB gain", &rcfg.inner_rgb_gain, 0.0f,
                                1.0f, "%.2f");
             ImGui::Checkbox("Final additive blit", &rcfg.final_additive_blit);
+
+            ImGui::SeparatorText("Overlays");
+            ImGui::Checkbox("Density heatmap", &rcfg.show_density_heat);
+            ImGui::SliderFloat("Heat alpha", &rcfg.heat_alpha, 0.0f, 1.0f,
+                               "%.2f");
+            ImGui::Checkbox("Velocity field", &rcfg.show_velocity_field);
+            ImGui::SliderFloat("Vel scale", &rcfg.vel_scale, 0.1f, 5.0f,
+                               "%.2f");
+            ImGui::SliderFloat("Vel thickness", &rcfg.vel_thickness, 0.5f, 4.0f,
+                               "%.1f");
+            ImGui::Checkbox("Show grid lines", &rcfg.show_grid_lines);
         }
 
         ImGui::SeparatorText("Parallelism");
-        { /// MARK: MULTICORE
+        { /// MARK: Parallelism
             unsigned hc = std::thread::hardware_concurrency();
             int max_threads =
                 std::max(1, (int)hc - 2); // keep 2 free: render + OS
@@ -119,8 +130,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
         }
 
         ImGui::SeparatorText("Groups & Rules");
-        { /// MARK: PARTICLE UPDATE
-
+        { /// MARK: Groups and rules
             struct EditorState {
                 int G = 0;
                 std::vector<float> r2;    // size G
