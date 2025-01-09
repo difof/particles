@@ -184,6 +184,20 @@ static void draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
     }
 }
 
+template <typename PosFn>
+static void draw_particles_simple(World &world, int groupsCount, PosFn posAt,
+                                  float coreSize) {
+    for (int g = 0; g < groupsCount; ++g) {
+        const int start = world.get_group_start(g);
+        const int end = world.get_group_end(g);
+        const Color col = *world.get_group_color(g);
+        for (int i = start; i < end; ++i) {
+            Vector2 p = posAt(i);
+            DrawCircleV(p, coreSize, col);
+        }
+    }
+}
+
 inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
                        const RenderConfig &rcfg) {
     ClearBackground(Color{0, 0, 0, 255});
@@ -191,10 +205,14 @@ inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
     auto view = dbuf.begin_read();
     const int G = world.get_groups_size();
 
-    Texture2D glow = get_glow_tex();
     const float coreSize = rcfg.core_size;
-    const float outerScale = coreSize * rcfg.outer_scale_mul;
-    const float innerScale = coreSize * rcfg.inner_scale_mul;
+    Texture2D glow{};
+    float outerScale = 0.f, innerScale = 0.f;
+    if (rcfg.glow_enabled) {
+        glow = get_glow_tex();
+        outerScale = coreSize * rcfg.outer_scale_mul;
+        innerScale = coreSize * rcfg.inner_scale_mul;
+    }
 
     const bool doInterp = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
                           view.t1 > view.t0 && view.prev && view.curr &&
@@ -209,6 +227,7 @@ inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
             std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch())
                 .count();
+
         const long long target_ns =
             now_ns - (long long)(rcfg.interp_delay_ms * 1'000'000.0f);
 
@@ -226,9 +245,13 @@ inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
             return {x, y};
         };
 
-        draw_particles_with_glow(world, G, posAt, glow, coreSize, outerScale,
-                                 rcfg.outer_rgb_gain, innerScale,
-                                 rcfg.inner_rgb_gain);
+        if (rcfg.glow_enabled) {
+            draw_particles_with_glow(world, G, posAt, glow, coreSize,
+                                     outerScale, rcfg.outer_rgb_gain,
+                                     innerScale, rcfg.inner_rgb_gain);
+        } else {
+            draw_particles_simple(world, G, posAt, coreSize);
+        }
 
     }
 
@@ -242,9 +265,13 @@ inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
             return {pos[b + 0], pos[b + 1]};
         };
 
-        draw_particles_with_glow(world, G, posAt, glow, coreSize, outerScale,
-                                 rcfg.outer_rgb_gain, innerScale,
-                                 rcfg.inner_rgb_gain);
+        if (rcfg.glow_enabled) {
+            draw_particles_with_glow(world, G, posAt, glow, coreSize,
+                                     outerScale, rcfg.outer_rgb_gain,
+                                     innerScale, rcfg.inner_rgb_gain);
+        } else {
+            draw_particles_simple(world, G, posAt, coreSize);
+        }
     }
 
     auto grid = view.grid;

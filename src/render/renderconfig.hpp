@@ -7,6 +7,7 @@ struct RenderConfig {
     float interp_delay_ms = 50.0f;
 
     // glow
+    bool glow_enabled = true;
     float core_size = 1.5f;
     float outer_scale_mul = 14.0f;
     float outer_rgb_gain = 0.60f;
