@@ -15,7 +15,7 @@ void run() {
     int monitor = GetCurrentMonitor();
     int screenW = GetMonitorWidth(monitor) * .9;
     int screenH = GetMonitorHeight(monitor) - 60;
-    int panelW = 400; // screenW * .23;
+    int panelW = 500; // screenW * .23;
     int texW = screenW - panelW;
 
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
