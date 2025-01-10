@@ -22,6 +22,7 @@ class World {
     void reset(bool shrink = false);
     float rule_val(int gsrc, int gdst) const;
     const float *rules_row(int gsrc) const;
+    void remove_group(int g);
 
   public:
     inline int get_groups_size() const { return (int)groups.size() / 2; }
@@ -34,6 +35,10 @@ class World {
 
     inline int get_particles_size() const { return (int)particles.size() / 4; }
 
+    inline void set_group_color(int g, Color c) {
+        if ((size_t)g < g_colors.size())
+            g_colors[g] = c;
+    }
     inline Color *get_group_color(int g) { return &g_colors[g]; }
     inline const std::vector<Color> &colors() const { return g_colors; }
     inline const std::vector<int> &group_spans() const { return groups; }

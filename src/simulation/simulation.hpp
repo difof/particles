@@ -354,36 +354,38 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
                 if (c.rules) {
                     const int G = world.get_groups_size();
                     const mailbox::command::RulePatch &p = *c.rules;
-                    if (p.groups == G && p.hot) {
-                        // Hot apply: only change r2 and rule matrix
-                        for (int g = 0; g < G; ++g) {
-                            world.set_r2(g, p.r2[g]);
+                    auto apply_colors_if_any = [&](int Gnow) {
+                        if (!p.colors.empty() && (int)p.colors.size() == Gnow) {
+                            for (int i = 0; i < Gnow; ++i)
+                                world.set_group_color(i, p.colors[i]);
                         }
-                        // rules row-major
+                    };
+
+                    if (p.groups == G && p.hot) {
+                        // Hot apply: update r2, rules, colors; keep
+                        // positions/velocities.
+                        for (int g = 0; g < G; ++g)
+                            world.set_r2(g, p.r2[g]);
                         for (int i = 0; i < G; ++i) {
                             const float *row = p.rules.data() + i * G;
-                            for (int j = 0; j < G; ++j) {
+                            for (int j = 0; j < G; ++j)
                                 world.set_rule(i, j, row[j]);
-                            }
                         }
-                        // no reseed, keep positions/velocities
+                        apply_colors_if_any(G);
                     } else {
-                        // Group count/order changed or explicit cold apply
-                        // requested Re-init rule tables and reseed (Assumes
-                        // groups already adjusted via Add/Remove commands
-                        // beforehand)
+                        // Cold apply / group structure changed
                         const int Gnow = world.get_groups_size();
                         world.init_rule_tables(Gnow);
-                        for (int g = 0; g < std::min(Gnow, p.groups); ++g) {
+                        for (int g = 0; g < std::min(Gnow, p.groups); ++g)
                             world.set_r2(g, p.r2[g]);
-                        }
                         for (int i = 0; i < std::min(Gnow, p.groups); ++i) {
                             const float *row = p.rules.data() + i * p.groups;
-                            for (int j = 0; j < std::min(Gnow, p.groups); ++j) {
+                            for (int j = 0; j < std::min(Gnow, p.groups); ++j)
                                 world.set_rule(i, j, row[j]);
-                            }
                         }
-                        seed_world(world, scfg); // positions reset (explicit)
+                        apply_colors_if_any(Gnow);
+
+                        seed_world(world, scfg);
                         window_steps = 0;
                         window_start = clock::now();
                     }
@@ -420,21 +422,21 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
                 break;
 
             case mailbox::command::Command::Kind::RemoveGroup:
-                // TODO: add world.remove_group
-                // if (c.rem_group) {
-                //     int gi = c.rem_group->group_index;
-                //     const int G = world.get_groups_size();
-                //     if (gi >= 0 && gi < G) {
-                //         world.remove_group(
-                //             gi); // assumes your World exposes this
-                //         world.finalize_groups();
-                //         world.init_rule_tables(world.get_groups_size());
-                //         // safest path: reseed (order changed)
-                //         seed_world(world, scfg);
-                //         window_steps = 0;
-                //         window_start = clock::now();
-                //     }
-                // }
+                if (c.rem_group) {
+                    int gi = c.rem_group->group_index;
+                    const int G = world.get_groups_size();
+                    if (gi >= 0 && gi < G) {
+                        world.remove_group(gi);
+                        world.finalize_groups();
+                        world.init_rule_tables(
+                            world.get_groups_size()); // rules resized; values
+                                                      // zeroed
+                        // safest: reseed since order changed & counts moved
+                        seed_world(world, scfg);
+                        window_steps = 0;
+                        window_start = clock::now();
+                    }
+                }
                 break;
 
             case mailbox::command::Command::Kind::Quit:

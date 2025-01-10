@@ -16,7 +16,8 @@ struct RulePatch {
     int groups = 0;           // G
     std::vector<float> r2;    // size G, r^2 per group
     std::vector<float> rules; // size G*G, row-major: rules[i*G + j]
-    bool hot = true;          // try hot-apply without reseed
+    std::vector<Color> colors;
+    bool hot = true; // try hot-apply without reseed
 };
 
 // Add/remove groups. (Remove uses group index in [0..G-1])

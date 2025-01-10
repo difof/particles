@@ -79,3 +79,58 @@ void World::reset(bool shrink) {
         std::vector<float>().swap(radii2);
     }
 }
+
+void World::remove_group(int g) {
+    const int G = get_groups_size();
+    if (g < 0 || g >= G)
+        return;
+
+    // particle span for this group
+    const int start = get_group_start(g);
+    const int end = get_group_end(g);
+    const int cnt = end - start;
+
+    // 1) erase particles of the group (4 floats per particle)
+    if (cnt > 0) {
+        const size_t f0 = size_t(start) * 4;
+        const size_t f1 = size_t(end) * 4;
+        particles.erase(particles.begin() + f0, particles.begin() + f1);
+    }
+
+    // 2) drop color
+    g_colors.erase(g_colors.begin() + g);
+
+    // 3) fix spans of subsequent groups and remove this group's span
+    // groups layout: [g0_start,g0_end, g1_start,g1_end, ...]
+    // shift -cnt for groups > g
+    for (int gi = g + 1; gi < G; ++gi) {
+        groups[gi * 2 + 0] -= cnt;
+        groups[gi * 2 + 1] -= cnt;
+    }
+    // erase this group's [start,end]
+    groups.erase(groups.begin() + g * 2, groups.begin() + g * 2 + 2);
+
+    // 4) rebuild p_group for new layout
+    finalize_groups();
+
+    // 5) prune rule matrix row/col g and radii2[g]
+    // rules is size G*G; radii2 size G
+    if (!rules.empty()) {
+        const int oldG = G;
+        std::vector<float> newRules;
+        newRules.reserve((oldG - 1) * (oldG - 1));
+        for (int i = 0; i < oldG; ++i) {
+            if (i == g)
+                continue;
+            for (int j = 0; j < oldG; ++j) {
+                if (j == g)
+                    continue;
+                newRules.push_back(rules[i * oldG + j]);
+            }
+        }
+        rules.swap(newRules);
+    }
+    if (!radii2.empty()) {
+        radii2.erase(radii2.begin() + g);
+    }
+}

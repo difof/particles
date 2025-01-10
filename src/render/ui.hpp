@@ -37,7 +37,6 @@ void render_ui(const WindowConfig &wcfg, World &world,
     ImGui::SetWindowSize(window_size, ImGuiCond_Always);
 
     {
-
         ImGui::SeparatorText("Stats");
         { /// MARK: Stats
             ImGui::Text("FPS: %d", GetFPS());
@@ -289,6 +288,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
                 patch->groups = editor.G;
                 patch->r2 = editor.r2;
                 patch->rules = editor.rules;
+                patch->colors = editor.colors;
                 patch->hot = true;
 
                 auto cmd = mailbox::command::Command{};
@@ -309,6 +309,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
                 patch->groups = editor.G;
                 patch->r2 = editor.r2;
                 patch->rules = editor.rules;
+                patch->colors = editor.colors;
                 patch->hot = false;
 
                 auto cmd = mailbox::command::Command{};
@@ -317,13 +318,6 @@ void render_ui(const WindowConfig &wcfg, World &world,
                 cmdq.push(cmd);
                 editor.dirty = false;
             }
-
-            // TODO: world.set_group_color
-            // for (int g = 0; g < editor.G && g < world.get_groups_size(); ++g)
-            // {
-            //     world.set_group_color(
-            //         g, editor.colors[g]); // add this setter if not present
-            // }
 
             // Quality-of-life helpers
             if (ImGui::Button("Make symmetric (w_ij = w_ji)")) {
