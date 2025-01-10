@@ -3,6 +3,7 @@
 
 #include <imgui.h>
 #include <mutex>
+#include <random>
 #include <raylib.h>
 #include <thread>
 
@@ -24,6 +25,10 @@ void render_ui(const WindowConfig &wcfg, World &world,
         if (s) {
             scfg_updated = true;
         }
+    };
+
+    auto to_imvec4 = [](Color c) -> ImVec4 {
+        return ImVec4(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f);
     };
 
     auto window_size =
@@ -225,56 +230,79 @@ void render_ui(const WindowConfig &wcfg, World &world,
                 if (ImGui::TreeNode("Rules Row")) {
                     for (int j = 0; j < editor.G; ++j) {
                         ImGui::PushID(j);
+
+                        // header line: [src color] "g -> j" [dst color]
+                        ImVec4 csrc = to_imvec4(editor.colors[g]);
+                        ImVec4 cdst = to_imvec4(editor.colors[j]);
+
+                        // Put labels above the slider (not inline with it)
+                        ImGui::ColorButton("src", csrc,
+                                           ImGuiColorEditFlags_NoTooltip |
+                                               ImGuiColorEditFlags_NoPicker |
+                                               ImGuiColorEditFlags_NoDragDrop,
+                                           ImVec2(14, 14));
+                        ImGui::SameLine(0.0f, 6.0f);
+                        ImGui::Text("g%d  \xE2\x86\x92  g%d", g, j); // → arrow
+                        ImGui::SameLine(0.0f, 6.0f);
+                        ImGui::ColorButton("dst", cdst,
+                                           ImGuiColorEditFlags_NoTooltip |
+                                               ImGuiColorEditFlags_NoPicker |
+                                               ImGuiColorEditFlags_NoDragDrop,
+                                           ImVec2(14, 14));
+
+                        // the actual rule slider
                         float &v = editor.rules[g * editor.G + j];
-                        if (ImGui::SliderFloat("##w", &v, -3.14f, 3.14f)) {
+                        if (ImGui::SliderFloat("Strength", &v, -3.14f, 3.14f,
+                                               "%.3f")) {
                             editor.dirty = true;
                         }
-                        ImGui::SameLine();
-                        ImGui::Text("to %d", j);
+
+                        // a thin separator between rules
+                        ImGui::Separator();
+
                         ImGui::PopID();
                     }
                     ImGui::TreePop();
                 }
 
-                // remove button (forces reseed on sim side)
-                if (ImGui::Button("Remove Group")) {
-                    auto cmd = mailbox::command::Command{};
-                    cmd.kind = mailbox::command::Command::Kind::RemoveGroup;
-                    cmd.rem_group =
-                        std::make_shared<mailbox::command::RemoveGroupCmd>(
-                            mailbox::command::RemoveGroupCmd{g});
-                    cmdq.push(cmd);
-                }
+                // TODO: remove button (forces reseed on sim side)
+                // if (ImGui::Button("Remove Group")) {
+                //     auto cmd = mailbox::command::Command{};
+                //     cmd.kind = mailbox::command::Command::Kind::RemoveGroup;
+                //     cmd.rem_group =
+                //         std::make_shared<mailbox::command::RemoveGroupCmd>(
+                //             mailbox::command::RemoveGroupCmd{g});
+                //     cmdq.push(cmd);
+                // }
 
                 ImGui::PopID();
             }
 
-            ImGui::Separator();
+            // ImGui::Separator();
 
-            // Add group (appends; positions for new group are randomized in
-            // sim)
-            static int new_size = 500;
-            static float new_r = 80.f;
-            static float new_col[4] = {0.8f, 0.8f, 0.2f, 1.f};
-            ImGui::InputInt("New group size", &new_size);
-            ImGui::SliderFloat("New group radius r", &new_r, 1.f, 300.f,
-                               "%.1f");
-            ImGui::ColorEdit4("New group color", new_col,
-                              ImGuiColorEditFlags_NoInputs);
-            if (ImGui::Button("Add Group")) {
-                auto cmd = mailbox::command::Command{};
-                cmd.kind = mailbox::command::Command::Kind::AddGroup;
-                auto add = std::make_shared<mailbox::command::AddGroupCmd>();
-                add->size = std::max(0, new_size);
-                add->r2 = new_r * new_r;
-                add->color = Color{
-                    (unsigned char)std::clamp(int(new_col[0] * 255.f), 0, 255),
-                    (unsigned char)std::clamp(int(new_col[1] * 255.f), 0, 255),
-                    (unsigned char)std::clamp(int(new_col[2] * 255.f), 0, 255),
-                    (unsigned char)std::clamp(int(new_col[3] * 255.f), 0, 255)};
-                cmd.add_group = add;
-                cmdq.push(cmd);
-            }
+            // TODO: Add group (appends; positions for new group are randomized
+            // in sim) static int new_size = 500; static float new_r = 80.f;
+            // static float new_col[4] = {0.8f, 0.8f, 0.2f, 1.f};
+            // ImGui::InputInt("New group size", &new_size);
+            // ImGui::SliderFloat("New group radius r", &new_r, 1.f, 300.f,
+            //                    "%.1f");
+            // ImGui::ColorEdit4("New group color", new_col,
+            //                   ImGuiColorEditFlags_NoInputs);
+            // if (ImGui::Button("Add Group")) {
+            //     auto cmd = mailbox::command::Command{};
+            //     cmd.kind = mailbox::command::Command::Kind::AddGroup;
+            //     auto add = std::make_shared<mailbox::command::AddGroupCmd>();
+            //     add->size = std::max(0, new_size);
+            //     add->r2 = new_r * new_r;
+            //     add->color = Color{
+            //         (unsigned char)std::clamp(int(new_col[0] * 255.f), 0,
+            //         255), (unsigned char)std::clamp(int(new_col[1] * 255.f),
+            //         0, 255), (unsigned char)std::clamp(int(new_col[2] *
+            //         255.f), 0, 255), (unsigned char)std::clamp(int(new_col[3]
+            //         * 255.f), 0, 255)};
+            //     cmd.add_group = add;
+            //     cmdq.push(cmd);
+            // }
 
             ImGui::EndChild(); // end scrollable
 
@@ -334,6 +362,17 @@ void render_ui(const WindowConfig &wcfg, World &world,
             if (ImGui::Button("Zero self (w_ii = 0)")) {
                 for (int i = 0; i < editor.G; ++i)
                     editor.rules[i * editor.G + i] = 0.f;
+                editor.dirty = true;
+            }
+
+            if (ImGui::Button("Randomize rules")) {
+                static std::mt19937 rng{std::random_device{}()};
+                std::uniform_real_distribution<float> dist(-3.14f, 3.14f);
+                for (int i = 0; i < editor.G; ++i) {
+                    for (int j = 0; j < editor.G; ++j) {
+                        editor.rules[i * editor.G + j] = dist(rng);
+                    }
+                }
                 editor.dirty = true;
             }
         }
