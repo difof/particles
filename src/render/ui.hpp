@@ -32,14 +32,12 @@ void render_ui(const WindowConfig &wcfg, World &world,
     };
 
     auto window_size =
-        ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height};
+        ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height / 2};
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.);
-    ImGui::Begin("main", NULL,
-                 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
-                     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
-    ImGui::SetWindowPos(ImVec2{0.f, 0.f}, ImGuiCond_Always);
-    ImGui::SetWindowSize(window_size, ImGuiCond_Always);
+    ImGui::Begin("main", NULL);
+    // ImGui::SetWindowPos(ImVec2{0.f, 0.f}, ImGuiCond_Always);
+    ImGui::SetWindowSize(window_size, ImGuiCond_Appearing);
 
     {
         ImGui::SeparatorText("Stats");

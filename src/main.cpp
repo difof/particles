@@ -13,10 +13,10 @@ void run() {
     InitWindow(1080, 800, "Particles");
 
     int monitor = GetCurrentMonitor();
-    int screenW = GetMonitorWidth(monitor) * .9;
+    int screenW = GetMonitorWidth(monitor);
     int screenH = GetMonitorHeight(monitor) - 60;
     int panelW = 500; // screenW * .23;
-    int texW = screenW - panelW;
+    int texW = screenW;
 
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
     RenderConfig rcfg;
@@ -59,14 +59,16 @@ void run() {
         ClearBackground(BLACK);
 
         {
-            if (rcfg.final_additive_blit)
+            if (rcfg.final_additive_blit) {
                 BeginBlendMode(BLEND_ADDITIVE);
+            }
             DrawTextureRec(tex.texture,
                            (Rectangle){0, 0, (float)tex.texture.width,
                                        (float)-tex.texture.height},
-                           (Vector2){wcfg.panel_width, 0}, WHITE);
-            if (rcfg.final_additive_blit)
+                           (Vector2){0, 0}, WHITE);
+            if (rcfg.final_additive_blit) {
                 EndBlendMode();
+            }
         }
 
         rlImGuiBegin();

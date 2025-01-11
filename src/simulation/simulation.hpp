@@ -30,7 +30,7 @@ static void seed_world(World &world,
     std::uniform_real_distribution<float> rx(0.f, scfg.bounds_width);
     std::uniform_real_distribution<float> ry(0.f, scfg.bounds_height);
 
-    int sz = 3000;
+    int sz = 1500;
     const int gG = world.add_group(sz, GREEN);
     const int gR = world.add_group(sz, RED);
     const int gO = world.add_group(sz, ORANGE);
