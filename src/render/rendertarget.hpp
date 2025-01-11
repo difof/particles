@@ -40,6 +40,7 @@ static Texture2D get_glow_tex() {
     tex = LoadTextureFromImage(img);
     UnloadImage(img);
     SetTextureFilter(tex, TEXTURE_FILTER_BILINEAR);
+    inited = true;
     return tex;
 }
 
