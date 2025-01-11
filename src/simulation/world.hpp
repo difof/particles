@@ -39,18 +39,38 @@ class World {
         if ((size_t)g < g_colors.size())
             g_colors[g] = c;
     }
-    inline Color get_group_color(int g) const { return g_colors[g]; }
-    inline const std::vector<Color> &colors() const { return g_colors; }
-    inline const std::vector<int> &group_spans() const { return groups; }
+    inline Color get_group_color(int g) const noexcept { return g_colors[g]; }
+    inline const std::vector<Color> &colors() const noexcept {
+        return g_colors;
+    }
+    inline const std::vector<int> &group_spans() const noexcept {
+        return groups;
+    }
 
-    inline float get_px(int idx) const { return particles[idx * 4 + 0]; }
-    inline float get_py(int idx) const { return particles[idx * 4 + 1]; }
-    inline float get_vx(int idx) const { return particles[idx * 4 + 2]; }
-    inline float get_vy(int idx) const { return particles[idx * 4 + 3]; }
-    inline void set_px(int idx, float v) { particles[idx * 4 + 0] = v; }
-    inline void set_py(int idx, float v) { particles[idx * 4 + 1] = v; }
-    inline void set_vx(int idx, float v) { particles[idx * 4 + 2] = v; }
-    inline void set_vy(int idx, float v) { particles[idx * 4 + 3] = v; }
+    inline float get_px(int idx) const noexcept {
+        return particles[idx * 4 + 0];
+    }
+    inline float get_py(int idx) const noexcept {
+        return particles[idx * 4 + 1];
+    }
+    inline float get_vx(int idx) const noexcept {
+        return particles[idx * 4 + 2];
+    }
+    inline float get_vy(int idx) const noexcept {
+        return particles[idx * 4 + 3];
+    }
+    inline void set_px(int idx, float v) noexcept {
+        particles[idx * 4 + 0] = v;
+    }
+    inline void set_py(int idx, float v) noexcept {
+        particles[idx * 4 + 1] = v;
+    }
+    inline void set_vx(int idx, float v) noexcept {
+        particles[idx * 4 + 2] = v;
+    }
+    inline void set_vy(int idx, float v) noexcept {
+        particles[idx * 4 + 3] = v;
+    }
 
     inline void set_rule(int g_src, int g_dst, float v) {
         rules[g_src * get_groups_size() + g_dst] = v;

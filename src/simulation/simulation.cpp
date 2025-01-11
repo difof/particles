@@ -506,21 +506,23 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
             }
         }
 
-        // branch-light wall repel: use max() to accumulate only when outside
-        // margin
         if (data.k_wallRepel > 0.f) {
             const float d = data.k_wallRepel;
             const float sW = data.k_wallStrength;
 
-            // left   : + (d - ax) when ax < d  -> max(0, d - ax)
-            // right  : + (W - d - ax) when ax > W - d -> -(ax - (W - d))
-            sumx += std::max(0.f, d - ax) * sW;
-            sumx += -std::max(0.f, ax - (data.width - d)) * sW;
-
-            // bottom : + (d - ay)
-            // top    : + (H - d - ay) -> -(ay - (H - d))
-            sumy += std::max(0.f, d - ay) * sW;
-            sumy += -std::max(0.f, ay - (data.height - d)) * sW;
+            // FIXME: use clamp/min/max instead of branch
+            if (ax < d) {
+                sumx += (d - ax) * sW;
+            }
+            if (ax > data.width - d) {
+                sumx += (data.width - d - ax) * sW;
+            }
+            if (ay < d) {
+                sumy += (d - ay) * sW;
+            }
+            if (ay > data.height - d) {
+                sumy += (data.height - d - ay) * sW;
+            }
         }
 
         data.fx[i] = sumx;
@@ -547,16 +549,22 @@ inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
         float vx = m_world.get_vx(i);
         float vy = m_world.get_vy(i);
 
-        // bounce using clamp & reflect; single inequality check per axis
-        const float nx = std::clamp(x, 0.f, data.width);
-        if (nx != x) {
+        // FIXME: use clamp/min/max instead of branch
+        if (x < 0.f) {
+            x = -x;
             vx = -vx;
-            x = 2.f * nx - x; // reflect
         }
-        const float ny = std::clamp(y, 0.f, data.height);
-        if (ny != y) {
+        if (x >= data.width) {
+            x = 2.f * data.width - x;
+            vx = -vx;
+        }
+        if (y < 0.f) {
+            y = -y;
             vy = -vy;
-            y = 2.f * ny - y; // reflect
+        }
+        if (y >= data.height) {
+            y = 2.f * data.height - y;
+            vy = -vy;
         }
 
         m_world.set_px(i, x);
