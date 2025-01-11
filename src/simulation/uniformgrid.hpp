@@ -21,6 +21,16 @@ class UniformGrid {
     UniformGrid &operator=(const UniformGrid &) = delete;
     UniformGrid &operator=(UniformGrid &&) = delete;
 
+    void reset() {
+        m_cell = 64.f;
+        m_width = 64.f;
+        m_height = 64.f;
+        m_cols = 1;
+        m_rows = 1;
+        m_head.clear();
+        m_next.clear();
+    }
+
     inline float width() const { return m_width; }
     inline float height() const { return m_height; }
     inline float cell() const { return m_cell; }
@@ -97,12 +107,11 @@ class UniformGrid {
     }
 
   private:
-    // side length of a cell (auto-picked)
-    float m_cell = 64.f;
-    float m_width = 64.f, m_height = 64.f; // <— new
-
-    // grid size
-    int m_cols = 1, m_rows = 1;
+    float m_cell;
+    float m_width;
+    float m_height;
+    int m_cols;
+    int m_rows;
 
     // size cols*rows, index of first particle in cell (-1 if none)
     std::vector<int> m_head;

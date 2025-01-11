@@ -8,17 +8,15 @@
 #include <thread>
 
 #include "../mailbox/mailbox.hpp"
-#include "../simulation/multicore.hpp"
-#include "../simulation/world.hpp"
+#include "../simulation/simulation.hpp"
 #include "../types.hpp"
 
-void render_ui(const WindowConfig &wcfg, World &world,
-               mailbox::SimulationConfig &scfgb,
-               mailbox::SimulationStats &statsb, mailbox::command::Queue &cmdq,
-               RenderConfig &rcfg) {
+void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
 
-    mailbox::SimulationConfig::Snapshot scfg = scfgb.acquire();
-    mailbox::SimulationStats::Snapshot stats = statsb.acquire();
+    mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
+    mailbox::SimulationStats::Snapshot stats = sim.get_stats();
+
+    const World &world = sim.get_world();
 
     bool scfg_updated = false;
     auto mark = [&scfg_updated](bool s) {
@@ -53,11 +51,11 @@ void render_ui(const WindowConfig &wcfg, World &world,
 
             ImGui::SeparatorText("Controls");
             if (ImGui::Button("Reset world")) {
-                cmdq.push({mailbox::command::Command::Kind::ResetWorld});
+                sim.push_command({mailbox::command::Command::Kind::ResetWorld});
             }
             ImGui::SameLine();
             if (ImGui::Button("Quit sim")) {
-                cmdq.push({mailbox::command::Command::Kind::Quit});
+                sim.push_command({mailbox::command::Command::Kind::Quit});
             }
         }
 
@@ -118,7 +116,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
                                    4.0f, "%.1f");
                 scfg.draw_report.velocity_data = true;
             } else {
-                scfg.draw_report.velocity_data = true;
+                scfg.draw_report.velocity_data = false;
             }
         }
 
@@ -169,7 +167,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
 
                 for (int g = 0; g < G; ++g) {
                     editor.r2[g] = world.r2_of(g);
-                    editor.colors[g] = *world.get_group_color(g);
+                    editor.colors[g] = world.get_group_color(g);
                     editor.sizes[g] =
                         world.get_group_end(g) - world.get_group_start(g);
 
@@ -325,7 +323,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
                 auto cmd = mailbox::command::Command{};
                 cmd.kind = mailbox::command::Command::Kind::ApplyRules;
                 cmd.rules = patch;
-                cmdq.push(cmd);
+                sim.push_command(cmd);
                 editor.dirty = false;
             }
             if (!can_hot_apply) {
@@ -346,7 +344,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
                 auto cmd = mailbox::command::Command{};
                 cmd.kind = mailbox::command::Command::Kind::ApplyRules;
                 cmd.rules = patch;
-                cmdq.push(cmd);
+                sim.push_command(cmd);
                 editor.dirty = false;
             }
 
@@ -385,7 +383,7 @@ void render_ui(const WindowConfig &wcfg, World &world,
     ImGui::PopStyleVar();
 
     if (scfg_updated) {
-        scfgb.publish(scfg);
+        sim.update_config(scfg);
     }
 }
 

@@ -34,9 +34,11 @@ struct Command {
     enum class Kind {
         ResetWorld,
         Quit,
-        ApplyRules, // uses ptr RulePatch
-        AddGroup,   // uses add_group
-        RemoveGroup // uses rem_group
+        ApplyRules,  // uses ptr RulePatch
+        AddGroup,    // uses add_group
+        RemoveGroup, // uses rem_group
+        Pause,
+        Resume
     } kind;
 
     // Generic small numeric payload (kept for future tiny knobs)

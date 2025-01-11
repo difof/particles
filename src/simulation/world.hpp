@@ -39,7 +39,7 @@ class World {
         if ((size_t)g < g_colors.size())
             g_colors[g] = c;
     }
-    inline Color *get_group_color(int g) { return &g_colors[g]; }
+    inline Color get_group_color(int g) const { return g_colors[g]; }
     inline const std::vector<Color> &colors() const { return g_colors; }
     inline const std::vector<int> &group_spans() const { return groups; }
 

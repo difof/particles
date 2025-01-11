@@ -15,6 +15,79 @@
 #include "uniformgrid.hpp"
 #include "world.hpp"
 
+class Simulation {
+  private:
+    struct KernelData {
+        KernelData() = default;
+        ~KernelData() = default;
+        KernelData(const KernelData &) = delete;
+        KernelData &operator=(const KernelData &) = delete;
+        KernelData(KernelData &&) = delete;
+        KernelData &operator=(KernelData &&) = delete;
+
+        int particles_count;
+        float k_time_scale, k_viscosity, k_inverse_viscosity, k_wallRepel,
+            k_wallStrength;
+        float inverse_cell, width, height;
+        std::vector<float> fx, fy;
+    };
+
+  public:
+    Simulation(mailbox::SimulationConfig::Snapshot cfg);
+    ~Simulation();
+
+    Simulation(const Simulation &) = delete;
+    Simulation &operator=(const Simulation &) = delete;
+    Simulation(Simulation &&) = delete;
+    Simulation &operator=(Simulation &&) = delete;
+
+    void begin();
+    void end();
+
+    void pause();
+    void resume();
+    void reset();
+
+    void update_config(mailbox::SimulationConfig::Snapshot &cfg);
+    void push_command(const mailbox::command::Command &cmd);
+    const std::vector<float> &read_current_draw();
+    mailbox::DrawBuffer::ReadView begin_read_draw();
+    void end_read_draw(const mailbox::DrawBuffer::ReadView &view);
+    mailbox::SimulationStats::Snapshot get_stats() const;
+    mailbox::SimulationConfig::Snapshot get_config() const;
+    const World &get_world() const;
+
+  private:
+    void seed_world(mailbox::SimulationConfig::Snapshot &cfg);
+    void step(mailbox::SimulationConfig::Snapshot &cfg);
+    void loop_thread();
+    void process_commands(mailbox::SimulationConfig::Snapshot &cfg);
+    void publish_draw(mailbox::SimulationConfig::Snapshot &cfg);
+    int ensure_pool(int t, mailbox::SimulationConfig::Snapshot &cfg);
+    void kernel_force(int start, int end, KernelData &data);
+    void kernel_pos(int start, int end, KernelData &data);
+    void kernel_vel(int start, int end, KernelData &data);
+
+  private:
+    World m_world;
+    UniformGrid m_grid;
+    std::unique_ptr<SimulationThreadPool> m_pool;
+    mailbox::command::Queue m_mail_cmd;
+    mailbox::DrawBuffer m_mail_draw;
+    mailbox::SimulationConfig m_mail_cfg;
+    mailbox::SimulationStats m_mail_stats;
+    std::thread m_thread;
+
+  private:
+    bool m_t_running{false};
+    bool m_t_paused{true};
+    int m_t_last_published_tps{0};
+    int m_t_window_steps{0};
+    std::chrono::steady_clock::time_point m_t_window_start;
+    std::chrono::steady_clock::time_point m_t_tps_next;
+};
+
+#ifdef ASS
 inline long long now_ns() {
     using namespace std::chrono;
     return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
@@ -404,10 +477,11 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
                     world.add_group(ag.size, ag.color);
                     world.finalize_groups(); // updates starts/ends
                     world.init_rule_tables(world.get_groups_size());
-                    // default: zero rules; set radius for the new group index
-                    int gn = world.get_groups_size() - 1;
+                    // default: zero rules; set radius for the new group
+                    index int gn = world.get_groups_size() - 1;
                     world.set_r2(gn, ag.r2);
-                    // Seed new particles positions/velocities (simple random)
+                    // Seed new particles positions/velocities (simple
+                    random)
                     // Reuse seed_world mechanics but keep existing ones:
                     {
                         std::mt19937 rng{std::random_device{}()};
@@ -435,10 +509,11 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
                         world.remove_group(gi);
                         world.finalize_groups();
                         world.init_rule_tables(
-                            world.get_groups_size()); // rules resized; values
-                                                      // zeroed
-                        // safest: reseed since order changed & counts moved
-                        seed_world(world, scfg);
+                            world.get_groups_size()); // rules resized;
+                        values
+                            // zeroed
+                            // safest: reseed since order changed & counts moved
+                            seed_world(world, scfg);
                         window_steps = 0;
                         window_start = clock::now();
                     }
@@ -504,5 +579,6 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
         scfg = scfgb.acquire();
     }
 }
+#endif
 
 #endif

@@ -5,7 +5,7 @@
 #include <raymath.h>
 
 #include "../mailbox/mailbox.hpp"
-#include "../simulation/world.hpp"
+#include "../simulation/simulation.hpp"
 #include "renderconfig.hpp"
 
 static inline Color TintRGB(Color c, float k) {
@@ -135,10 +135,11 @@ static void draw_velocity_field(const mailbox::DrawBuffer::GridFrame &g,
 }
 
 template <typename PosFn>
-static void draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
-                                     Texture2D glow, float coreSize,
-                                     float outerScale, float outerRGBGain,
-                                     float innerScale, float innerRGBGain) {
+static void draw_particles_with_glow(const World &world, int groupsCount,
+                                     PosFn posAt, Texture2D glow,
+                                     float coreSize, float outerScale,
+                                     float outerRGBGain, float innerScale,
+                                     float innerRGBGain) {
     const Rectangle src = {0, 0, (float)glow.width, (float)glow.height};
     const Vector2 org = {0, 0};
 
@@ -147,7 +148,7 @@ static void draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
     for (int g = 0; g < groupsCount; ++g) {
         const int start = world.get_group_start(g);
         const int end = world.get_group_end(g);
-        const Color tint = TintRGB(*world.get_group_color(g), outerRGBGain);
+        const Color tint = TintRGB(world.get_group_color(g), outerRGBGain);
         for (int i = start; i < end; ++i) {
             Vector2 p = posAt(i);
             Rectangle dest = {p.x - outerScale, p.y - outerScale,
@@ -162,7 +163,7 @@ static void draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
     for (int g = 0; g < groupsCount; ++g) {
         const int start = world.get_group_start(g);
         const int end = world.get_group_end(g);
-        const Color tint = TintRGB(*world.get_group_color(g), innerRGBGain);
+        const Color tint = TintRGB(world.get_group_color(g), innerRGBGain);
         for (int i = start; i < end; ++i) {
             Vector2 p = posAt(i);
             Rectangle dest = {p.x - innerScale, p.y - innerScale,
@@ -176,7 +177,7 @@ static void draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
     for (int g = 0; g < groupsCount; ++g) {
         const int start = world.get_group_start(g);
         const int end = world.get_group_end(g);
-        const Color col = *world.get_group_color(g);
+        const Color col = world.get_group_color(g);
         for (int i = start; i < end; ++i) {
             Vector2 p = posAt(i);
             DrawCircleV(p, coreSize, col);
@@ -185,12 +186,12 @@ static void draw_particles_with_glow(World &world, int groupsCount, PosFn posAt,
 }
 
 template <typename PosFn>
-static void draw_particles_simple(World &world, int groupsCount, PosFn posAt,
-                                  float coreSize) {
+static void draw_particles_simple(const World &world, int groupsCount,
+                                  PosFn posAt, float coreSize) {
     for (int g = 0; g < groupsCount; ++g) {
         const int start = world.get_group_start(g);
         const int end = world.get_group_end(g);
-        const Color col = *world.get_group_color(g);
+        const Color col = world.get_group_color(g);
         for (int i = start; i < end; ++i) {
             Vector2 p = posAt(i);
             DrawCircleV(p, coreSize, col);
@@ -198,12 +199,11 @@ static void draw_particles_simple(World &world, int groupsCount, PosFn posAt,
     }
 }
 
-inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
-                       const RenderConfig &rcfg) {
+inline void render_tex(Simulation &sim, const RenderConfig &rcfg) {
     ClearBackground(Color{0, 0, 0, 255});
 
-    auto view = dbuf.begin_read();
-    const int G = world.get_groups_size();
+    auto view = sim.begin_read_draw();
+    const int G = sim.get_world().get_groups_size();
 
     const float coreSize = rcfg.core_size;
     Texture2D glow{};
@@ -246,18 +246,18 @@ inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
         };
 
         if (rcfg.glow_enabled) {
-            draw_particles_with_glow(world, G, posAt, glow, coreSize,
+            draw_particles_with_glow(sim.get_world(), G, posAt, glow, coreSize,
                                      outerScale, rcfg.outer_rgb_gain,
                                      innerScale, rcfg.inner_rgb_gain);
         } else {
-            draw_particles_simple(world, G, posAt, coreSize);
+            draw_particles_simple(sim.get_world(), G, posAt, coreSize);
         }
 
     }
 
     // No interpolation
     else {
-        const auto &pos = dbuf.read_current_only();
+        const auto &pos = sim.read_current_draw();
         auto posAt = [&](int i) -> Vector2 {
             size_t b = (size_t)i * 2;
             if (b + 1 >= pos.size())
@@ -266,11 +266,11 @@ inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
         };
 
         if (rcfg.glow_enabled) {
-            draw_particles_with_glow(world, G, posAt, glow, coreSize,
+            draw_particles_with_glow(sim.get_world(), G, posAt, glow, coreSize,
                                      outerScale, rcfg.outer_rgb_gain,
                                      innerScale, rcfg.inner_rgb_gain);
         } else {
-            draw_particles_simple(world, G, posAt, coreSize);
+            draw_particles_simple(sim.get_world(), G, posAt, coreSize);
         }
     }
 
@@ -298,7 +298,7 @@ inline void render_tex(World &world, const mailbox::DrawBuffer &dbuf,
         }
     }
 
-    dbuf.end_read(view);
+    sim.end_read_draw(view);
 }
 
 #endif

@@ -41,9 +41,10 @@ class SimulationThreadPool {
     void resize(int threads);
 
     template <Kernel F>
-    void parallel_for_n(int n_items, F fn) {
-        if (n_items <= 0)
+    void parallel_for_n(F fn, int n_items) {
+        if (n_items <= 0) {
             return;
+        }
 
         int num_threads = std::max(1, static_cast<int>(m_workers.size()));
         if (num_threads == 1 || n_items < 1024) {

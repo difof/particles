@@ -27,7 +27,19 @@ class SimulationConfig {
     };
 
   public:
-    SimulationConfig() = default;
+    SimulationConfig() {
+        for (auto &b : m_buffer) {
+            b.bounds_width = b.bounds_height = 0.f;
+            b.time_scale = 1.f;
+            b.viscosity = 0.1f;
+            b.wallRepel = 0.f;
+            b.wallStrength = 0.f;
+            b.target_tps = 0;
+            b.sim_threads = 1;
+            b.draw_report = {false, false};
+        }
+    }
+
     ~SimulationConfig() = default;
     SimulationConfig(const SimulationConfig &) = delete;
     SimulationConfig(SimulationConfig &&) = delete;

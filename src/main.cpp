@@ -20,11 +20,6 @@ void run() {
 
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
     RenderConfig rcfg;
-    World world;
-    mailbox::DrawBuffer dbuf;
-    mailbox::SimulationStats statsb;
-    mailbox::command::Queue cmdq;
-    mailbox::SimulationConfig scfgb;
     mailbox::SimulationConfig::Snapshot scfg = {};
     scfg.bounds_width = (float)wcfg.render_width;
     scfg.bounds_height = (float)wcfg.screen_height;
@@ -34,7 +29,7 @@ void run() {
     scfg.wallRepel = 40.0f;
     scfg.wallStrength = 0.1f;
     scfg.sim_threads = 1;
-    scfgb.publish(scfg);
+    Simulation sim(scfg);
 
     // InitWindow(wcfg.screen_width, wcfg.screen_height, "Particles");
     SetWindowSize(wcfg.screen_width, wcfg.screen_height);
@@ -46,13 +41,11 @@ void run() {
     RenderTexture2D tex =
         LoadRenderTexture(wcfg.render_width, wcfg.screen_height);
 
-    std::thread sim_thread(simulation_thread_func, std::ref(world),
-                           std::ref(scfgb), std::ref(dbuf), std::ref(cmdq),
-                           std::ref(statsb));
+    sim.begin();
 
     while (!WindowShouldClose()) {
         BeginTextureMode(tex);
-        render_tex(world, dbuf, rcfg);
+        render_tex(sim, rcfg);
         EndTextureMode();
 
         BeginDrawing();
@@ -72,14 +65,13 @@ void run() {
         }
 
         rlImGuiBegin();
-        render_ui(wcfg, world, scfgb, statsb, cmdq, rcfg);
+        render_ui(wcfg, sim, rcfg);
         rlImGuiEnd();
 
         EndDrawing();
     }
 
-    cmdq.push({mailbox::command::Command::Kind::Quit});
-    sim_thread.join();
+    sim.end();
 
     rlImGuiShutdown();
     UnloadRenderTexture(tex);
