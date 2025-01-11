@@ -25,11 +25,15 @@ class Simulation {
         KernelData(KernelData &&) = delete;
         KernelData &operator=(KernelData &&) = delete;
 
-        int particles_count;
-        float k_time_scale, k_viscosity, k_inverse_viscosity, k_wallRepel,
-            k_wallStrength;
-        float inverse_cell, width, height;
-        std::vector<float> fx, fy;
+        int particles_count = 0;
+        float k_time_scale = 0.f, k_viscosity = 0.f, k_inverse_viscosity = 1.f,
+              k_wallRepel = 0.f, k_wallStrength = 0.f;
+        float inverse_cell = 1.f, width = 0.f, height = 0.f;
+
+        // raw pointers to Simulation-owned scratch buffers to avoid per-tick
+        // allocs
+        float *fx = nullptr;
+        float *fy = nullptr;
     };
 
   public:
@@ -77,6 +81,9 @@ class Simulation {
     mailbox::SimulationConfig m_mail_cfg;
     mailbox::SimulationStats m_mail_stats;
     std::thread m_thread;
+
+    // scratch force buffers (reused every step)
+    std::vector<float> m_fx, m_fy;
 
   private:
     bool m_t_running{false};

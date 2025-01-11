@@ -103,7 +103,6 @@ void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
     }
 
     m_world.finalize_groups();
-
     const int G = m_world.get_groups_size();
     m_world.init_rule_tables(G);
 
@@ -114,42 +113,50 @@ void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
     m_world.set_r2(gB, r * r);
     m_world.set_r2(gP, r * r);
 
-    m_world.set_rule(gG, gG, +0.9261392140761018);
-    m_world.set_rule(gG, gR, -0.8341653244569898);
-    m_world.set_rule(gG, gO, +0.2809289274737239);
-    m_world.set_rule(gG, gB, -0.0642730798572301);
-    m_world.set_rule(gG, gP, +0.5173874347821623);
+    m_world.set_rule(gG, gG, +0.9261392140761018f);
+    m_world.set_rule(gG, gR, -0.8341653244569898f);
+    m_world.set_rule(gG, gO, +0.2809289274737239f);
+    m_world.set_rule(gG, gB, -0.0642730798572301f);
+    m_world.set_rule(gG, gP, +0.5173874347821623f);
 
-    m_world.set_rule(gR, gG, -0.4617096465080976);
-    m_world.set_rule(gR, gR, +0.4914243463426828);
-    m_world.set_rule(gR, gO, +0.2760726027190685);
-    m_world.set_rule(gR, gB, +0.6413487386889756);
-    m_world.set_rule(gR, gP, -0.7276545553729321);
+    m_world.set_rule(gR, gG, -0.4617096465080976f);
+    m_world.set_rule(gR, gR, +0.4914243463426828f);
+    m_world.set_rule(gR, gO, +0.2760726027190685f);
+    m_world.set_rule(gR, gB, +0.6413487386889756f);
+    m_world.set_rule(gR, gP, -0.7276545553729321f);
 
-    m_world.set_rule(gO, gG, -0.7874764292500913);
-    m_world.set_rule(gO, gR, +0.2337338547222316);
-    m_world.set_rule(gO, gO, -0.0241123312152922);
-    m_world.set_rule(gO, gB, -0.7487592226825655);
-    m_world.set_rule(gO, gP, +0.2283666329376234);
+    m_world.set_rule(gO, gG, -0.7874764292500913f);
+    m_world.set_rule(gO, gR, +0.2337338547222316f);
+    m_world.set_rule(gO, gO, -0.0241123312152922f);
+    m_world.set_rule(gO, gB, -0.7487592226825655f);
+    m_world.set_rule(gO, gP, +0.2283666329376234f);
 
-    m_world.set_rule(gB, gG, +0.5655814143829048);
-    m_world.set_rule(gB, gR, +0.9484694371931255);
-    m_world.set_rule(gB, gO, -0.3605288732796907);
-    m_world.set_rule(gB, gB, +0.4411409106105566);
-    m_world.set_rule(gB, gP, -0.3176638387632344);
+    m_world.set_rule(gB, gG, +0.5655814143829048f);
+    m_world.set_rule(gB, gR, +0.9484694371931255f);
+    m_world.set_rule(gB, gO, -0.3605288732796907f);
+    m_world.set_rule(gB, gB, +0.4411409106105566f);
+    m_world.set_rule(gB, gP, -0.3176638387632344f);
 
-    m_world.set_rule(gP, gG, std::sin(1.0));
-    m_world.set_rule(gP, gR, std::cos(2.0));
-    m_world.set_rule(gP, gO, +1.0);
-    m_world.set_rule(gP, gB, -1.0);
-    m_world.set_rule(gP, gP, +3.14);
+    m_world.set_rule(gP, gG, std::sin(1.0f));
+    m_world.set_rule(gP, gR, std::cos(2.0f));
+    m_world.set_rule(gP, gO, +1.0f);
+    m_world.set_rule(gP, gB, -1.0f);
+    m_world.set_rule(gP, gP, +3.14f);
 }
 
 void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     const int particles_count = m_world.get_particles_size();
-    if (particles_count == 0) {
+    if (particles_count == 0)
         return;
-    }
+
+    // reuse scratch buffers (no alloc per frame)
+    if ((int)m_fx.size() != particles_count)
+        m_fx.resize(particles_count);
+    if ((int)m_fy.size() != particles_count)
+        m_fy.resize(particles_count);
+    // zero cheaply
+    std::fill_n(m_fx.data(), particles_count, 0.f);
+    std::fill_n(m_fy.data(), particles_count, 0.f);
 
     KernelData data;
     data.particles_count = particles_count;
@@ -160,30 +167,10 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     data.k_wallStrength = cfg.wallStrength;
     data.width = cfg.bounds_width;
     data.height = cfg.bounds_height;
-    data.fx.assign(particles_count, .0f);
-    data.fy.assign(particles_count, .0f);
+    data.fx = m_fx.data();
+    data.fy = m_fy.data();
 
-    // FIXME: Per-step allocations: you do data.fx.assign(N, 0) / fy.assign.
-    // That’s a clear + memset per step. Consider keeping m_fx, m_fy as members
-    // in Simulation and only resize when capacity is insufficient; then
-    // std::fill_n(ptr, N, 0.f) each frame (or reuse + write-only stores in
-    // kernel_force).
-    // TODO:
-    // // In Simulation class: add
-    // std::vector<float> m_fx, m_fy;
-    // // In step():
-    // m_fx.assign(particles_count, 0.f);
-    // m_fy.assign(particles_count, 0.f);
-    // // then here
-    // data.fx = m_fx.data();
-    // data.fy = m_fy.data();
-
-    // FIXME: False sharing on fx/fy: If threads write adjacent indices, it’s
-    // usually fine, but for tiny chunk sizes you can get ping-pong. Use coarser
-    // chunks (e.g., 4–16K elements) to reduce scheduling overhead and sharing.
-
-    float maxR = m_world.max_interaction_radius();
-    maxR = std::max(1.0f, maxR);
+    float maxR = std::max(1.0f, m_world.max_interaction_radius());
 
     m_grid.resize(cfg.bounds_width, cfg.bounds_height, maxR, particles_count);
     m_grid.build(
@@ -238,16 +225,16 @@ void Simulation::loop_thread() {
 
     auto cfg = get_config();
 
+    // seed first, THEN bootstrap draw buffers with correct size
+    seed_world(cfg);
+    const int particle_count = m_world.get_particles_size();
+    m_mail_draw.bootstrap_same_as_current(size_t(particle_count) * 2, now_ns());
+
     auto next = clock::now();
     m_t_window_start = next;
     m_t_window_steps = 0;
     m_t_last_published_tps = 0;
     int last_threads = -9999;
-
-    const int particle_count = m_world.get_particles_size();
-    m_mail_draw.bootstrap_same_as_current(size_t(particle_count) * 2, now_ns());
-
-    seed_world(cfg);
 
     m_t_running = true;
     while (m_t_running) {
@@ -264,7 +251,6 @@ void Simulation::loop_thread() {
 
         const int tps = cfg.target_tps;
 
-        // measure step time
         auto step_begin_ns = now_ns();
         if (!m_t_paused) {
             step(cfg);
@@ -274,7 +260,6 @@ void Simulation::loop_thread() {
 
         publish_draw(cfg);
 
-        // publish stats once per second
         auto now = clock::now();
         if (now - m_t_window_start >= 1s) {
             int secs =
@@ -288,8 +273,7 @@ void Simulation::loop_thread() {
             st.particles = m_world.get_particles_size();
             st.groups = m_world.get_groups_size();
             st.sim_threads = last_threads;
-            st.last_step_ns =
-                (step_end_ns - step_begin_ns); // last step duration
+            st.last_step_ns = (step_end_ns - step_begin_ns);
             st.published_ns = now_ns();
             m_mail_stats.publish(st);
 
@@ -297,7 +281,6 @@ void Simulation::loop_thread() {
             m_t_window_start = now;
         }
 
-        // pacing
         if (tps > 0) {
             const nanoseconds step = nanoseconds(1'000'000'000LL / tps);
             m_t_tps_next = clock::now();
@@ -446,11 +429,6 @@ void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
         }
     }
 
-    // FIXME: Grid copies to DrawBuffer: g.head = m_grid.head(); g.next =
-    // m_grid.next(); are vector copies each frame. If this is on the hot path,
-    // If you can, store spans / pointers in GridFrame instead of copying full
-    // vectors.
-
     if (cfg.draw_report.grid_data) {
         g.head = m_grid.head();
         g.next = m_grid.next();
@@ -528,23 +506,21 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
             }
         }
 
+        // branch-light wall repel: use max() to accumulate only when outside
+        // margin
         if (data.k_wallRepel > 0.f) {
             const float d = data.k_wallRepel;
             const float sW = data.k_wallStrength;
 
-            // FIXME: use clamp/min/max instead of branch
-            if (ax < d) {
-                sumx += (d - ax) * sW;
-            }
-            if (ax > data.width - d) {
-                sumx += (data.width - d - ax) * sW;
-            }
-            if (ay < d) {
-                sumy += (d - ay) * sW;
-            }
-            if (ay > data.height - d) {
-                sumy += (data.height - d - ay) * sW;
-            }
+            // left   : + (d - ax) when ax < d  -> max(0, d - ax)
+            // right  : + (W - d - ax) when ax > W - d -> -(ax - (W - d))
+            sumx += std::max(0.f, d - ax) * sW;
+            sumx += -std::max(0.f, ax - (data.width - d)) * sW;
+
+            // bottom : + (d - ay)
+            // top    : + (H - d - ay) -> -(ay - (H - d))
+            sumy += std::max(0.f, d - ay) * sW;
+            sumy += -std::max(0.f, ay - (data.height - d)) * sW;
         }
 
         data.fx[i] = sumx;
@@ -571,22 +547,16 @@ inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
         float vx = m_world.get_vx(i);
         float vy = m_world.get_vy(i);
 
-        // FIXME: use clamp/min/max instead of branch
-        if (x < 0.f) {
-            x = -x;
+        // bounce using clamp & reflect; single inequality check per axis
+        const float nx = std::clamp(x, 0.f, data.width);
+        if (nx != x) {
             vx = -vx;
+            x = 2.f * nx - x; // reflect
         }
-        if (x >= data.width) {
-            x = 2.f * data.width - x;
-            vx = -vx;
-        }
-        if (y < 0.f) {
-            y = -y;
+        const float ny = std::clamp(y, 0.f, data.height);
+        if (ny != y) {
             vy = -vy;
-        }
-        if (y >= data.height) {
-            y = 2.f * data.height - y;
-            vy = -vy;
+            y = 2.f * ny - y; // reflect
         }
 
         m_world.set_px(i, x);
