@@ -260,7 +260,8 @@ void simulate_once(World &world, UniformGrid &grid,
     pool.parallel_for_n(particles_count, pos_kernel);
 }
 
-void publish_draw(World &world, UniformGrid &ug, mailbox::DrawBuffer &dbuf) {
+void publish_draw(World &world, UniformGrid &ug, mailbox::DrawBuffer &dbuf,
+                  mailbox::SimulationConfig::Snapshot &scfg) {
     using clock = std::chrono::steady_clock;
 
     const int N = world.get_particles_size();
@@ -274,29 +275,34 @@ void publish_draw(World &world, UniformGrid &ug, mailbox::DrawBuffer &dbuf) {
         const size_t b = size_t(i) * 2;
         pos[b + 0] = world.get_px(i);
         pos[b + 1] = world.get_py(i);
-        vel[b + 0] = world.get_vx(i);
-        vel[b + 1] = world.get_vy(i);
+
+        if (scfg.draw_report.velocity_data) {
+            vel[b + 0] = world.get_vx(i);
+            vel[b + 1] = world.get_vy(i);
+        }
     }
 
-    g.head = ug.head(); // size cols*rows
-    g.next = ug.next(); // size N
+    if (scfg.draw_report.grid_data) {
+        g.head = ug.head(); // size cols*rows
+        g.next = ug.next(); // size N
 
-    // compute per-cell counts and velocity sums
-    const int C = g.cols * g.rows;
-    for (int ci = 0; ci < C; ++ci) {
-        int cnt = 0;
-        float sx = 0.f, sy = 0.f;
+        // compute per-cell counts and velocity sums
+        const int C = g.cols * g.rows;
+        for (int ci = 0; ci < C; ++ci) {
+            int cnt = 0;
+            float sx = 0.f, sy = 0.f;
 
-        for (int p = g.head[ci]; p != -1; p = g.next[p]) {
-            const size_t b = size_t(p) * 2;
-            sx += vel[b + 0];
-            sy += vel[b + 1];
-            ++cnt;
+            for (int p = g.head[ci]; p != -1; p = g.next[p]) {
+                const size_t b = size_t(p) * 2;
+                sx += vel[b + 0];
+                sy += vel[b + 1];
+                ++cnt;
+            }
+
+            g.count[ci] = cnt;
+            g.sumVx[ci] = sx;
+            g.sumVy[ci] = sy;
         }
-
-        g.count[ci] = cnt;
-        g.sumVx[ci] = sx;
-        g.sumVy[ci] = sy;
     }
 
     const long long tnow_ns =
@@ -457,7 +463,7 @@ void simulation_thread_func(World &world, mailbox::SimulationConfig &scfgb,
         auto step_end_ns = now_ns();
         ++window_steps;
 
-        publish_draw(world, grid, dbuf);
+        publish_draw(world, grid, dbuf, scfg);
 
         // publish stats once per second
         auto now = clock::now();

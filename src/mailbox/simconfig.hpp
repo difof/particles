@@ -19,6 +19,11 @@ class SimulationConfig {
         float wallStrength;
         int target_tps;
         int sim_threads;
+
+        struct DrawReport {
+            bool grid_data;
+            bool velocity_data;
+        } draw_report;
     };
 
   public:

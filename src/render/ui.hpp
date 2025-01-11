@@ -100,21 +100,26 @@ void render_ui(const WindowConfig &wcfg, World &world,
             }
 
             ImGui::SeparatorText("Overlays");
-            ImGui::Checkbox("Density heatmap", &rcfg.show_density_heat);
+            mark(ImGui::Checkbox("Density heatmap", &rcfg.show_density_heat));
             if (rcfg.show_density_heat) {
                 ImGui::SliderFloat("Heat alpha", &rcfg.heat_alpha, 0.0f, 1.0f,
                                    "%.2f");
             }
 
-            ImGui::Checkbox("Velocity field", &rcfg.show_velocity_field);
+            mark(ImGui::Checkbox("Show grid lines", &rcfg.show_grid_lines));
+            scfg.draw_report.grid_data =
+                rcfg.show_grid_lines || rcfg.show_density_heat;
+
+            mark(ImGui::Checkbox("Velocity field", &rcfg.show_velocity_field));
             if (rcfg.show_velocity_field) {
                 ImGui::SliderFloat("Vel scale", &rcfg.vel_scale, 0.1f, 5.0f,
                                    "%.2f");
                 ImGui::SliderFloat("Vel thickness", &rcfg.vel_thickness, 0.5f,
                                    4.0f, "%.1f");
+                scfg.draw_report.velocity_data = true;
+            } else {
+                scfg.draw_report.velocity_data = true;
             }
-
-            ImGui::Checkbox("Show grid lines", &rcfg.show_grid_lines);
         }
 
         ImGui::SeparatorText("Parallelism");
