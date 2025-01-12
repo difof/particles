@@ -25,78 +25,81 @@ class World {
     void remove_group(int g);
 
   public:
-    inline int get_groups_size() const { return (int)groups.size() / 2; }
-    inline int get_group_start(int g) const { return groups[g * 2 + 0]; }
-    inline int get_group_end(int g) const { return groups[g * 2 + 1]; }
+    inline int get_groups_size() const { return (int)m_g_ranges.size() / 2; }
+    inline int get_group_start(int g) const { return m_g_ranges[g * 2 + 0]; }
+    inline int get_group_end(int g) const { return m_g_ranges[g * 2 + 1]; }
 
     inline int get_group_size(int g) const {
         return get_group_end(g) - get_group_start(g);
     }
 
-    inline int get_particles_size() const { return (int)particles.size() / 4; }
+    inline int get_particles_size() const {
+        return (int)m_particles.size() / 4;
+    }
 
     inline void set_group_color(int g, Color c) {
-        if ((size_t)g < g_colors.size())
-            g_colors[g] = c;
+        if ((size_t)g < m_g_colors.size())
+            m_g_colors[g] = c;
     }
-    inline Color get_group_color(int g) const noexcept { return g_colors[g]; }
+    inline Color get_group_color(int g) const noexcept { return m_g_colors[g]; }
     inline const std::vector<Color> &colors() const noexcept {
-        return g_colors;
+        return m_g_colors;
     }
     inline const std::vector<int> &group_spans() const noexcept {
-        return groups;
+        return m_g_ranges;
     }
 
     inline float get_px(int idx) const noexcept {
-        return particles[idx * 4 + 0];
+        return m_particles[idx * 4 + 0];
     }
     inline float get_py(int idx) const noexcept {
-        return particles[idx * 4 + 1];
+        return m_particles[idx * 4 + 1];
     }
     inline float get_vx(int idx) const noexcept {
-        return particles[idx * 4 + 2];
+        return m_particles[idx * 4 + 2];
     }
     inline float get_vy(int idx) const noexcept {
-        return particles[idx * 4 + 3];
+        return m_particles[idx * 4 + 3];
     }
     inline void set_px(int idx, float v) noexcept {
-        particles[idx * 4 + 0] = v;
+        m_particles[idx * 4 + 0] = v;
     }
     inline void set_py(int idx, float v) noexcept {
-        particles[idx * 4 + 1] = v;
+        m_particles[idx * 4 + 1] = v;
     }
     inline void set_vx(int idx, float v) noexcept {
-        particles[idx * 4 + 2] = v;
+        m_particles[idx * 4 + 2] = v;
     }
     inline void set_vy(int idx, float v) noexcept {
-        particles[idx * 4 + 3] = v;
+        m_particles[idx * 4 + 3] = v;
     }
 
     inline void set_rule(int g_src, int g_dst, float v) {
-        rules[g_src * get_groups_size() + g_dst] = v;
+        m_g_rules[g_src * get_groups_size() + g_dst] = v;
     }
 
-    inline void set_r2(int g_src, float r2) { radii2[g_src] = r2; }
+    inline void set_r2(int g_src, float r2) { m_g_radii2[g_src] = r2; }
 
-    inline int group_of(int i) const { return p_group[i]; }
+    inline int group_of(int i) const { return m_p_group[i]; }
 
     inline float r2_of(int gsrc) const {
-        if ((size_t)gsrc >= radii2.size())
+        if ((size_t)gsrc >= m_g_radii2.size())
             return 0.f;
-        return radii2[gsrc];
+        return m_g_radii2[gsrc];
     }
 
   private:
     // each particle takes 4 items
     // px, py, vx, vy
-    std::vector<float> particles;
+    std::vector<float> m_particles;
+    std::vector<int> m_p_group; // size N: group index per particle
     // each group takes 2 items
     // p_start, p_end
-    std::vector<int> groups;
-    std::vector<Color> g_colors;
-    std::vector<int> p_group;  // size N: group index per particle
-    std::vector<float> rules;  // size G*G: rules[src*G + dst]
-    std::vector<float> radii2; // size G: interaction radius^2 for source group
+    std::vector<int> m_g_ranges;
+    std::vector<float> m_g_rules; // size G*G: rules[src*G + dst]
+    std::vector<float>
+        m_g_radii2; // size G: interaction radius^2 for source group
+    std::vector<Color> m_g_colors;
 };
 
 #endif
