@@ -12,6 +12,9 @@
 #include "../types.hpp"
 
 void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
+    if (!rcfg.show_ui) {
+        return;
+    }
 
     mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
     mailbox::SimulationStats::Snapshot stats = sim.get_stats();
@@ -30,11 +33,12 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
     };
 
     auto window_size =
-        ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height / 2};
+        ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height * .7f};
+    auto window_x = (float)wcfg.screen_width / 2 - (float)wcfg.panel_width / 2;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.);
-    ImGui::Begin("main", NULL);
-    // ImGui::SetWindowPos(ImVec2{0.f, 0.f}, ImGuiCond_Always);
+    ImGui::Begin("control", NULL);
+    ImGui::SetWindowPos(ImVec2{window_x, 0.f}, ImGuiCond_Appearing);
     ImGui::SetWindowSize(window_size, ImGuiCond_Appearing);
 
     {
@@ -44,18 +48,33 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
             ImGui::SameLine();
             ImGui::Text("TPS: %d", stats.effective_tps);
             ImGui::Text("Last step: %.3f ms", stats.last_step_ns / 1e6);
+            ImGui::Text("Num steps: %lld", stats.num_steps);
             ImGui::Text("Particles: %d  Groups: %d  Threads: %d",
                         stats.particles, stats.groups, stats.sim_threads);
             ImGui::Text("Sim Bounds: %.0f x %.0f", scfg.bounds_width,
                         scfg.bounds_height);
+        }
 
-            ImGui::SeparatorText("Controls");
+        ImGui::SeparatorText("Controls");
+        { /// MARK: Control
             if (ImGui::Button("Reset world")) {
                 sim.push_command({mailbox::command::Command::Kind::ResetWorld});
             }
             ImGui::SameLine();
             if (ImGui::Button("Quit sim")) {
                 sim.push_command({mailbox::command::Command::Kind::Quit});
+            }
+
+            if (ImGui::Button("Pause")) {
+                sim.push_command({mailbox::command::Command::Kind::Pause});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Resume")) {
+                sim.push_command({mailbox::command::Command::Kind::Resume});
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("One Step")) {
+                sim.push_command({mailbox::command::Command::Kind::OneStep});
             }
         }
 
@@ -105,8 +124,6 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
             }
 
             mark(ImGui::Checkbox("Show grid lines", &rcfg.show_grid_lines));
-            scfg.draw_report.grid_data =
-                rcfg.show_grid_lines || rcfg.show_density_heat;
 
             mark(ImGui::Checkbox("Velocity field", &rcfg.show_velocity_field));
             if (rcfg.show_velocity_field) {
@@ -114,10 +131,11 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
                                    "%.2f");
                 ImGui::SliderFloat("Vel thickness", &rcfg.vel_thickness, 0.5f,
                                    4.0f, "%.1f");
-                scfg.draw_report.velocity_data = true;
-            } else {
-                scfg.draw_report.velocity_data = false;
             }
+
+            scfg.draw_report.grid_data = rcfg.show_grid_lines ||
+                                         rcfg.show_density_heat ||
+                                         rcfg.show_velocity_field;
         }
 
         ImGui::SeparatorText("Parallelism");

@@ -38,7 +38,8 @@ struct Command {
         AddGroup,    // uses add_group
         RemoveGroup, // uses rem_group
         Pause,
-        Resume
+        Resume,
+        OneStep
     } kind;
 
     // Generic small numeric payload (kept for future tiny knobs)

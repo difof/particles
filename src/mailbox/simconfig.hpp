@@ -22,7 +22,6 @@ class SimulationConfig {
 
         struct DrawReport {
             bool grid_data;
-            bool velocity_data;
         } draw_report;
     };
 
@@ -36,7 +35,7 @@ class SimulationConfig {
             b.wallStrength = 0.f;
             b.target_tps = 0;
             b.sim_threads = 1;
-            b.draw_report = {false, false};
+            b.draw_report = {false};
         }
     }
 

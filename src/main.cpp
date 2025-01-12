@@ -15,23 +15,30 @@ void run() {
     int monitor = GetCurrentMonitor();
     int screenW = GetMonitorWidth(monitor);
     int screenH = GetMonitorHeight(monitor) - 60;
-    int panelW = 500; // screenW * .23;
+    int panelW = 500;
     int texW = screenW;
 
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
     RenderConfig rcfg;
+    rcfg.interpolate = true;
+    rcfg.core_size = 1.5f;
+    rcfg.glow_enabled = true;
+    rcfg.outer_scale_mul = 24.f;
+    rcfg.outer_rgb_gain = .78f;
+    rcfg.inner_scale_mul = 1.f;
+    rcfg.inner_rgb_gain = .52f;
+
     mailbox::SimulationConfig::Snapshot scfg = {};
     scfg.bounds_width = (float)wcfg.render_width;
     scfg.bounds_height = (float)wcfg.screen_height;
     scfg.target_tps = 0;
     scfg.time_scale = 1.0f;
-    scfg.viscosity = 0.1f;
-    scfg.wallRepel = 40.0f;
-    scfg.wallStrength = 0.1f;
-    scfg.sim_threads = 1;
+    scfg.viscosity = 0.271f;
+    scfg.wallRepel = 86.0f;
+    scfg.wallStrength = 0.129f;
+    scfg.sim_threads = -1;
     Simulation sim(scfg);
 
-    // InitWindow(wcfg.screen_width, wcfg.screen_height, "Particles");
     SetWindowSize(wcfg.screen_width, wcfg.screen_height);
     SetWindowPosition(0, 0);
     SetWindowMonitor(1);
@@ -67,6 +74,28 @@ void run() {
         rlImGuiBegin();
         render_ui(wcfg, sim, rcfg);
         rlImGuiEnd();
+
+        if (IsKeyPressed(KEY_R)) {
+            sim.push_command({mailbox::command::Command::Kind::ResetWorld});
+        }
+
+        if (IsKeyPressed(KEY_U)) {
+            rcfg.show_ui = !rcfg.show_ui;
+        }
+
+        if (IsKeyPressed(KEY_S) ||
+            (IsKeyPressedRepeat(KEY_S) &&
+             sim.get_run_state() == Simulation::RunState::Paused)) {
+            sim.push_command({mailbox::command::Command::Kind::OneStep});
+        }
+
+        if (IsKeyPressed(KEY_SPACE)) {
+            if (sim.get_run_state() == Simulation::RunState::Running) {
+                sim.push_command({mailbox::command::Command::Kind::Pause});
+            } else if (sim.get_run_state() == Simulation::RunState::Paused) {
+                sim.push_command({mailbox::command::Command::Kind::Resume});
+            }
+        }
 
         EndDrawing();
     }

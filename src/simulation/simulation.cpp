@@ -1,12 +1,13 @@
 #include "simulation.hpp"
 
+using namespace std::chrono;
+
 constexpr float EPS = 1e-12f;
 
 constexpr int grid_offsets[9][2] = {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {0, 0},
                                     {1, 0},   {-1, 1}, {0, 1},  {1, 1}};
 
 inline long long now_ns() {
-    using namespace std::chrono;
     return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
         .count();
 }
@@ -20,22 +21,23 @@ Simulation::Simulation(mailbox::SimulationConfig::Snapshot cfg)
 Simulation::~Simulation() { end(); }
 
 void Simulation::begin() {
-    if (m_t_running) {
+    if (m_t_run_state != RunState::NotStarted) {
         return;
     }
-    m_t_running = true;
+
     m_thread = std::thread(&Simulation::loop_thread, this);
     resume();
 }
 
 void Simulation::end() {
-    if (!m_t_running && !m_thread.joinable()) {
+    if (m_t_run_state != RunState::NotStarted &&
+        m_t_run_state != RunState::Quit && !m_thread.joinable()) {
         return;
     }
+
     push_command({mailbox::command::Command::Kind::Quit});
     if (m_thread.joinable())
         m_thread.join();
-    m_t_running = false;
 }
 
 void Simulation::pause() {
@@ -88,11 +90,11 @@ void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
     std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
 
     int sz = 1500;
-    const int gG = m_world.add_group(sz, GREEN);
-    const int gR = m_world.add_group(sz, RED);
-    const int gO = m_world.add_group(sz, ORANGE);
-    const int gB = m_world.add_group(sz, BLUE);
-    const int gP = m_world.add_group(sz, PURPLE);
+    const int gG = m_world.add_group(sz, {0, 228, 114, 255});
+    const int gR = m_world.add_group(sz, {238, 70, 82, 255});
+    const int gO = m_world.add_group(sz, {227, 172, 72, 255});
+    const int gB = m_world.add_group(sz, {0, 121, 241, 255});
+    const int gP = m_world.add_group(sz, {200, 122, 255, 255});
 
     const int N = m_world.get_particles_size();
     for (int i = 0; i < N; ++i) {
@@ -109,13 +111,13 @@ void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
     auto r = 80.f;
     m_world.set_r2(gG, r * r);
     m_world.set_r2(gR, r * r);
-    m_world.set_r2(gO, r * r);
+    m_world.set_r2(gO, 96.6f * 96.6f);
     m_world.set_r2(gB, r * r);
     m_world.set_r2(gP, r * r);
 
-    m_world.set_rule(gG, gG, +0.9261392140761018f);
-    m_world.set_rule(gG, gR, -0.8341653244569898f);
-    m_world.set_rule(gG, gO, +0.2809289274737239f);
+    m_world.set_rule(gG, gG, +0.926f);
+    m_world.set_rule(gG, gR, -0.834f);
+    m_world.set_rule(gG, gO, +0.281f);
     m_world.set_rule(gG, gB, -0.0642730798572301f);
     m_world.set_rule(gG, gP, +0.5173874347821623f);
 
@@ -149,12 +151,10 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     if (particles_count == 0)
         return;
 
-    // reuse scratch buffers (no alloc per frame)
     if ((int)m_fx.size() != particles_count)
         m_fx.resize(particles_count);
     if ((int)m_fy.size() != particles_count)
         m_fy.resize(particles_count);
-    // zero cheaply
     std::fill_n(m_fx.data(), particles_count, 0.f);
     std::fill_n(m_fy.data(), particles_count, 0.f);
 
@@ -216,80 +216,93 @@ int Simulation::ensure_pool(int t, mailbox::SimulationConfig::Snapshot &cfg) {
     return t;
 }
 
-// FIXME: I resize pos/vel/grid every frame to the exact size. That’s fine; they
-// keep capacity, but I still zero them.
+inline bool Simulation::can_step() const noexcept {
+    return m_t_run_state == RunState::Running ||
+           m_t_run_state == RunState::OneStep;
+}
+
+void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
+    static long long num_steps = 0;
+    num_steps++;
+
+    auto now = steady_clock::now();
+    if (now - m_t_window_start >= 1s) {
+        int secs = (int)duration_cast<seconds>(now - m_t_window_start).count();
+        if (secs < 1)
+            secs = 1;
+        m_t_last_published_tps = m_t_window_steps / secs;
+
+        mailbox::SimulationStats::Snapshot st;
+        st.effective_tps = m_t_last_published_tps;
+        st.particles = m_world.get_particles_size();
+        st.groups = m_world.get_groups_size();
+        st.sim_threads = n_threads;
+        st.last_step_ns = step_diff_ns.count();
+        st.published_ns = now_ns();
+        if (can_step()) {
+            st.num_steps = num_steps;
+        }
+        m_mail_stats.publish(st);
+
+        m_t_window_steps = 0;
+        m_t_window_start = now;
+    }
+}
+
+void Simulation::wait_on_tps(int tps) noexcept {
+    if (tps <= 0) {
+        return;
+    }
+
+    const auto target_frame_time = nanoseconds(1'000'000'000LL / tps);
+    const auto now = steady_clock::now();
+    const auto elapsed = now - m_t_last_step_time;
+
+    if (elapsed < target_frame_time) {
+        std::this_thread::sleep_for(target_frame_time - elapsed);
+    }
+
+    m_t_last_step_time = steady_clock::now();
+}
 
 void Simulation::loop_thread() {
-    using namespace std::chrono;
-    using clock = steady_clock;
-
     auto cfg = get_config();
 
-    // seed first, THEN bootstrap draw buffers with correct size
     seed_world(cfg);
     const int particle_count = m_world.get_particles_size();
     m_mail_draw.bootstrap_same_as_current(size_t(particle_count) * 2, now_ns());
 
-    auto next = clock::now();
-    m_t_window_start = next;
+    m_t_last_step_time = steady_clock::now();
+    m_t_window_start = m_t_last_step_time;
     m_t_window_steps = 0;
     m_t_last_published_tps = 0;
     int last_threads = -9999;
 
-    m_t_running = true;
-    while (m_t_running) {
+    while (m_t_run_state != RunState::Quit) {
         last_threads = ensure_pool(last_threads, cfg);
-        if (!m_t_paused) {
+        if (can_step()) {
             m_grid.reset();
         }
 
         process_commands(cfg);
 
-        if (!m_t_running) {
+        if (m_t_run_state == RunState::Quit) {
             break;
         }
 
-        const int tps = cfg.target_tps;
-
-        auto step_begin_ns = now_ns();
-        if (!m_t_paused) {
+        auto step_begin_ns = steady_clock::now();
+        if (can_step()) {
             step(cfg);
         }
-        auto step_end_ns = now_ns();
-        ++m_t_window_steps;
+        auto step_end_ns = steady_clock::now();
+        m_t_window_steps++;
 
         publish_draw(cfg);
+        measure_tps(last_threads, (step_end_ns - step_begin_ns));
+        wait_on_tps(cfg.target_tps);
 
-        auto now = clock::now();
-        if (now - m_t_window_start >= 1s) {
-            int secs =
-                (int)duration_cast<seconds>(now - m_t_window_start).count();
-            if (secs < 1)
-                secs = 1;
-            m_t_last_published_tps = m_t_window_steps / secs;
-
-            mailbox::SimulationStats::Snapshot st;
-            st.effective_tps = m_t_last_published_tps;
-            st.particles = m_world.get_particles_size();
-            st.groups = m_world.get_groups_size();
-            st.sim_threads = last_threads;
-            st.last_step_ns = (step_end_ns - step_begin_ns);
-            st.published_ns = now_ns();
-            m_mail_stats.publish(st);
-
-            m_t_window_steps = 0;
-            m_t_window_start = now;
-        }
-
-        if (tps > 0) {
-            const nanoseconds step = nanoseconds(1'000'000'000LL / tps);
-            m_t_tps_next = clock::now();
-            m_t_tps_next += step;
-            auto nowc = clock::now();
-            if (m_t_tps_next > nowc)
-                std::this_thread::sleep_until(m_t_tps_next);
-            else
-                m_t_tps_next = nowc;
+        if (m_t_run_state == RunState::OneStep) {
+            m_t_run_state = RunState::Paused;
         }
 
         cfg = get_config();
@@ -299,16 +312,19 @@ void Simulation::loop_thread() {
 void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
     for (const mailbox::command::Command &cmd : m_mail_cmd.drain()) {
         switch (cmd.kind) {
+        case mailbox::command::Command::Kind::OneStep:
+            m_t_run_state = RunState::OneStep;
+            break;
         case mailbox::command::Command::Kind::Pause:
-            m_t_paused = true;
+            m_t_run_state = RunState::Paused;
             break;
         case mailbox::command::Command::Kind::Resume:
-            m_t_paused = false;
+            m_t_run_state = RunState::Running;
             break;
         case mailbox::command::Command::Kind::ResetWorld:
             seed_world(cfg);
             m_t_window_steps = 0;
-            m_t_window_start = std::chrono::steady_clock::now();
+            m_t_window_start = steady_clock::now();
             break;
 
         case mailbox::command::Command::Kind::ApplyRules:
@@ -348,7 +364,7 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
 
                     seed_world(cfg);
                     m_t_window_steps = 0;
-                    m_t_window_start = std::chrono::steady_clock::now();
+                    m_t_window_start = steady_clock::now();
                 }
             }
             break;
@@ -357,7 +373,7 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
             if (cmd.add_group) {
                 const auto &ag = *cmd.add_group;
                 m_world.add_group(ag.size, ag.color);
-                m_world.finalize_groups(); // updates starts/ends
+                m_world.finalize_groups();
                 m_world.init_rule_tables(m_world.get_groups_size());
                 // default: zero rules; set radius for the new group index
                 int gn = m_world.get_groups_size() - 1;
@@ -389,66 +405,57 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                 if (gi >= 0 && gi < G) {
                     m_world.remove_group(gi);
                     m_world.finalize_groups();
-                    m_world.init_rule_tables(
-                        m_world.get_groups_size()); // rules resized; values
-                                                    // zeroed
-                    // safest: reseed since order changed & counts moved
+                    m_world.init_rule_tables(m_world.get_groups_size());
                     seed_world(cfg);
                     m_t_window_steps = 0;
-                    m_t_window_start = std::chrono::steady_clock::now();
+                    m_t_window_start = steady_clock::now();
                 }
             }
             break;
 
         case mailbox::command::Command::Kind::Quit:
-            m_t_running = false;
+            m_t_run_state = RunState::Quit;
             break;
         }
     }
 }
 
 void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
-    using clock = std::chrono::steady_clock;
+    const int particles_count = m_world.get_particles_size();
 
-    const int N = m_world.get_particles_size();
+    auto &pos = m_mail_draw.begin_write_pos(size_t(particles_count) * 2);
+    auto &vel = m_mail_draw.begin_write_vel(size_t(particles_count) * 2);
+    auto &grid_frame = m_mail_draw.begin_write_grid(
+        m_grid.cols(), m_grid.rows(), particles_count, m_grid.cell(),
+        m_grid.width(), m_grid.height());
 
-    auto &pos = m_mail_draw.begin_write_pos(size_t(N) * 2);
-    auto &vel = m_mail_draw.begin_write_vel(size_t(N) * 2);
-    auto &g = m_mail_draw.begin_write_grid(m_grid.cols(), m_grid.rows(), N,
-                                           m_grid.cell(), m_grid.width(),
-                                           m_grid.height());
-
-    for (int i = 0; i < N; ++i) {
+    for (int i = 0; i < particles_count; ++i) {
         const size_t b = size_t(i) * 2;
         pos[b + 0] = m_world.get_px(i);
         pos[b + 1] = m_world.get_py(i);
-
-        if (cfg.draw_report.velocity_data) {
-            vel[b + 0] = m_world.get_vx(i);
-            vel[b + 1] = m_world.get_vy(i);
-        }
+        vel[b + 0] = m_world.get_vx(i);
+        vel[b + 1] = m_world.get_vy(i);
     }
 
     if (cfg.draw_report.grid_data) {
-        g.head = m_grid.head();
-        g.next = m_grid.next();
+        grid_frame.head = m_grid.head();
+        grid_frame.next = m_grid.next();
 
-        // compute per-cell counts and velocity sums
-        const int C = g.cols * g.rows;
-        for (int ci = 0; ci < C; ++ci) {
-            int cnt = 0;
+        const int grid_size = grid_frame.cols * grid_frame.rows;
+        for (int ci = 0; ci < grid_size; ++ci) {
+            int cell_count = 0;
             float sx = 0.f, sy = 0.f;
 
-            for (int p = g.head[ci]; p != -1; p = g.next[p]) {
+            for (int p = grid_frame.head[ci]; p != -1; p = grid_frame.next[p]) {
                 const size_t b = size_t(p) * 2;
                 sx += vel[b + 0];
                 sy += vel[b + 1];
-                ++cnt;
+                ++cell_count;
             }
 
-            g.count[ci] = cnt;
-            g.sumVx[ci] = sx;
-            g.sumVy[ci] = sy;
+            grid_frame.count[ci] = cell_count;
+            grid_frame.sumVx[ci] = sx;
+            grid_frame.sumVy[ci] = sy;
         }
     }
 

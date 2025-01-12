@@ -2,6 +2,9 @@
 #define __RENDERCONFIG_HPP
 
 struct RenderConfig {
+    // ui
+    bool show_ui = true;
+
     // interpolation
     bool interpolate = true;
     float interp_delay_ms = 50.0f;

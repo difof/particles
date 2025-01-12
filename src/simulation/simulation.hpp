@@ -37,6 +37,9 @@ class Simulation {
     };
 
   public:
+    enum class RunState { NotStarted, Quit, Running, Paused, OneStep };
+
+  public:
     Simulation(mailbox::SimulationConfig::Snapshot cfg);
     ~Simulation();
 
@@ -60,6 +63,7 @@ class Simulation {
     mailbox::SimulationStats::Snapshot get_stats() const;
     mailbox::SimulationConfig::Snapshot get_config() const;
     const World &get_world() const;
+    inline RunState get_run_state() const noexcept { return m_t_run_state; }
 
   private:
     void seed_world(mailbox::SimulationConfig::Snapshot &cfg);
@@ -68,6 +72,10 @@ class Simulation {
     void process_commands(mailbox::SimulationConfig::Snapshot &cfg);
     void publish_draw(mailbox::SimulationConfig::Snapshot &cfg);
     int ensure_pool(int t, mailbox::SimulationConfig::Snapshot &cfg);
+    bool can_step() const noexcept;
+    void measure_tps(int n_threads,
+                     std::chrono::nanoseconds step_diff_ns) noexcept;
+    void wait_on_tps(int tps) noexcept;
     void kernel_force(int start, int end, KernelData &data);
     void kernel_pos(int start, int end, KernelData &data);
     void kernel_vel(int start, int end, KernelData &data);
@@ -86,12 +94,11 @@ class Simulation {
     std::vector<float> m_fx, m_fy;
 
   private:
-    bool m_t_running{false};
-    bool m_t_paused{true};
+    RunState m_t_run_state{RunState::NotStarted};
     int m_t_last_published_tps{0};
     int m_t_window_steps{0};
     std::chrono::steady_clock::time_point m_t_window_start;
-    std::chrono::steady_clock::time_point m_t_tps_next;
+    std::chrono::steady_clock::time_point m_t_last_step_time;
 };
 
 #ifdef ASS
