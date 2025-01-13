@@ -4,7 +4,7 @@
 
 void World::finalize_groups() {
     const int G = get_groups_size();
-    m_p_group.assign(get_particles_size(), 0);
+    m_p_group.assign(get_particles_count(), 0);
     for (int g = 0; g < G; ++g) {
         for (int i = get_group_start(g); i < get_group_end(g); ++i) {
             m_p_group[i] = g;
@@ -52,11 +52,11 @@ int World::add_group(int count, Color color) {
         return -1;
     }
 
-    int start = get_particles_size();
+    int start = get_particles_count();
 
     m_g_ranges.push_back(start);
     m_particles.resize(m_particles.size() + count * 4, 0.);
-    m_g_ranges.push_back(get_particles_size());
+    m_g_ranges.push_back(get_particles_count());
     m_g_colors.push_back(color);
 
     return m_g_colors.size() - 1;

@@ -83,7 +83,7 @@ mailbox::SimulationConfig::Snapshot Simulation::get_config() const {
 const World &Simulation::get_world() const { return m_world; }
 
 void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
-    const int particles_count = m_world.get_particles_size();
+    const int particles_count = m_world.get_particles_count();
     if (particles_count == 0)
         return;
 
@@ -99,8 +99,8 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     data.k_time_scale = cfg.time_scale;
     data.k_viscosity = cfg.viscosity;
     data.k_inverse_viscosity = 1.f - cfg.viscosity;
-    data.k_wallRepel = cfg.wallRepel;
-    data.k_wallStrength = cfg.wallStrength;
+    data.k_wall_repel = cfg.wallRepel;
+    data.k_wall_strength = cfg.wallStrength;
     data.width = cfg.bounds_width;
     data.height = cfg.bounds_height;
     data.fx = m_fx.data();
@@ -108,7 +108,10 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
 
     float maxR = std::max(1.0f, m_world.max_interaction_radius());
 
+    // FIXME: only resize of bounds, maxR or N changes
+    // possibly resize in world reset/update commands etc
     m_grid.resize(cfg.bounds_width, cfg.bounds_height, maxR, particles_count);
+
     m_grid.build(
         particles_count,
         [this](int i) {
@@ -119,21 +122,23 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
         },
         cfg.bounds_width, cfg.bounds_height);
 
-    data.inverse_cell = 1.0f / m_grid.cell();
+    data.inverse_cell = m_grid.inv_cell();
 
-    // -------- Phase 1: accumulate forces (parallel) --------
+    // accumulate forces
     m_pool->parallel_for_n(
         [&](int s, int e) {
             kernel_force(s, e, data);
         },
         particles_count);
-    // -------- Phase 2: velocity update (parallel) --------
+
+    // velocity update
     m_pool->parallel_for_n(
         [&](int s, int e) {
             kernel_vel(s, e, data);
         },
         particles_count);
-    // -------- Phase 3: position + bounce (parallel) --------
+
+    // position + bounce
     m_pool->parallel_for_n(
         [&](int s, int e) {
             kernel_pos(s, e, data);
@@ -170,7 +175,7 @@ void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
 
         mailbox::SimulationStats::Snapshot st;
         st.effective_tps = m_t_last_published_tps;
-        st.particles = m_world.get_particles_size();
+        st.particles = m_world.get_particles_count();
         st.groups = m_world.get_groups_size();
         st.sim_threads = n_threads;
         st.last_step_ns = step_diff_ns.count();
@@ -205,7 +210,7 @@ void Simulation::loop_thread() {
     auto cfg = get_config();
 
     seed_world(cfg);
-    const int particle_count = m_world.get_particles_size();
+    const int particle_count = m_world.get_particles_count();
     m_mail_draw.bootstrap_same_as_current(size_t(particle_count) * 2, now_ns());
 
     m_t_last_step_time = steady_clock::now();
@@ -357,12 +362,12 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
 }
 
 void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
-    const int particles_count = m_world.get_particles_size();
+    const int particles_count = m_world.get_particles_count();
 
     auto &pos = m_mail_draw.begin_write_pos(size_t(particles_count) * 2);
     auto &vel = m_mail_draw.begin_write_vel(size_t(particles_count) * 2);
     auto &grid_frame = m_mail_draw.begin_write_grid(
-        m_grid.cols(), m_grid.rows(), particles_count, m_grid.cell(),
+        m_grid.cols(), m_grid.rows(), particles_count, m_grid.cell_size(),
         m_grid.width(), m_grid.height());
 
     for (int i = 0; i < particles_count; ++i) {
@@ -408,6 +413,7 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
         if (r2 <= 0.f) {
             data.fx[i] = 0.f;
             data.fy[i] = 0.f;
+
             continue;
         }
 
@@ -418,8 +424,8 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
         const float *__restrict row = m_world.rules_row(gi);
 
         for (int k = 0; k < 9; ++k) {
-            const int nci = m_grid.cellIndex(cx + grid_offsets[k][0],
-                                             cy + grid_offsets[k][1]);
+            const int nci = m_grid.cell_index(cx + grid_offsets[k][0],
+                                              cy + grid_offsets[k][1]);
 
             if (nci < 0) {
                 continue;
@@ -449,11 +455,10 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
             }
         }
 
-        if (data.k_wallRepel > 0.f) {
-            const float d = data.k_wallRepel;
-            const float sW = data.k_wallStrength;
+        if (data.k_wall_repel > 0.f) {
+            const float d = data.k_wall_repel;
+            const float sW = data.k_wall_strength;
 
-            // FIXME: use clamp/min/max instead of branch
             if (ax < d) {
                 sumx += (d - ax) * sW;
             }
@@ -492,7 +497,6 @@ inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
         float vx = m_world.get_vx(i);
         float vy = m_world.get_vy(i);
 
-        // FIXME: use clamp/min/max instead of branch
         if (x < 0.f) {
             x = -x;
             vx = -vx;
@@ -846,163 +850,163 @@ inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
 
 /// MARK: "Hot metallic atoms" config
 // Groups by index, comments show element names
-void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
-    m_world.reset(false);
-
-    std::mt19937 rng{std::random_device{}()};
-    std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
-    std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
-    // Small thermal jitter for a "hot" feel (keep it gentle)
-    std::normal_distribution<float> vth(0.f, 0.45f);
-
-    // Particle count per group (tweak to taste)
-    const int sz = 2000;
-
-    // Molten palette (RGBA): whites → yellows → oranges → reds
-    const int g0 =
-        m_world.add_group(sz, {255, 109, 0, 255}); // Fe (iron) – orange-hot
-    const int g1 = m_world.add_group(
-        sz, {255, 153, 51, 255}); // Cu (copper) – bright orange
-    const int g2 =
-        m_world.add_group(sz, {255, 216, 102, 255}); // Ni (nickel) – yellow
-    const int g3 = m_world.add_group(
-        sz, {255, 245, 235, 255}); // Al (aluminum) – white-hot
-    const int g4 = m_world.add_group(
-        sz, {255, 64, 32, 255}); // W  (tungsten) – deep red/white core
-
-    // Seed positions & a touch of "temperature" in velocities
-    const int N = m_world.get_particles_size();
-    for (int i = 0; i < N; ++i) {
-        m_world.set_px(i, rx(rng));
-        m_world.set_py(i, ry(rng));
-        m_world.set_vx(i, vth(rng));
-        m_world.set_vy(i, vth(rng));
-    }
-
-    m_world.finalize_groups();
-    const int G = m_world.get_groups_size();
-    m_world.init_rule_tables(G);
-
-    // Short interaction radii (hot liquid metals are very short-range)
-    auto rFe = 70.f, rCu = 65.f, rNi = 60.f, rAl = 55.f, rW = 75.f;
-    m_world.set_r2(g0, rFe * rFe); // Fe
-    m_world.set_r2(g1, rCu * rCu); // Cu
-    m_world.set_r2(g2, rNi * rNi); // Ni
-    m_world.set_r2(g3, rAl * rAl); // Al
-    m_world.set_r2(g4, rW * rW);   // W
-
-    // ---- Interaction rules (cohesion/repulsion) ----
-    // Convention: set_rule(sourceGroup, targetGroup, strength)
-    // Positive = attraction, Negative = repulsion
-
-    // Self-cohesion (surface tension feel)
-    m_world.set_rule(g0, g0, +0.80f); // Fe–Fe
-    m_world.set_rule(g1, g1, +0.60f); // Cu–Cu
-    m_world.set_rule(g2, g2, +0.70f); // Ni–Ni
-    m_world.set_rule(g3, g3, +0.45f); // Al–Al (weaker cohesion)
-    m_world.set_rule(g4, g4, +0.90f); // W–W  (dense, tight clusters)
-
-    // Fe with others
-    m_world.set_rule(g0, g1, +0.32f); // Fe→Cu (mild alloying)
-    m_world.set_rule(g0, g2, +0.50f); // Fe→Ni (stronger affinity)
-    m_world.set_rule(g0, g3, +0.12f); // Fe→Al (weak)
-    m_world.set_rule(g0, g4, -0.20f); // Fe→W  (phase separation tendency)
-
-    // Cu with others
-    m_world.set_rule(g1, g0, +0.28f); // Cu→Fe
-    m_world.set_rule(g1, g2, +0.35f); // Cu→Ni
-    m_world.set_rule(g1, g3, +0.25f); // Cu→Al
-    m_world.set_rule(g1, g4, -0.40f); // Cu→W
-
-    // Ni with others
-    m_world.set_rule(g2, g0, +0.48f); // Ni→Fe
-    m_world.set_rule(g2, g1, +0.33f); // Ni→Cu
-    m_world.set_rule(g2, g3, +0.20f); // Ni→Al
-    m_world.set_rule(g2, g4, -0.30f); // Ni→W
-
-    // Al with others (generally weaker/looser)
-    m_world.set_rule(g3, g0, +0.10f); // Al→Fe
-    m_world.set_rule(g3, g1, +0.22f); // Al→Cu
-    m_world.set_rule(g3, g2, +0.18f); // Al→Ni
-    m_world.set_rule(g3, g4, -0.45f); // Al→W
-
-    // W with others (tends to repel, dense self-attraction)
-    m_world.set_rule(g4, g0, -0.25f); // W→Fe
-    m_world.set_rule(g4, g1, -0.42f); // W→Cu
-    m_world.set_rule(g4, g2, -0.35f); // W→Ni
-    m_world.set_rule(g4, g3, -0.48f); // W→Al
-
-    // Optional subtle asymmetries to keep it lively (prevents dead
-    // equilibria)
-    // (If you want perfectly symmetric matrices, delete this block.)
-    m_world.set_rule(g1, g0, +0.26f); // Cu→Fe slightly < Fe→Cu
-    m_world.set_rule(g3, g1, +0.20f); // Al→Cu slightly < Cu→Al
-    m_world.set_rule(g2, g0, +0.47f); // Ni→Fe tiny tweak
-
-    // Done: molten alloy vibes with filamenting + coalescing droplets
-}
-
-/// MARK: Random soup
 // void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
 //     m_world.reset(false);
 
 //     std::mt19937 rng{std::random_device{}()};
 //     std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
 //     std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
+//     // Small thermal jitter for a "hot" feel (keep it gentle)
+//     std::normal_distribution<float> vth(0.f, 0.45f);
 
-//     int sz = 1500;
-//     const int gG = m_world.add_group(sz, {0, 228, 114, 255});
-//     const int gR = m_world.add_group(sz, {238, 70, 82, 255});
-//     const int gO = m_world.add_group(sz, {227, 172, 72, 255});
-//     const int gB = m_world.add_group(sz, {0, 121, 241, 255});
-//     const int gP = m_world.add_group(sz, {200, 122, 255, 255});
+//     // Particle count per group (tweak to taste)
+//     const int sz = 2000;
 
+//     // Molten palette (RGBA): whites → yellows → oranges → reds
+//     const int g0 =
+//         m_world.add_group(sz, {255, 109, 0, 255}); // Fe (iron) – orange-hot
+//     const int g1 = m_world.add_group(
+//         sz, {255, 153, 51, 255}); // Cu (copper) – bright orange
+//     const int g2 =
+//         m_world.add_group(sz, {255, 216, 102, 255}); // Ni (nickel) – yellow
+//     const int g3 = m_world.add_group(
+//         sz, {255, 245, 235, 255}); // Al (aluminum) – white-hot
+//     const int g4 = m_world.add_group(
+//         sz, {255, 64, 32, 255}); // W  (tungsten) – deep red/white core
+
+//     // Seed positions & a touch of "temperature" in velocities
 //     const int N = m_world.get_particles_size();
 //     for (int i = 0; i < N; ++i) {
 //         m_world.set_px(i, rx(rng));
 //         m_world.set_py(i, ry(rng));
-//         m_world.set_vx(i, 0.f);
-//         m_world.set_vy(i, 0.f);
+//         m_world.set_vx(i, vth(rng));
+//         m_world.set_vy(i, vth(rng));
 //     }
 
 //     m_world.finalize_groups();
 //     const int G = m_world.get_groups_size();
 //     m_world.init_rule_tables(G);
 
-//     auto r = 80.f;
-//     m_world.set_r2(gG, r * r);
-//     m_world.set_r2(gR, r * r);
-//     m_world.set_r2(gO, 96.6f * 96.6f);
-//     m_world.set_r2(gB, r * r);
-//     m_world.set_r2(gP, r * r);
+//     // Short interaction radii (hot liquid metals are very short-range)
+//     auto rFe = 70.f, rCu = 65.f, rNi = 60.f, rAl = 55.f, rW = 75.f;
+//     m_world.set_r2(g0, rFe * rFe); // Fe
+//     m_world.set_r2(g1, rCu * rCu); // Cu
+//     m_world.set_r2(g2, rNi * rNi); // Ni
+//     m_world.set_r2(g3, rAl * rAl); // Al
+//     m_world.set_r2(g4, rW * rW);   // W
 
-//     m_world.set_rule(gG, gG, +0.926f);
-//     m_world.set_rule(gG, gR, -0.834f);
-//     m_world.set_rule(gG, gO, +0.281f);
-//     m_world.set_rule(gG, gB, -0.0642730798572301f);
-//     m_world.set_rule(gG, gP, +0.5173874347821623f);
+//     // ---- Interaction rules (cohesion/repulsion) ----
+//     // Convention: set_rule(sourceGroup, targetGroup, strength)
+//     // Positive = attraction, Negative = repulsion
 
-//     m_world.set_rule(gR, gG, -0.4617096465080976f);
-//     m_world.set_rule(gR, gR, +0.4914243463426828f);
-//     m_world.set_rule(gR, gO, +0.2760726027190685f);
-//     m_world.set_rule(gR, gB, +0.6413487386889756f);
-//     m_world.set_rule(gR, gP, -0.7276545553729321f);
+//     // Self-cohesion (surface tension feel)
+//     m_world.set_rule(g0, g0, +0.80f); // Fe–Fe
+//     m_world.set_rule(g1, g1, +0.60f); // Cu–Cu
+//     m_world.set_rule(g2, g2, +0.70f); // Ni–Ni
+//     m_world.set_rule(g3, g3, +0.45f); // Al–Al (weaker cohesion)
+//     m_world.set_rule(g4, g4, +0.90f); // W–W  (dense, tight clusters)
 
-//     m_world.set_rule(gO, gG, -0.7874764292500913f);
-//     m_world.set_rule(gO, gR, +0.2337338547222316f);
-//     m_world.set_rule(gO, gO, -0.0241123312152922f);
-//     m_world.set_rule(gO, gB, -0.7487592226825655f);
-//     m_world.set_rule(gO, gP, +0.2283666329376234f);
+//     // Fe with others
+//     m_world.set_rule(g0, g1, +0.32f); // Fe→Cu (mild alloying)
+//     m_world.set_rule(g0, g2, +0.50f); // Fe→Ni (stronger affinity)
+//     m_world.set_rule(g0, g3, +0.12f); // Fe→Al (weak)
+//     m_world.set_rule(g0, g4, -0.20f); // Fe→W  (phase separation tendency)
 
-//     m_world.set_rule(gB, gG, +0.5655814143829048f);
-//     m_world.set_rule(gB, gR, +0.9484694371931255f);
-//     m_world.set_rule(gB, gO, -0.3605288732796907f);
-//     m_world.set_rule(gB, gB, +0.4411409106105566f);
-//     m_world.set_rule(gB, gP, -0.3176638387632344f);
+//     // Cu with others
+//     m_world.set_rule(g1, g0, +0.28f); // Cu→Fe
+//     m_world.set_rule(g1, g2, +0.35f); // Cu→Ni
+//     m_world.set_rule(g1, g3, +0.25f); // Cu→Al
+//     m_world.set_rule(g1, g4, -0.40f); // Cu→W
 
-//     m_world.set_rule(gP, gG, std::sin(1.0f));
-//     m_world.set_rule(gP, gR, std::cos(2.0f));
-//     m_world.set_rule(gP, gO, +1.0f);
-//     m_world.set_rule(gP, gB, -1.0f);
-//     m_world.set_rule(gP, gP, +3.14f);
+//     // Ni with others
+//     m_world.set_rule(g2, g0, +0.48f); // Ni→Fe
+//     m_world.set_rule(g2, g1, +0.33f); // Ni→Cu
+//     m_world.set_rule(g2, g3, +0.20f); // Ni→Al
+//     m_world.set_rule(g2, g4, -0.30f); // Ni→W
+
+//     // Al with others (generally weaker/looser)
+//     m_world.set_rule(g3, g0, +0.10f); // Al→Fe
+//     m_world.set_rule(g3, g1, +0.22f); // Al→Cu
+//     m_world.set_rule(g3, g2, +0.18f); // Al→Ni
+//     m_world.set_rule(g3, g4, -0.45f); // Al→W
+
+//     // W with others (tends to repel, dense self-attraction)
+//     m_world.set_rule(g4, g0, -0.25f); // W→Fe
+//     m_world.set_rule(g4, g1, -0.42f); // W→Cu
+//     m_world.set_rule(g4, g2, -0.35f); // W→Ni
+//     m_world.set_rule(g4, g3, -0.48f); // W→Al
+
+//     // Optional subtle asymmetries to keep it lively (prevents dead
+//     // equilibria)
+//     // (If you want perfectly symmetric matrices, delete this block.)
+//     m_world.set_rule(g1, g0, +0.26f); // Cu→Fe slightly < Fe→Cu
+//     m_world.set_rule(g3, g1, +0.20f); // Al→Cu slightly < Cu→Al
+//     m_world.set_rule(g2, g0, +0.47f); // Ni→Fe tiny tweak
+
+//     // Done: molten alloy vibes with filamenting + coalescing droplets
 // }
+
+/// MARK: Random soup
+void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
+    m_world.reset(false);
+
+    std::mt19937 rng{std::random_device{}()};
+    std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
+    std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
+
+    int sz = 1500;
+    const int gG = m_world.add_group(sz, {0, 228, 114, 255});
+    const int gR = m_world.add_group(sz, {238, 70, 82, 255});
+    const int gO = m_world.add_group(sz, {227, 172, 72, 255});
+    const int gB = m_world.add_group(sz, {0, 121, 241, 255});
+    const int gP = m_world.add_group(sz, {200, 122, 255, 255});
+
+    const int N = m_world.get_particles_count();
+    for (int i = 0; i < N; ++i) {
+        m_world.set_px(i, rx(rng));
+        m_world.set_py(i, ry(rng));
+        m_world.set_vx(i, 0.f);
+        m_world.set_vy(i, 0.f);
+    }
+
+    m_world.finalize_groups();
+    const int G = m_world.get_groups_size();
+    m_world.init_rule_tables(G);
+
+    auto r = 80.f;
+    m_world.set_r2(gG, r * r);
+    m_world.set_r2(gR, r * r);
+    m_world.set_r2(gO, 96.6f * 96.6f);
+    m_world.set_r2(gB, r * r);
+    m_world.set_r2(gP, r * r);
+
+    m_world.set_rule(gG, gG, +0.926f);
+    m_world.set_rule(gG, gR, -0.834f);
+    m_world.set_rule(gG, gO, +0.281f);
+    m_world.set_rule(gG, gB, -0.0642730798572301f);
+    m_world.set_rule(gG, gP, +0.5173874347821623f);
+
+    m_world.set_rule(gR, gG, -0.4617096465080976f);
+    m_world.set_rule(gR, gR, +0.4914243463426828f);
+    m_world.set_rule(gR, gO, +0.2760726027190685f);
+    m_world.set_rule(gR, gB, +0.6413487386889756f);
+    m_world.set_rule(gR, gP, -0.7276545553729321f);
+
+    m_world.set_rule(gO, gG, -0.7874764292500913f);
+    m_world.set_rule(gO, gR, +0.2337338547222316f);
+    m_world.set_rule(gO, gO, -0.0241123312152922f);
+    m_world.set_rule(gO, gB, -0.7487592226825655f);
+    m_world.set_rule(gO, gP, +0.2283666329376234f);
+
+    m_world.set_rule(gB, gG, +0.5655814143829048f);
+    m_world.set_rule(gB, gR, +0.9484694371931255f);
+    m_world.set_rule(gB, gO, -0.3605288732796907f);
+    m_world.set_rule(gB, gB, +0.4411409106105566f);
+    m_world.set_rule(gB, gP, -0.3176638387632344f);
+
+    m_world.set_rule(gP, gG, std::sin(1.0f));
+    m_world.set_rule(gP, gR, std::cos(2.0f));
+    m_world.set_rule(gP, gO, +1.0f);
+    m_world.set_rule(gP, gB, -1.0f);
+    m_world.set_rule(gP, gP, +3.14f);
+}

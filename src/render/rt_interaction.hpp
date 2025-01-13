@@ -187,7 +187,7 @@ void DrawRegionInspector(const RenderTexture2D &rt, const World &world,
         return Vector2{pos1[b] - pos0[b], pos1[b + 1] - pos0[b + 1]};
     };
 
-    const int totalParticles = world.get_particles_size();
+    const int totalParticles = world.get_particles_count();
     const int G = world.get_groups_size();
 
     // --- UI header ----------------------------------------------------------

@@ -27,7 +27,7 @@ class Simulation {
 
         int particles_count = 0;
         float k_time_scale = 0.f, k_viscosity = 0.f, k_inverse_viscosity = 1.f,
-              k_wallRepel = 0.f, k_wallStrength = 0.f;
+              k_wall_repel = 0.f, k_wall_strength = 0.f;
         float inverse_cell = 1.f, width = 0.f, height = 0.f;
 
         // raw pointers to Simulation-owned scratch buffers to avoid per-tick

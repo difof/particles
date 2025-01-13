@@ -105,10 +105,10 @@ struct DrawBuffer {
         return v;
     }
 
-    GridFrame &begin_write_grid(int cols, int rows, int N, float cellSize,
+    GridFrame &begin_write_grid(int cols, int rows, int N, float cell_size,
                                 float width, float height) {
         auto &g = slots[write_idx].grid;
-        g.cell = cellSize;
+        g.cell = cell_size;
         g.width = width;
         g.height = height;
         g.resize(cols, rows, N);

@@ -33,7 +33,7 @@ class World {
         return get_group_end(g) - get_group_start(g);
     }
 
-    inline int get_particles_size() const {
+    inline int get_particles_count() const {
         return (int)m_particles.size() / 4;
     }
 
