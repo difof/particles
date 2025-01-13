@@ -15,6 +15,21 @@
             "presentation": {
                 "reveal": "always"
             }
+        },
+        {
+            "label": "build-release",
+            "type": "shell",
+            "command": "task build-release",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always"
+            }
         }
     ]
 }

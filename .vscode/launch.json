@@ -11,8 +11,22 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
-            "MIMode": "lldb", // Use "gdb" if on Linux
+            "MIMode": "lldb",
             "preLaunchTask": "build-debug"
+        },
+        {
+            "name": "Run Particles",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/Release/particles",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "build-release",
+            "internalConsoleOptions": "neverOpen",
         }
     ]
 }
