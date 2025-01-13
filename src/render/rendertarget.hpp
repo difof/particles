@@ -200,10 +200,11 @@ static void draw_particles_simple(const World &world, int groupsCount,
     }
 }
 
-inline void render_tex(Simulation &sim, const RenderConfig &rcfg) {
+void render_tex(Simulation &sim, const RenderConfig &rcfg,
+                const mailbox::DrawBuffer::ReadView &view, bool doInterp,
+                float interp_alpha) {
     ClearBackground(Color{0, 0, 0, 255});
 
-    auto view = sim.begin_read_draw();
     const int G = sim.get_world().get_groups_size();
 
     const float coreSize = rcfg.core_size;
@@ -215,27 +216,10 @@ inline void render_tex(Simulation &sim, const RenderConfig &rcfg) {
         innerScale = coreSize * rcfg.inner_scale_mul;
     }
 
-    const bool doInterp = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
-                          view.t1 > view.t0 && view.prev && view.curr &&
-                          view.prev->size() == view.curr->size() &&
-                          !view.curr->empty();
-
     if (doInterp) {
         const auto &pos0 = *view.prev;
         const auto &pos1 = *view.curr;
-
-        const long long now_ns =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
-                .count();
-
-        const long long target_ns =
-            now_ns - (long long)(rcfg.interp_delay_ms * 1'000'000.0f);
-
-        float a = (target_ns <= view.t0) ? 0.0f
-                  : (target_ns >= view.t1)
-                      ? 1.0f
-                      : float(target_ns - view.t0) / float(view.t1 - view.t0);
+        const float a = std::clamp(interp_alpha, 0.0f, 1.0f);
 
         auto posAt = [&](int i) -> Vector2 {
             size_t b = (size_t)i * 2;
@@ -253,12 +237,8 @@ inline void render_tex(Simulation &sim, const RenderConfig &rcfg) {
         } else {
             draw_particles_simple(sim.get_world(), G, posAt, coreSize);
         }
-
-    }
-
-    // No interpolation
-    else {
-        const auto &pos = sim.read_current_draw();
+    } else {
+        const auto &pos = *view.curr;
         auto posAt = [&](int i) -> Vector2 {
             size_t b = (size_t)i * 2;
             if (b + 1 >= pos.size())
@@ -276,14 +256,13 @@ inline void render_tex(Simulation &sim, const RenderConfig &rcfg) {
     }
 
     auto grid = view.grid;
-
-    if (view.grid) {
+    if (grid) {
         if (rcfg.show_density_heat) {
-            draw_density_heat(*view.grid, rcfg.heat_alpha);
+            draw_density_heat(*grid, rcfg.heat_alpha);
         }
         if (rcfg.show_velocity_field) {
             Color velCol = ColorWithA(WHITE, 200);
-            draw_velocity_field(*view.grid, rcfg.vel_scale, rcfg.vel_thickness,
+            draw_velocity_field(*grid, rcfg.vel_scale, rcfg.vel_thickness,
                                 velCol);
         }
         if (rcfg.show_grid_lines) {
@@ -298,8 +277,6 @@ inline void render_tex(Simulation &sim, const RenderConfig &rcfg) {
             }
         }
     }
-
-    sim.end_read_draw(view);
 }
 
 #endif
