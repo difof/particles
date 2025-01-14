@@ -42,12 +42,6 @@ class World {
             m_g_colors[g] = c;
     }
     inline Color get_group_color(int g) const noexcept { return m_g_colors[g]; }
-    inline const std::vector<Color> &colors() const noexcept {
-        return m_g_colors;
-    }
-    inline const std::vector<int> &group_spans() const noexcept {
-        return m_g_ranges;
-    }
 
     inline float get_px(int idx) const noexcept {
         return m_particles[idx * 4 + 0];
