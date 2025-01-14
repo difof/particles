@@ -13,7 +13,7 @@ inline long long now_ns() {
 }
 
 Simulation::Simulation(mailbox::SimulationConfig::Snapshot cfg)
-    : m_world(), m_grid(), m_pool(std::make_unique<SimulationThreadPool>(1)),
+    : m_world(), m_idx(), m_pool(std::make_unique<SimulationThreadPool>(1)),
       m_mail_cmd(), m_mail_draw(), m_mail_cfg(), m_mail_stats() {
     update_config(cfg);
 }
@@ -107,22 +107,8 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     data.fy = m_fy.data();
 
     float maxR = std::max(1.0f, m_world.max_interaction_radius());
-
-    // FIXME: only resize of bounds, maxR or N changes
-    // possibly resize in world reset/update commands etc
-    m_grid.resize(cfg.bounds_width, cfg.bounds_height, maxR, particles_count);
-
-    m_grid.build(
-        particles_count,
-        [this](int i) {
-            return this->m_world.get_px(i);
-        },
-        [this](int i) {
-            return this->m_world.get_py(i);
-        },
-        cfg.bounds_width, cfg.bounds_height);
-
-    data.inverse_cell = m_grid.inv_cell();
+    data.inverse_cell =
+        m_idx.ensure(m_world, cfg.bounds_width, cfg.bounds_height, maxR);
 
     // accumulate forces
     m_pool->parallel_for_n(
@@ -221,9 +207,6 @@ void Simulation::loop_thread() {
 
     while (m_t_run_state != RunState::Quit) {
         last_threads = ensure_pool(last_threads, cfg);
-        if (can_step()) {
-            m_grid.reset();
-        }
 
         process_commands(cfg);
 
@@ -367,8 +350,8 @@ void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
     auto &pos = m_mail_draw.begin_write_pos(size_t(particles_count) * 2);
     auto &vel = m_mail_draw.begin_write_vel(size_t(particles_count) * 2);
     auto &grid_frame = m_mail_draw.begin_write_grid(
-        m_grid.cols(), m_grid.rows(), particles_count, m_grid.cell_size(),
-        m_grid.width(), m_grid.height());
+        m_idx.grid.cols(), m_idx.grid.rows(), particles_count,
+        m_idx.grid.cell_size(), m_idx.grid.width(), m_idx.grid.height());
 
     for (int i = 0; i < particles_count; ++i) {
         const size_t b = size_t(i) * 2;
@@ -379,8 +362,8 @@ void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
     }
 
     if (cfg.draw_report.grid_data) {
-        grid_frame.head = m_grid.head();
-        grid_frame.next = m_grid.next();
+        grid_frame.head = m_idx.grid.head();
+        grid_frame.next = m_idx.grid.next();
 
         const int grid_size = grid_frame.cols * grid_frame.rows;
         for (int ci = 0; ci < grid_size; ++ci) {
@@ -418,20 +401,21 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
         }
 
         float sumx = 0.f, sumy = 0.f;
-        int cx = std::min(int(ax * data.inverse_cell), m_grid.cols() - 1);
-        int cy = std::min(int(ay * data.inverse_cell), m_grid.rows() - 1);
+        int cx = std::min(int(ax * data.inverse_cell), m_idx.grid.cols() - 1);
+        int cy = std::min(int(ay * data.inverse_cell), m_idx.grid.rows() - 1);
 
         const float *__restrict row = m_world.rules_row(gi);
 
         for (int k = 0; k < 9; ++k) {
-            const int nci = m_grid.cell_index(cx + grid_offsets[k][0],
-                                              cy + grid_offsets[k][1]);
+            const int nci = m_idx.grid.cell_index(cx + grid_offsets[k][0],
+                                                  cy + grid_offsets[k][1]);
 
             if (nci < 0) {
                 continue;
             }
 
-            for (int j = m_grid.head_at(nci); j != -1; j = m_grid.next_at(j)) {
+            for (int j = m_idx.grid.head_at(nci); j != -1;
+                 j = m_idx.grid.next_at(j)) {
                 if (j == i) {
                     continue;
                 }

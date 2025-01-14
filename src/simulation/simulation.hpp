@@ -12,6 +12,7 @@
 #include "../types.hpp"
 #include "math.hpp"
 #include "multicore.hpp"
+#include "neighborindex.hpp"
 #include "uniformgrid.hpp"
 #include "world.hpp"
 
@@ -82,7 +83,7 @@ class Simulation {
 
   private:
     World m_world;
-    UniformGrid m_grid;
+    NeighborIndex m_idx;
     std::unique_ptr<SimulationThreadPool> m_pool;
     mailbox::command::Queue m_mail_cmd;
     mailbox::DrawBuffer m_mail_draw;
