@@ -194,10 +194,9 @@ void Simulation::wait_on_tps(int tps) noexcept {
 
 void Simulation::loop_thread() {
     auto cfg = get_config();
-
-    seed_world(cfg);
-    const int particle_count = m_world.get_particles_count();
-    m_mail_draw.bootstrap_same_as_current(size_t(particle_count) * 2, now_ns());
+    // no auto seeding; wait for a seed command or reset
+    m_world.reset(false);
+    m_mail_draw.bootstrap_same_as_current(0, now_ns());
 
     m_t_last_step_time = steady_clock::now();
     m_t_window_start = m_t_last_step_time;
@@ -236,6 +235,16 @@ void Simulation::loop_thread() {
 void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
     for (const mailbox::command::Command &cmd : m_mail_cmd.drain()) {
         switch (cmd.kind) {
+        case mailbox::command::Command::Kind::SeedWorld:
+            if (cmd.seed) {
+                // set initial and current seed; apply immediately
+                m_initial_seed = cmd.seed;
+                m_current_seed = cmd.seed;
+                apply_seed(*cmd.seed, cfg);
+                m_t_window_steps = 0;
+                m_t_window_start = steady_clock::now();
+            }
+            break;
         case mailbox::command::Command::Kind::OneStep:
             m_t_run_state = RunState::OneStep;
             break;
@@ -246,7 +255,11 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
             m_t_run_state = RunState::Running;
             break;
         case mailbox::command::Command::Kind::ResetWorld:
-            seed_world(cfg);
+            if (m_initial_seed) {
+                apply_seed(*m_initial_seed, cfg);
+            } else {
+                clear_world();
+            }
             m_t_window_steps = 0;
             m_t_window_start = steady_clock::now();
             break;
@@ -286,7 +299,8 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                     }
                     apply_colors_if_any(Gnow);
 
-                    seed_world(cfg);
+                    if (m_current_seed)
+                        apply_seed(*m_current_seed, cfg);
                     m_t_window_steps = 0;
                     m_t_window_start = steady_clock::now();
                 }
@@ -330,7 +344,8 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                     m_world.remove_group(gi);
                     m_world.finalize_groups();
                     m_world.init_rule_tables(m_world.get_groups_size());
-                    seed_world(cfg);
+                    if (m_current_seed)
+                        apply_seed(*m_current_seed, cfg);
                     m_t_window_steps = 0;
                     m_t_window_start = steady_clock::now();
                 }
@@ -384,6 +399,53 @@ void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
     }
 
     m_mail_draw.publish(now_ns());
+}
+
+void Simulation::clear_world() { m_world.reset(false); }
+
+void Simulation::apply_seed(const mailbox::command::SeedSpec &seed,
+                            mailbox::SimulationConfig::Snapshot &cfg) {
+    m_world.reset(false);
+
+    const int G = (int)seed.sizes.size();
+    if (G <= 0) {
+        // empty seed leaves world cleared
+        return;
+    }
+
+    for (int g = 0; g < G; ++g) {
+        Color col = (g < (int)seed.colors.size()) ? seed.colors[g] : WHITE;
+        m_world.add_group(seed.sizes[g], col);
+    }
+
+    const int N = m_world.get_particles_count();
+    std::mt19937 rng{std::random_device{}()};
+    std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
+    std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
+    for (int i = 0; i < N; ++i) {
+        m_world.set_px(i, rx(rng));
+        m_world.set_py(i, ry(rng));
+        m_world.set_vx(i, 0.f);
+        m_world.set_vy(i, 0.f);
+    }
+
+    m_world.finalize_groups();
+    m_world.init_rule_tables(G);
+
+    // r2
+    for (int g = 0; g < G; ++g) {
+        float r2 = (g < (int)seed.r2.size()) ? seed.r2[g] : 80.f * 80.f;
+        m_world.set_r2(g, r2);
+    }
+
+    // rules
+    if ((int)seed.rules.size() == G * G) {
+        for (int i = 0; i < G; ++i) {
+            for (int j = 0; j < G; ++j) {
+                m_world.set_rule(i, j, seed.rules[i * G + j]);
+            }
+        }
+    }
 }
 
 inline void Simulation::kernel_force(int start, int end, KernelData &data) {

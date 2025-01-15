@@ -10,6 +10,17 @@
 
 namespace mailbox::command {
 
+// World seeding specification
+struct SeedSpec {
+    // Particle groups sizes and colors; G is sizes.size()
+    std::vector<int> sizes;
+    std::vector<Color> colors;
+    // Per-group radii squared; optional, defaults applied if empty
+    std::vector<float> r2;
+    // Full rule matrix row-major (G*G). Optional; if empty defaults used
+    std::vector<float> rules;
+};
+
 // A full rules/radii snapshot to apply. Hot if G same, else sim will require
 // reseed.
 struct RulePatch {
@@ -32,6 +43,7 @@ struct RemoveGroupCmd {
 
 struct Command {
     enum class Kind {
+        SeedWorld, // uses seed
         ResetWorld,
         Quit,
         ApplyRules,  // uses ptr RulePatch
@@ -46,6 +58,7 @@ struct Command {
     float a = 0.f, b = 0.f, c = 0.f;
 
     // Large payloads via shared_ptr so queue stays small & movable
+    std::shared_ptr<SeedSpec> seed;
     std::shared_ptr<RulePatch> rules;
     std::shared_ptr<AddGroupCmd> add_group;
     std::shared_ptr<RemoveGroupCmd> rem_group;

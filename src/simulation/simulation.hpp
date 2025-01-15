@@ -68,6 +68,9 @@ class Simulation {
 
   private:
     void seed_world(mailbox::SimulationConfig::Snapshot &cfg);
+    void clear_world();
+    void apply_seed(const mailbox::command::SeedSpec &seed,
+                    mailbox::SimulationConfig::Snapshot &cfg);
     void step(mailbox::SimulationConfig::Snapshot &cfg);
     void loop_thread();
     void process_commands(mailbox::SimulationConfig::Snapshot &cfg);
@@ -90,6 +93,9 @@ class Simulation {
     mailbox::SimulationConfig m_mail_cfg;
     mailbox::SimulationStats m_mail_stats;
     std::thread m_thread;
+    // seed state
+    std::shared_ptr<mailbox::command::SeedSpec> m_initial_seed;
+    std::shared_ptr<mailbox::command::SeedSpec> m_current_seed;
 
     // scratch force buffers (reused every step)
     std::vector<float> m_fx, m_fy;
