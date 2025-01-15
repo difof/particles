@@ -287,20 +287,51 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                     }
                     apply_colors_if_any(groups_count);
                 } else {
-                    // Cold apply / group structure changed
+                    // Cold apply: replace seed from patch, then reseed
                     const int Gnow = m_world.get_groups_size();
-                    m_world.init_rule_tables(Gnow);
-                    for (int g = 0; g < std::min(Gnow, p.groups); ++g)
-                        m_world.set_r2(g, p.r2[g]);
-                    for (int i = 0; i < std::min(Gnow, p.groups); ++i) {
-                        const float *row = p.rules.data() + i * p.groups;
-                        for (int j = 0; j < std::min(Gnow, p.groups); ++j)
-                            m_world.set_rule(i, j, row[j]);
-                    }
-                    apply_colors_if_any(Gnow);
 
-                    if (m_current_seed)
-                        apply_seed(*m_current_seed, cfg);
+                    auto new_seed =
+                        std::make_shared<mailbox::command::SeedSpec>();
+                    new_seed->sizes.resize(Gnow);
+                    new_seed->colors.resize(Gnow);
+                    new_seed->r2.resize(Gnow);
+                    new_seed->rules.resize(Gnow * Gnow);
+
+                    for (int g = 0; g < Gnow; ++g) {
+                        const int start = m_world.get_group_start(g);
+                        const int end = m_world.get_group_end(g);
+                        new_seed->sizes[g] = end - start;
+                        if (!p.colors.empty() && (int)p.colors.size() == Gnow)
+                            new_seed->colors[g] = p.colors[g];
+                        else
+                            new_seed->colors[g] = m_world.get_group_color(g);
+                        if (!p.r2.empty() && (int)p.r2.size() == Gnow)
+                            new_seed->r2[g] = p.r2[g];
+                        else
+                            new_seed->r2[g] = m_world.r2_of(g);
+                    }
+
+                    if (!p.rules.empty() &&
+                        (int)p.rules.size() == Gnow * Gnow) {
+                        for (int i = 0; i < Gnow; ++i) {
+                            const float *row = p.rules.data() + i * Gnow;
+                            for (int j = 0; j < Gnow; ++j)
+                                new_seed->rules[i * Gnow + j] = row[j];
+                        }
+                    } else {
+                        for (int i = 0; i < Gnow; ++i) {
+                            const float *row = m_world.rules_row(i);
+                            for (int j = 0; j < Gnow; ++j)
+                                new_seed->rules[i * Gnow + j] =
+                                    row ? row[j] : 0.f;
+                        }
+                    }
+
+                    // Replace both seeds and reseed
+                    m_current_seed = new_seed;
+                    m_initial_seed = new_seed;
+                    apply_colors_if_any(Gnow);
+                    apply_seed(*m_current_seed, cfg);
                     m_t_window_steps = 0;
                     m_t_window_start = steady_clock::now();
                 }
