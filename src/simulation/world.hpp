@@ -30,7 +30,6 @@ class World {
     int add_group(int count, Color color);
     void reset(bool shrink = false);
     float rule_val(int gsrc, int gdst) const;
-    const float *rules_row(int gsrc) const;
     inline RuleRowView rules_of(int gsrc) const noexcept {
         const int G = get_groups_size();
         if ((size_t)gsrc >= m_g_radii2.size())

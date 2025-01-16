@@ -38,15 +38,6 @@ float World::rule_val(int gsrc, int gdst) const {
     return m_g_rules[gsrc * G + gdst];
 }
 
-const float *World::rules_row(int gsrc) const {
-    const int G = get_groups_size();
-    if ((size_t)gsrc >= m_g_radii2.size())
-        return nullptr;
-    if (m_g_rules.size() < (size_t)G * (size_t)G)
-        return nullptr;
-    return &m_g_rules[gsrc * G];
-}
-
 int World::add_group(int count, Color color) {
     if (count <= 0) {
         return -1;
