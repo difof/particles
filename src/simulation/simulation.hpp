@@ -244,7 +244,7 @@ void simulate_once(World &world, UniformGrid &grid,
                 cy = grid.rows() - 1;
             }
 
-            const float *__restrict row = world.rules_row(gi);
+            const auto rowv = world.rules_of(gi);
 
             for (int k = 0; k < 9; ++k) {
                 const int nci =
@@ -267,7 +267,7 @@ void simulate_once(World &world, UniformGrid &grid,
 
                     if (d2 > 0.f && d2 < r2) {
                         const int gj = world.group_of(j);
-                        const float g = row[gj];
+                        const float g = rowv.get(gj);
                         const float invd =
                             rsqrt_fast(std::max(d2, EPS)); // 1/sqrt(d2)
                         const float F = g * invd;

@@ -8,6 +8,15 @@
 
 class World {
   public:
+    struct RuleRowView {
+        const float *row;
+        int size;
+        inline float get(int j) const noexcept {
+            if (!row || j < 0 || j >= size)
+                return 0.f;
+            return row[j];
+        }
+    };
     World() = default;
     ~World() = default;
     World(const World &) = delete;
@@ -22,6 +31,14 @@ class World {
     void reset(bool shrink = false);
     float rule_val(int gsrc, int gdst) const;
     const float *rules_row(int gsrc) const;
+    inline RuleRowView rules_of(int gsrc) const noexcept {
+        const int G = get_groups_size();
+        if ((size_t)gsrc >= m_g_radii2.size())
+            return {nullptr, G};
+        if (m_g_rules.size() < (size_t)G * (size_t)G)
+            return {nullptr, G};
+        return {&m_g_rules[gsrc * G], G};
+    }
     void remove_group(int g);
 
   public:

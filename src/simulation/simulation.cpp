@@ -320,10 +320,9 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                         }
                     } else {
                         for (int i = 0; i < Gnow; ++i) {
-                            const float *row = m_world.rules_row(i);
+                            const auto rowv = m_world.rules_of(i);
                             for (int j = 0; j < Gnow; ++j)
-                                new_seed->rules[i * Gnow + j] =
-                                    row ? row[j] : 0.f;
+                                new_seed->rules[i * Gnow + j] = rowv.get(j);
                         }
                     }
 
@@ -497,7 +496,7 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
         int cx = std::min(int(ax * data.inverse_cell), m_idx.grid.cols() - 1);
         int cy = std::min(int(ay * data.inverse_cell), m_idx.grid.rows() - 1);
 
-        const float *__restrict row = m_world.rules_row(gi);
+        const auto rowv = m_world.rules_of(gi);
 
         for (int k = 0; k < 9; ++k) {
             const int nci = m_idx.grid.cell_index(cx + grid_offsets[k][0],
@@ -521,7 +520,7 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
 
                 if (d2 > 0.f && d2 < r2) {
                     const int gj = m_world.group_of(j);
-                    const float g = row[gj];
+                    const float g = rowv.get(gj);
                     const float invd =
                         rsqrt_fast(std::max(d2, EPS)); // 1/sqrt(d2)
                     const float F = g * invd;

@@ -189,14 +189,14 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
                     editor.sizes[g] =
                         world.get_group_end(g) - world.get_group_start(g);
 
-                    const float *row = world.rules_row(g);
-                    if (!row) {
+                    const auto rowv = world.rules_of(g);
+                    if (!rowv.row) {
                         // transient: rules not ready yet
                         for (int j = 0; j < G; ++j)
                             editor.rules[g * G + j] = 0.f;
                     } else {
                         for (int j = 0; j < G; ++j)
-                            editor.rules[g * G + j] = row[j];
+                            editor.rules[g * G + j] = rowv.get(j);
                     }
                 }
                 editor.dirty = false;
