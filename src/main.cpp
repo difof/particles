@@ -55,8 +55,6 @@ void run() {
     sim.begin();
     // send initial seed from main
     {
-        mailbox::command::Command cmd{
-            mailbox::command::Command::Kind::SeedWorld};
         auto seed = std::make_shared<mailbox::command::SeedSpec>();
         const int groups = 5;
         seed->sizes = std::vector<int>(groups, 1500);
@@ -97,8 +95,7 @@ void run() {
             -1.0f,
             +3.14f,
         };
-        cmd.seed = seed;
-        sim.push_command(cmd);
+        sim.push_command(mailbox::command::SeedWorld{seed});
         // start paused; user can resume
     }
 
@@ -171,7 +168,7 @@ void run() {
 
         // controls...
         if (IsKeyPressed(KEY_R)) {
-            sim.push_command({mailbox::command::Command::Kind::ResetWorld});
+            sim.push_command(mailbox::command::ResetWorld{});
         }
         if (IsKeyPressed(KEY_U)) {
             rcfg.show_ui = !rcfg.show_ui;
@@ -179,13 +176,13 @@ void run() {
         if (IsKeyPressed(KEY_S) ||
             (IsKeyPressedRepeat(KEY_S) &&
              sim.get_run_state() == Simulation::RunState::Paused)) {
-            sim.push_command({mailbox::command::Command::Kind::OneStep});
+            sim.push_command(mailbox::command::OneStep{});
         }
         if (IsKeyPressed(KEY_SPACE)) {
             if (sim.get_run_state() == Simulation::RunState::Running) {
-                sim.push_command({mailbox::command::Command::Kind::Pause});
+                sim.push_command(mailbox::command::Pause{});
             } else if (sim.get_run_state() == Simulation::RunState::Paused) {
-                sim.push_command({mailbox::command::Command::Kind::Resume});
+                sim.push_command(mailbox::command::Resume{});
             }
         }
 

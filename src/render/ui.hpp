@@ -58,23 +58,23 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
         ImGui::SeparatorText("Controls");
         { /// MARK: Control
             if (ImGui::Button("Reset world")) {
-                sim.push_command({mailbox::command::Command::Kind::ResetWorld});
+                sim.push_command(mailbox::command::ResetWorld{});
             }
             ImGui::SameLine();
             if (ImGui::Button("Quit sim")) {
-                sim.push_command({mailbox::command::Command::Kind::Quit});
+                sim.push_command(mailbox::command::Quit{});
             }
 
             if (ImGui::Button("Pause")) {
-                sim.push_command({mailbox::command::Command::Kind::Pause});
+                sim.push_command(mailbox::command::Pause{});
             }
             ImGui::SameLine();
             if (ImGui::Button("Resume")) {
-                sim.push_command({mailbox::command::Command::Kind::Resume});
+                sim.push_command(mailbox::command::Resume{});
             }
             ImGui::SameLine();
             if (ImGui::Button("One Step")) {
-                sim.push_command({mailbox::command::Command::Kind::OneStep});
+                sim.push_command(mailbox::command::OneStep{});
             }
         }
 
@@ -338,9 +338,7 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
                 patch->colors = editor.colors;
                 patch->hot = true;
 
-                auto cmd = mailbox::command::Command{};
-                cmd.kind = mailbox::command::Command::Kind::ApplyRules;
-                cmd.rules = patch;
+                mailbox::command::ApplyRules cmd{patch};
                 sim.push_command(cmd);
                 editor.dirty = false;
             }
@@ -359,9 +357,7 @@ void render_ui(const WindowConfig &wcfg, Simulation &sim, RenderConfig &rcfg) {
                 patch->colors = editor.colors;
                 patch->hot = false;
 
-                auto cmd = mailbox::command::Command{};
-                cmd.kind = mailbox::command::Command::Kind::ApplyRules;
-                cmd.rules = patch;
+                mailbox::command::ApplyRules cmd{patch};
                 sim.push_command(cmd);
                 editor.dirty = false;
             }

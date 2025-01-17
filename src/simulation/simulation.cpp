@@ -35,22 +35,16 @@ void Simulation::end() {
         return;
     }
 
-    push_command({mailbox::command::Command::Kind::Quit});
+    push_command(mailbox::command::Quit{});
     if (m_thread.joinable())
         m_thread.join();
 }
 
-void Simulation::pause() {
-    push_command({mailbox::command::Command::Kind::Pause});
-}
+void Simulation::pause() { push_command(mailbox::command::Pause{}); }
 
-void Simulation::resume() {
-    push_command({mailbox::command::Command::Kind::Resume});
-}
+void Simulation::resume() { push_command(mailbox::command::Resume{}); }
 
-void Simulation::reset() {
-    push_command({mailbox::command::Command::Kind::ResetWorld});
-}
+void Simulation::reset() { push_command(mailbox::command::ResetWorld{}); }
 
 void Simulation::update_config(mailbox::SimulationConfig::Snapshot &cfg) {
     m_mail_cfg.publish(cfg);
@@ -233,159 +227,147 @@ void Simulation::loop_thread() {
 }
 
 void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
-    for (const mailbox::command::Command &cmd : m_mail_cmd.drain()) {
-        switch (cmd.kind) {
-        case mailbox::command::Command::Kind::SeedWorld:
-            if (cmd.seed) {
-                // set initial and current seed; apply immediately
-                m_initial_seed = cmd.seed;
-                m_current_seed = cmd.seed;
-                apply_seed(*cmd.seed, cfg);
-                m_t_window_steps = 0;
-                m_t_window_start = steady_clock::now();
-            }
-            break;
-        case mailbox::command::Command::Kind::OneStep:
-            m_t_run_state = RunState::OneStep;
-            break;
-        case mailbox::command::Command::Kind::Pause:
-            m_t_run_state = RunState::Paused;
-            break;
-        case mailbox::command::Command::Kind::Resume:
-            m_t_run_state = RunState::Running;
-            break;
-        case mailbox::command::Command::Kind::ResetWorld:
-            if (m_initial_seed) {
-                apply_seed(*m_initial_seed, cfg);
-            } else {
-                clear_world();
-            }
-            m_t_window_steps = 0;
-            m_t_window_start = steady_clock::now();
-            break;
-
-        case mailbox::command::Command::Kind::ApplyRules:
-            if (cmd.rules) {
-                const int groups_count = m_world.get_groups_size();
-                const mailbox::command::RulePatch &p = *cmd.rules;
-                auto apply_colors_if_any = [&](int Gnow) {
-                    if (!p.colors.empty() && (int)p.colors.size() == Gnow) {
-                        for (int i = 0; i < Gnow; ++i)
-                            m_world.set_group_color(i, p.colors[i]);
+    for (const auto &cmd : m_mail_cmd.drain()) {
+        std::visit(
+            [&](auto &&c) {
+                using T = std::decay_t<decltype(c)>;
+                if constexpr (std::is_same_v<T, mailbox::command::SeedWorld>) {
+                    if (c.seed) {
+                        m_initial_seed = c.seed;
+                        m_current_seed = c.seed;
+                        apply_seed(*c.seed, cfg);
+                        m_t_window_steps = 0;
+                        m_t_window_start = steady_clock::now();
                     }
-                };
-
-                if (p.groups == groups_count && p.hot) {
-                    // Hot apply: update r2, rules, colors; keep
-                    // positions/velocities.
-                    for (int g = 0; g < groups_count; ++g)
-                        m_world.set_r2(g, p.r2[g]);
-                    for (int i = 0; i < groups_count; ++i) {
-                        const float *row = p.rules.data() + i * groups_count;
-                        for (int j = 0; j < groups_count; ++j)
-                            m_world.set_rule(i, j, row[j]);
-                    }
-                    apply_colors_if_any(groups_count);
-                } else {
-                    // Cold apply: replace seed from patch, then reseed
-                    const int Gnow = m_world.get_groups_size();
-
-                    auto new_seed =
-                        std::make_shared<mailbox::command::SeedSpec>();
-                    new_seed->sizes.resize(Gnow);
-                    new_seed->colors.resize(Gnow);
-                    new_seed->r2.resize(Gnow);
-                    new_seed->rules.resize(Gnow * Gnow);
-
-                    for (int g = 0; g < Gnow; ++g) {
-                        const int start = m_world.get_group_start(g);
-                        const int end = m_world.get_group_end(g);
-                        new_seed->sizes[g] = end - start;
-                        if (!p.colors.empty() && (int)p.colors.size() == Gnow)
-                            new_seed->colors[g] = p.colors[g];
-                        else
-                            new_seed->colors[g] = m_world.get_group_color(g);
-                        if (!p.r2.empty() && (int)p.r2.size() == Gnow)
-                            new_seed->r2[g] = p.r2[g];
-                        else
-                            new_seed->r2[g] = m_world.r2_of(g);
-                    }
-
-                    if (!p.rules.empty() &&
-                        (int)p.rules.size() == Gnow * Gnow) {
-                        for (int i = 0; i < Gnow; ++i) {
-                            const float *row = p.rules.data() + i * Gnow;
-                            for (int j = 0; j < Gnow; ++j)
-                                new_seed->rules[i * Gnow + j] = row[j];
-                        }
+                } else if constexpr (std::is_same_v<
+                                         T, mailbox::command::OneStep>) {
+                    m_t_run_state = RunState::OneStep;
+                } else if constexpr (std::is_same_v<T,
+                                                    mailbox::command::Pause>) {
+                    m_t_run_state = RunState::Paused;
+                } else if constexpr (std::is_same_v<T,
+                                                    mailbox::command::Resume>) {
+                    m_t_run_state = RunState::Running;
+                } else if constexpr (std::is_same_v<
+                                         T, mailbox::command::ResetWorld>) {
+                    if (m_initial_seed) {
+                        apply_seed(*m_initial_seed, cfg);
                     } else {
-                        for (int i = 0; i < Gnow; ++i) {
-                            const auto rowv = m_world.rules_of(i);
-                            for (int j = 0; j < Gnow; ++j)
-                                new_seed->rules[i * Gnow + j] = rowv.get(j);
-                        }
+                        clear_world();
                     }
-
-                    // Replace both seeds and reseed
-                    m_current_seed = new_seed;
-                    m_initial_seed = new_seed;
-                    apply_colors_if_any(Gnow);
-                    apply_seed(*m_current_seed, cfg);
                     m_t_window_steps = 0;
                     m_t_window_start = steady_clock::now();
-                }
-            }
-            break;
-
-        case mailbox::command::Command::Kind::AddGroup:
-            if (cmd.add_group) {
-                const auto &ag = *cmd.add_group;
-                m_world.add_group(ag.size, ag.color);
-                m_world.finalize_groups();
-                m_world.init_rule_tables(m_world.get_groups_size());
-                // default: zero rules; set radius for the new group index
-                int gn = m_world.get_groups_size() - 1;
-                m_world.set_r2(gn, ag.r2);
-                // Seed new particles positions/velocities (simple random)
-                // Reuse seed_world mechanics but keep existing ones:
-                {
-                    std::mt19937 rng{std::random_device{}()};
-                    std::uniform_real_distribution<float> rx(0.f,
-                                                             cfg.bounds_width);
-                    std::uniform_real_distribution<float> ry(0.f,
-                                                             cfg.bounds_height);
-                    const int start = m_world.get_group_start(gn);
-                    const int end = m_world.get_group_end(gn);
-                    for (int i = start; i < end; ++i) {
-                        m_world.set_px(i, rx(rng));
-                        m_world.set_py(i, ry(rng));
-                        m_world.set_vx(i, 0.f);
-                        m_world.set_vy(i, 0.f);
+                } else if constexpr (std::is_same_v<
+                                         T, mailbox::command::ApplyRules>) {
+                    if (c.patch) {
+                        const int groups_count = m_world.get_groups_size();
+                        const mailbox::command::RulePatch &p = *c.patch;
+                        auto apply_colors_if_any = [&](int Gnow) {
+                            if (!p.colors.empty() &&
+                                (int)p.colors.size() == Gnow) {
+                                for (int i = 0; i < Gnow; ++i)
+                                    m_world.set_group_color(i, p.colors[i]);
+                            }
+                        };
+                        if (p.groups == groups_count && p.hot) {
+                            for (int g = 0; g < groups_count; ++g)
+                                m_world.set_r2(g, p.r2[g]);
+                            for (int i = 0; i < groups_count; ++i) {
+                                const float *row =
+                                    p.rules.data() + i * groups_count;
+                                for (int j = 0; j < groups_count; ++j)
+                                    m_world.set_rule(i, j, row[j]);
+                            }
+                            apply_colors_if_any(groups_count);
+                        } else {
+                            const int Gnow = m_world.get_groups_size();
+                            auto new_seed =
+                                std::make_shared<mailbox::command::SeedSpec>();
+                            new_seed->sizes.resize(Gnow);
+                            new_seed->colors.resize(Gnow);
+                            new_seed->r2.resize(Gnow);
+                            new_seed->rules.resize(Gnow * Gnow);
+                            for (int g = 0; g < Gnow; ++g) {
+                                const int start = m_world.get_group_start(g);
+                                const int end = m_world.get_group_end(g);
+                                new_seed->sizes[g] = end - start;
+                                if (!p.colors.empty() &&
+                                    (int)p.colors.size() == Gnow)
+                                    new_seed->colors[g] = p.colors[g];
+                                else
+                                    new_seed->colors[g] =
+                                        m_world.get_group_color(g);
+                                if (!p.r2.empty() && (int)p.r2.size() == Gnow)
+                                    new_seed->r2[g] = p.r2[g];
+                                else
+                                    new_seed->r2[g] = m_world.r2_of(g);
+                            }
+                            if (!p.rules.empty() &&
+                                (int)p.rules.size() == Gnow * Gnow) {
+                                for (int i = 0; i < Gnow; ++i) {
+                                    const float *row =
+                                        p.rules.data() + i * Gnow;
+                                    for (int j = 0; j < Gnow; ++j)
+                                        new_seed->rules[i * Gnow + j] = row[j];
+                                }
+                            } else {
+                                for (int i = 0; i < Gnow; ++i) {
+                                    const auto rowv = m_world.rules_of(i);
+                                    for (int j = 0; j < Gnow; ++j)
+                                        new_seed->rules[i * Gnow + j] =
+                                            rowv.get(j);
+                                }
+                            }
+                            m_current_seed = new_seed;
+                            m_initial_seed = new_seed;
+                            apply_colors_if_any(Gnow);
+                            apply_seed(*m_current_seed, cfg);
+                            m_t_window_steps = 0;
+                            m_t_window_start = steady_clock::now();
+                        }
                     }
-                }
-            }
-            break;
-
-        case mailbox::command::Command::Kind::RemoveGroup:
-            if (cmd.rem_group) {
-                int gi = cmd.rem_group->group_index;
-                const int G = m_world.get_groups_size();
-                if (gi >= 0 && gi < G) {
-                    m_world.remove_group(gi);
+                } else if constexpr (std::is_same_v<
+                                         T, mailbox::command::AddGroup>) {
+                    const auto &ag = c;
+                    m_world.add_group(ag.size, ag.color);
                     m_world.finalize_groups();
                     m_world.init_rule_tables(m_world.get_groups_size());
-                    if (m_current_seed)
-                        apply_seed(*m_current_seed, cfg);
-                    m_t_window_steps = 0;
-                    m_t_window_start = steady_clock::now();
+                    int gn = m_world.get_groups_size() - 1;
+                    m_world.set_r2(gn, ag.r2);
+                    {
+                        std::mt19937 rng{std::random_device{}()};
+                        std::uniform_real_distribution<float> rx(
+                            0.f, cfg.bounds_width);
+                        std::uniform_real_distribution<float> ry(
+                            0.f, cfg.bounds_height);
+                        const int start = m_world.get_group_start(gn);
+                        const int end = m_world.get_group_end(gn);
+                        for (int i = start; i < end; ++i) {
+                            m_world.set_px(i, rx(rng));
+                            m_world.set_py(i, ry(rng));
+                            m_world.set_vx(i, 0.f);
+                            m_world.set_vy(i, 0.f);
+                        }
+                    }
+                } else if constexpr (std::is_same_v<
+                                         T, mailbox::command::RemoveGroup>) {
+                    int gi = c.group_index;
+                    const int G = m_world.get_groups_size();
+                    if (gi >= 0 && gi < G) {
+                        m_world.remove_group(gi);
+                        m_world.finalize_groups();
+                        m_world.init_rule_tables(m_world.get_groups_size());
+                        if (m_current_seed)
+                            apply_seed(*m_current_seed, cfg);
+                        m_t_window_steps = 0;
+                        m_t_window_start = steady_clock::now();
+                    }
+                } else if constexpr (std::is_same_v<T,
+                                                    mailbox::command::Quit>) {
+                    m_t_run_state = RunState::Quit;
                 }
-            }
-            break;
-
-        case mailbox::command::Command::Kind::Quit:
-            m_t_run_state = RunState::Quit;
-            break;
-        }
+            },
+            cmd);
     }
 }
 

@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <raylib.h>
+#include <variant>
 #include <vector>
 
 namespace mailbox::command {
@@ -31,47 +32,44 @@ struct RulePatch {
     bool hot = true; // try hot-apply without reseed
 };
 
-// Add/remove groups. (Remove uses group index in [0..G-1])
-struct AddGroupCmd {
+struct SeedWorld {
+    std::shared_ptr<SeedSpec> seed; // null means clear world
+};
+
+struct ResetWorld {};
+
+struct Quit {};
+
+struct ApplyRules {
+    std::shared_ptr<RulePatch> patch;
+};
+
+struct AddGroup {
     int size = 0;
     Color color = WHITE;
     float r2 = 4096.f;
 };
-struct RemoveGroupCmd {
+
+struct RemoveGroup {
     int group_index = -1;
 };
 
-struct Command {
-    enum class Kind {
-        SeedWorld, // uses seed
-        ResetWorld,
-        Quit,
-        ApplyRules,  // uses ptr RulePatch
-        AddGroup,    // uses add_group
-        RemoveGroup, // uses rem_group
-        Pause,
-        Resume,
-        OneStep
-    } kind;
+struct Pause {};
 
-    // Generic small numeric payload (kept for future tiny knobs)
-    float a = 0.f, b = 0.f, c = 0.f;
+struct Resume {};
 
-    // Large payloads via shared_ptr so queue stays small & movable
-    std::shared_ptr<SeedSpec> seed;
-    std::shared_ptr<RulePatch> rules;
-    std::shared_ptr<AddGroupCmd> add_group;
-    std::shared_ptr<RemoveGroupCmd> rem_group;
-};
+struct OneStep {};
 
-class Queue {
+using Command = std::variant<SeedWorld, ResetWorld, Quit, ApplyRules, AddGroup,
+                             RemoveGroup, Pause, Resume, OneStep>;
+
+class QueueV {
   public:
     void push(const Command &cmd) {
         std::lock_guard<std::mutex> lk(m_);
         q_.push_back(cmd);
     }
 
-    // Called only by the simulation thread; returns and clears current batch
     std::vector<Command> drain() {
         std::vector<Command> out;
         std::lock_guard<std::mutex> lk(m_);
