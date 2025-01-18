@@ -3,9 +3,8 @@
 #include <rlImGui.h>
 
 #include "mailbox/mailbox.hpp"
-#include "render/rendertarget.hpp"
-#include "render/rt_interaction.hpp"
-#include "render/ui.hpp"
+#include "render/control_ui.hpp"
+#include "render/manager.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
 #include "types.hpp"
@@ -46,11 +45,8 @@ void run() {
     SetTargetFPS(60);
     rlImGuiSetup(true);
 
-    RenderTexture2D tex_render =
-        LoadRenderTexture(wcfg.render_width, wcfg.screen_height);
-
-    RenderTexture2D tex_interaction =
-        LoadRenderTexture(wcfg.render_width, wcfg.screen_height);
+    RenderManager rman({wcfg.screen_width, wcfg.screen_height, wcfg.panel_width,
+                        wcfg.render_width});
 
     sim.begin();
     // send initial seed from main
@@ -96,77 +92,11 @@ void run() {
             +3.14f,
         };
         sim.push_command(mailbox::command::SeedWorld{seed});
-        // start paused; user can resume
     }
 
     while (!WindowShouldClose()) {
-        // ---- Acquire draw once for the whole frame ----
-        auto view = sim.begin_read_draw();
+        rman.draw_frame(sim, rcfg);
 
-        // Compute interpolation parameters once, mirroring the old logic
-        const bool canInterp = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
-                               view.t1 > view.t0 && view.prev && view.curr &&
-                               view.prev->size() == view.curr->size() &&
-                               !view.curr->empty();
-
-        float interp_alpha = 1.0f;
-        if (canInterp) {
-            const long long now_ns =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch())
-                    .count();
-            const long long target_ns =
-                now_ns - (long long)(rcfg.interp_delay_ms * 1'000'000.0f);
-
-            if (target_ns <= view.t0)
-                interp_alpha = 0.0f;
-            else if (target_ns >= view.t1)
-                interp_alpha = 1.0f;
-            else
-                interp_alpha =
-                    float(target_ns - view.t0) / float(view.t1 - view.t0);
-        }
-
-        // ---- Render to color RT ----
-        BeginTextureMode(tex_render);
-        render_tex(sim, rcfg, view, canInterp, interp_alpha);
-        EndTextureMode();
-
-        // ---- Render interaction overlay RT (selection box) ----
-        BeginTextureMode(tex_interaction);
-        draw_selection_overlay();
-        EndTextureMode();
-
-        // ---- Present ----
-        BeginDrawing();
-        ClearBackground(BLACK);
-
-        {
-            if (rcfg.final_additive_blit)
-                BeginBlendMode(BLEND_ADDITIVE);
-            DrawTextureRec(tex_render.texture,
-                           (Rectangle){0, 0, (float)tex_render.texture.width,
-                                       (float)-tex_render.texture.height},
-                           (Vector2){0, 0}, WHITE);
-            if (rcfg.final_additive_blit)
-                EndBlendMode();
-        }
-
-        DrawTextureRec(tex_interaction.texture,
-                       (Rectangle){0, 0, (float)tex_render.texture.width,
-                                   (float)-tex_render.texture.height},
-                       (Vector2){0, 0}, WHITE);
-
-        rlImGuiBegin();
-        render_ui(wcfg, sim, rcfg);
-        update_selection_from_mouse();
-        // Pass the view + interpolation to the inspector so it can count
-        // particles
-        DrawRegionInspector(tex_render, sim.get_world(), view, canInterp,
-                            interp_alpha);
-        rlImGuiEnd();
-
-        // controls...
         if (IsKeyPressed(KEY_R)) {
             sim.push_command(mailbox::command::ResetWorld{});
         }
@@ -185,18 +115,11 @@ void run() {
                 sim.push_command(mailbox::command::Resume{});
             }
         }
-
-        EndDrawing();
-
-        // ---- Release draw view once per frame ----
-        sim.end_read_draw(view);
     }
 
     sim.end();
 
     rlImGuiShutdown();
-    UnloadRenderTexture(tex_render);
-    UnloadRenderTexture(tex_interaction);
     CloseWindow();
 }
 
