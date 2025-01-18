@@ -93,8 +93,8 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     data.k_time_scale = cfg.time_scale;
     data.k_viscosity = cfg.viscosity;
     data.k_inverse_viscosity = 1.f - cfg.viscosity;
-    data.k_wall_repel = cfg.wallRepel;
-    data.k_wall_strength = cfg.wallStrength;
+    data.k_wall_repel = cfg.wall_repel;
+    data.k_wall_strength = cfg.wall_strength;
     data.width = cfg.bounds_width;
     data.height = cfg.bounds_height;
     data.fx = m_fx.data();

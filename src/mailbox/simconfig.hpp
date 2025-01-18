@@ -15,8 +15,8 @@ class SimulationConfig {
         float bounds_width, bounds_height;
         float time_scale;
         float viscosity;
-        float wallRepel;
-        float wallStrength;
+        float wall_repel;
+        float wall_strength;
         int target_tps;
         int sim_threads;
 
@@ -31,8 +31,8 @@ class SimulationConfig {
             b.bounds_width = b.bounds_height = 0.f;
             b.time_scale = 1.f;
             b.viscosity = 0.1f;
-            b.wallRepel = 0.f;
-            b.wallStrength = 0.f;
+            b.wall_repel = 0.f;
+            b.wall_strength = 0.f;
             b.target_tps = 0;
             b.sim_threads = 1;
             b.draw_report = {false};

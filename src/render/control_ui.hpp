@@ -83,10 +83,10 @@ class ControlUI : public IRenderer {
                                 "%.3f", ImGuiSliderFlags_Logarithmic));
         mark(ImGui::SliderFloat("Viscosity", &scfg.viscosity, 0.0f, 1.0f,
                                 "%.3f"));
-        mark(ImGui::SliderFloat("Wall Repel (px)", &scfg.wallRepel, 0.0f,
+        mark(ImGui::SliderFloat("Wall Repel (px)", &scfg.wall_repel, 0.0f,
                                 200.0f, "%.1f"));
-        mark(ImGui::SliderFloat("Wall Strength", &scfg.wallStrength, 0.0f, 1.0f,
-                                "%.3f"));
+        mark(ImGui::SliderFloat("Wall Strength", &scfg.wall_strength, 0.0f,
+                                1.0f, "%.3f"));
 
         ImGui::SeparatorText("Render");
         ImGui::Checkbox("Interpolate", &rcfg.interpolate);

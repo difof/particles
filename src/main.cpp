@@ -34,8 +34,8 @@ void run() {
     scfg.target_tps = 0;
     scfg.time_scale = 1.0f;
     scfg.viscosity = 0.271f;
-    scfg.wallRepel = 86.0f;
-    scfg.wallStrength = 0.129f;
+    scfg.wall_repel = 86.0f;
+    scfg.wall_strength = 0.129f;
     scfg.sim_threads = -1;
     Simulation sim(scfg);
 
