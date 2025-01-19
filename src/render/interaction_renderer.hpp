@@ -133,14 +133,6 @@ class InteractionRenderer : public IRenderer {
     rt_draw_region_inspector(const RenderTexture2D &rt, const World &world,
                              const mailbox::DrawBuffer::ReadView &view,
                              bool doInterp, float interp_alpha) {
-        if (ImGui::Begin("Dbg DPI")) {
-            ImGui::Text("Screen %d x %d", GetScreenWidth(), GetScreenHeight());
-            ImGui::Text("Render %d x %d", GetRenderWidth(), GetRenderHeight());
-            ImGui::Text("Tex    %d x %d", rt.texture.width, rt.texture.height);
-            ImGui::Text("Mouse  %.1f, %.1f", GetMousePosition().x,
-                        GetMousePosition().y);
-        }
-        ImGui::End();
         auto &sel = selection_state();
         if (!sel.show_window)
             return;

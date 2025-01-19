@@ -56,6 +56,12 @@ class ControlUI : public IRenderer {
         ImGui::Text("Sim Bounds: %.0f x %.0f", scfg.bounds_width,
                     scfg.bounds_height);
 
+        ImGui::SeparatorText("Debug DPI");
+        ImGui::Text("Screen %d x %d", GetScreenWidth(), GetScreenHeight());
+        ImGui::Text("Render %d x %d", GetRenderWidth(), GetRenderHeight());
+        ImGui::Text("Mouse  %.1f, %.1f", GetMousePosition().x,
+                    GetMousePosition().y);
+
         ImGui::SeparatorText("Controls");
         if (ImGui::Button("Reset world")) {
             sim.push_command(mailbox::command::ResetWorld{});
