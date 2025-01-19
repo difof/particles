@@ -74,8 +74,9 @@ local function unitTest(name)
             "extlib/catch2/extras/catch_amalgamated.cpp",
             "tests/"..name..".cpp" 
         }
-        excludes { "src/main.cpp" }
-        includedirs { "extlib/catch2/extras" }
+        -- Do not compile application sources in tests; we only include headers
+        excludes { "src/**.cpp", "src/**.c" }
+        includedirs { "extlib/catch2/extras", "extlib/raylib/src" }
         defines { "DEBUG" }
         symbols "On"
 end
@@ -121,4 +122,15 @@ project "particles"
         optimize "On"
         buildoptions { "-O3", "-ffast-math", "-fno-math-errno", "-fno-trapping-math" }
 
-unitTest "test_script"
+unitTest "test_uniformgrid"
+unitTest "test_world"
+unitTest "test_multicore"
+unitTest "test_mailboxes"
+
+-- Link the thread pool implementation into the multicore test only
+project "test_multicore"
+    files { "src/simulation/multicore.cpp" }
+
+-- Link World implementation into world test
+project "test_world"
+    files { "src/simulation/world.cpp" }

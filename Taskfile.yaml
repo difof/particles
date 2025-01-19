@@ -55,3 +55,61 @@ tasks:
   clean:
     desc: Clean builds
     cmd: make -C build clean; rm -fr build
+
+  test:build:test_uniformgrid:
+    desc: Build unit test test_uniformgrid
+    deps:
+      - premake
+    cmd: make -C build config=debug -j4 test_uniformgrid
+
+  test:run:test_uniformgrid:
+    desc: Run unit test test_uniformgrid
+    deps:
+      - test:build:test_uniformgrid
+    cmd: build/bin/Debug/test_uniformgrid
+
+  test:build:test_world:
+    desc: Build unit test test_world
+    deps:
+      - premake
+    cmd: make -C build config=debug -j4 test_world
+
+  test:run:test_world:
+    desc: Run unit test test_world
+    deps:
+      - test:build:test_world
+    cmd: build/bin/Debug/test_world
+
+  test:build:test_multicore:
+    desc: Build unit test test_multicore
+    deps:
+      - premake
+    cmd: make -C build config=debug -j4 test_multicore
+
+  test:run:test_multicore:
+    desc: Run unit test test_multicore
+    deps:
+      - test:build:test_multicore
+    cmd: build/bin/Debug/test_multicore
+
+  test:build:test_mailboxes:
+    desc: Build unit test test_mailboxes
+    deps:
+      - premake
+    cmd: make -C build config=debug -j4 test_mailboxes
+
+  test:run:test_mailboxes:
+    desc: Run unit test test_mailboxes
+    deps:
+      - test:build:test_mailboxes
+    cmd: build/bin/Debug/test_mailboxes
+
+  test:all:
+    desc: Build and run all unit tests
+    aliases:
+      - test
+    cmds:
+      - task: test:run:test_uniformgrid
+      - task: test:run:test_world
+      - task: test:run:test_multicore
+      - task: test:run:test_mailboxes
