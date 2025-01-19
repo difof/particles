@@ -45,22 +45,7 @@ class ControlUI : public IRenderer {
         ImGui::SetWindowPos(ImVec2{window_x, 0.f}, ImGuiCond_Appearing);
         ImGui::SetWindowSize(window_size, ImGuiCond_Appearing);
 
-        ImGui::SeparatorText("Stats");
-        ImGui::Text("FPS: %d", GetFPS());
-        ImGui::SameLine();
-        ImGui::Text("TPS: %d", stats.effective_tps);
-        ImGui::Text("Last step: %.3f ms", stats.last_step_ns / 1e6);
-        ImGui::Text("Num steps: %lld", stats.num_steps);
-        ImGui::Text("Particles: %d  Groups: %d  Threads: %d", stats.particles,
-                    stats.groups, stats.sim_threads);
-        ImGui::Text("Sim Bounds: %.0f x %.0f", scfg.bounds_width,
-                    scfg.bounds_height);
-
-        ImGui::SeparatorText("Debug DPI");
-        ImGui::Text("Screen %d x %d", GetScreenWidth(), GetScreenHeight());
-        ImGui::Text("Render %d x %d", GetRenderWidth(), GetRenderHeight());
-        ImGui::Text("Mouse  %.1f, %.1f", GetMousePosition().x,
-                    GetMousePosition().y);
+        // moved metrics and dpi info to MetricsUI
 
         ImGui::SeparatorText("Controls");
         if (ImGui::Button("Reset world")) {
@@ -95,6 +80,7 @@ class ControlUI : public IRenderer {
                                 1.0f, "%.3f"));
 
         ImGui::SeparatorText("Render");
+        ImGui::Checkbox("Show metrics window", &rcfg.show_metrics_ui);
         ImGui::Checkbox("Interpolate", &rcfg.interpolate);
         if (rcfg.interpolate) {
             ImGui::SliderFloat("Interp delay (ms)", &rcfg.interp_delay_ms, 0.0f,

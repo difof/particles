@@ -7,14 +7,14 @@
 #include "../types.hpp"
 #include "context.hpp"
 #include "control_ui.hpp"
-#include "interaction_renderer.hpp"
+#include "metrics_ui.hpp"
 #include "particles_renderer.hpp"
 
 // Manages render textures and frame orchestration.
 class RenderManager {
   public:
     RenderManager(const WindowConfig &wcfg)
-        : m_wcfg(wcfg), m_particles(wcfg), m_ui(wcfg) {}
+        : m_wcfg(wcfg), m_particles(wcfg), m_ui(wcfg), m_metrics(wcfg) {}
 
     ~RenderManager() {}
 
@@ -68,8 +68,7 @@ class RenderManager {
 
         rlImGuiBegin();
         m_ui.render(ctx);
-        InteractionRenderer::update_selection_from_mouse();
-        InteractionRenderer::draw_inspector(ctx, m_particles.texture());
+        m_metrics.render(ctx);
         rlImGuiEnd();
 
         EndDrawing();
@@ -86,6 +85,7 @@ class RenderManager {
     ParticlesRenderer m_particles;
     InteractionRenderer m_interaction{};
     ControlUI m_ui;
+    MetricsUI m_metrics;
 };
 
 #endif
