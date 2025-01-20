@@ -7,6 +7,7 @@
 #include "../types.hpp"
 #include "context.hpp"
 #include "control_ui.hpp"
+#include "inspector_ui.hpp"
 #include "metrics_ui.hpp"
 #include "particles_renderer.hpp"
 
@@ -45,7 +46,7 @@ class RenderManager {
 
         m_particles.render(ctx);
 
-        m_interaction.render(ctx);
+        m_inspector.render(ctx);
 
         BeginDrawing();
         ClearBackground(BLACK);
@@ -61,7 +62,7 @@ class RenderManager {
             EndBlendMode();
 
         DrawTextureRec(
-            m_interaction.texture().texture,
+            m_inspector.texture().texture,
             (Rectangle){0, 0, (float)m_particles.texture().texture.width,
                         (float)-m_particles.texture().texture.height},
             (Vector2){0, 0}, WHITE);
@@ -69,6 +70,8 @@ class RenderManager {
         rlImGuiBegin();
         m_ui.render(ctx);
         m_metrics.render(ctx);
+        m_inspector.update_selection_from_mouse(ctx);
+        m_inspector.render_ui(ctx, m_particles.texture());
         rlImGuiEnd();
 
         EndDrawing();
@@ -83,7 +86,7 @@ class RenderManager {
   private:
     WindowConfig m_wcfg;
     ParticlesRenderer m_particles;
-    InteractionRenderer m_interaction{};
+    InspectorUI m_inspector{};
     ControlUI m_ui;
     MetricsUI m_metrics;
 };
