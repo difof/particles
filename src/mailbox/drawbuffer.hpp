@@ -8,10 +8,6 @@
 
 namespace mailbox {
 
-// FIXME: begin_read() spins until it can pin two slots. That’s OK here, but
-// consider a bounded spin + backoff or yielding to avoid potential UI hitching
-// on contention.
-
 struct DrawBuffer {
     static constexpr int kNumSlots = 3;
 
@@ -35,7 +31,6 @@ struct DrawBuffer {
         std::vector<int> next;
         std::vector<int> count;
 
-        // per-cell velocity accumulation for the frame (sum, not avg)
         std::vector<float> sumVx;
         std::vector<float> sumVy;
 
@@ -93,7 +88,6 @@ struct DrawBuffer {
         auto &v = slots[write_idx].pos;
         if (v.size() != floats_needed)
             v.resize(floats_needed);
-        // std::fill(v.begin(), v.end(), 0.0f);
         return v;
     }
 
@@ -101,7 +95,6 @@ struct DrawBuffer {
         auto &v = slots[write_idx].vel;
         if (v.size() != floats_needed)
             v.resize(floats_needed);
-        // std::fill(v.begin(), v.end(), 0.0f);
         return v;
     }
 
@@ -129,7 +122,6 @@ struct DrawBuffer {
         publish(stamp_ns);
     }
 
-    // ---- reader view ----
     struct ReadView {
         const std::vector<float> *prev = nullptr;
         const std::vector<float> *curr = nullptr;
