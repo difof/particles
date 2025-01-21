@@ -46,10 +46,10 @@ class MetricsUI : public IRenderer {
             int headIdx;
         };
         auto plot_circ = [](const std::array<float, 240> &buf, int start,
-                            float scale_max) {
+                            float scale_max, const char *label) {
             PlotCtx ctx{&buf, start};
             ImGui::PlotLines(
-                "",
+                label,
                 [](void *data, int idx) {
                     auto *ctx = (PlotCtx *)data;
                     const auto &arr = *ctx->arr;
@@ -62,9 +62,9 @@ class MetricsUI : public IRenderer {
         };
 
         ImGui::Text("FPS: %d", fps);
-        plot_circ(fps_buf, head, 240.0f);
+        plot_circ(fps_buf, head, 240.0f, "##fps_plot");
         ImGui::Text("TPS: %d", stats.effective_tps);
-        plot_circ(tps_buf, head, 240.0f);
+        plot_circ(tps_buf, head, 240.0f, "##tps_plot");
 
         // details moved from ControlUI
         ImGui::SeparatorText("Details");
