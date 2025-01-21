@@ -16,8 +16,7 @@
 class RenderManager {
   public:
     RenderManager(const WindowConfig &wcfg)
-        : m_wcfg(wcfg), m_particles(wcfg), m_ui(wcfg), m_editor(),
-          m_metrics(wcfg) {}
+        : m_wcfg(wcfg), m_particles(wcfg), m_ui(), m_editor(), m_metrics() {}
 
     ~RenderManager() {}
 
@@ -44,7 +43,7 @@ class RenderManager {
                 alpha = float(target_ns - view.t0) / float(view.t1 - view.t0);
         }
 
-        RenderContext ctx{sim, rcfg, view, canInterp, alpha};
+        RenderContext ctx{sim, rcfg, view, m_wcfg, canInterp, alpha};
 
         m_particles.render(ctx);
         m_inspector.render(ctx);

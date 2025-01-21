@@ -10,7 +10,7 @@
 
 class MetricsUI : public IRenderer {
   public:
-    MetricsUI(const WindowConfig &wcfg) : m_wcfg(wcfg) {}
+    MetricsUI() = default;
     ~MetricsUI() override = default;
 
     void render(RenderContext &ctx) override {
@@ -33,9 +33,9 @@ class MetricsUI : public IRenderer {
 
         ImGui::Begin("metrics", &ctx.rcfg.show_metrics_ui);
 
-        const float width = (float)m_wcfg.panel_width;
-        const float height = (float)m_wcfg.screen_height * 0.30f;
-        ImGui::SetWindowPos(ImVec2{10.f, (float)m_wcfg.screen_height * 0.72f},
+        const float width = (float)ctx.wcfg.panel_width;
+        const float height = (float)ctx.wcfg.screen_height * 0.30f;
+        ImGui::SetWindowPos(ImVec2{10.f, (float)ctx.wcfg.screen_height * 0.72f},
                             ImGuiCond_Appearing);
         ImGui::SetWindowSize(ImVec2{width, height}, ImGuiCond_Appearing);
 
@@ -84,9 +84,6 @@ class MetricsUI : public IRenderer {
 
         ImGui::End();
     }
-
-  private:
-    WindowConfig m_wcfg;
 };
 
 #endif

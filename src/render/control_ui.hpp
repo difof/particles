@@ -10,7 +10,7 @@
 
 class ControlUI : public IRenderer {
   public:
-    ControlUI(const WindowConfig &wcfg) : m_wcfg(wcfg) {}
+    ControlUI() = default;
     ~ControlUI() override = default;
 
     void render(RenderContext &ctx) override {
@@ -21,7 +21,7 @@ class ControlUI : public IRenderer {
 
   private:
     void render_ui(RenderContext &ctx) {
-        auto &wcfg = m_wcfg;
+        auto &wcfg = ctx.wcfg;
         auto &sim = ctx.sim;
         auto &rcfg = ctx.rcfg;
         mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
@@ -146,9 +146,6 @@ class ControlUI : public IRenderer {
             sim.update_config(scfg);
         }
     }
-
-  private:
-    WindowConfig m_wcfg;
 };
 
 #endif
