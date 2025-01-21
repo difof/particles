@@ -4,7 +4,8 @@
 struct RenderConfig {
     // ui
     bool show_ui = true;
-    bool show_metrics_ui = true;
+    bool show_metrics_ui = false;
+    bool show_editor = false;
 
     // interpolation
     bool interpolate = true;

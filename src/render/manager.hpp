@@ -7,6 +7,7 @@
 #include "../types.hpp"
 #include "context.hpp"
 #include "control_ui.hpp"
+#include "editor_ui.hpp"
 #include "inspector_ui.hpp"
 #include "metrics_ui.hpp"
 #include "particles_renderer.hpp"
@@ -15,7 +16,8 @@
 class RenderManager {
   public:
     RenderManager(const WindowConfig &wcfg)
-        : m_wcfg(wcfg), m_particles(wcfg), m_ui(wcfg), m_metrics(wcfg) {}
+        : m_wcfg(wcfg), m_particles(wcfg), m_ui(wcfg), m_editor(),
+          m_metrics(wcfg) {}
 
     ~RenderManager() {}
 
@@ -45,33 +47,33 @@ class RenderManager {
         RenderContext ctx{sim, rcfg, view, canInterp, alpha};
 
         m_particles.render(ctx);
-
         m_inspector.render(ctx);
 
         BeginDrawing();
         ClearBackground(BLACK);
 
-        if (rcfg.final_additive_blit)
-            BeginBlendMode(BLEND_ADDITIVE);
-        DrawTextureRec(
-            m_particles.texture().texture,
-            (Rectangle){0, 0, (float)m_particles.texture().texture.width,
-                        (float)-m_particles.texture().texture.height},
-            (Vector2){0, 0}, WHITE);
-        if (rcfg.final_additive_blit)
-            EndBlendMode();
+        {
+            DrawTextureRec(
+                m_particles.texture().texture,
+                (Rectangle){0, 0, (float)m_particles.texture().texture.width,
+                            (float)-m_particles.texture().texture.height},
+                (Vector2){0, 0}, WHITE);
 
-        DrawTextureRec(
-            m_inspector.texture().texture,
-            (Rectangle){0, 0, (float)m_particles.texture().texture.width,
-                        (float)-m_particles.texture().texture.height},
-            (Vector2){0, 0}, WHITE);
+            DrawTextureRec(
+                m_inspector.texture().texture,
+                (Rectangle){0, 0, (float)m_particles.texture().texture.width,
+                            (float)-m_particles.texture().texture.height},
+                (Vector2){0, 0}, WHITE);
+        }
 
         rlImGuiBegin();
-        m_ui.render(ctx);
-        m_metrics.render(ctx);
-        m_inspector.update_selection_from_mouse(ctx);
-        m_inspector.render_ui(ctx, m_particles.texture());
+        {
+            m_ui.render(ctx);
+            m_editor.render(ctx);
+            m_metrics.render(ctx);
+            m_inspector.update_selection_from_mouse(ctx);
+            m_inspector.render_ui(ctx, m_particles.texture());
+        }
         rlImGuiEnd();
 
         EndDrawing();
@@ -88,6 +90,7 @@ class RenderManager {
     ParticlesRenderer m_particles;
     InspectorUI m_inspector{};
     ControlUI m_ui;
+    EditorUI m_editor;
     MetricsUI m_metrics;
 };
 
