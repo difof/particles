@@ -26,15 +26,15 @@ class ParticlesRenderer : public IRenderer {
         BeginTextureMode(m_rt);
         ClearBackground(Color{0, 0, 0, 255});
 
-        const int G = sim.get_world().get_groups_size();
-        const float coreSize = rcfg.core_size;
+        const int group_size = sim.get_world().get_groups_size();
+        const float core_size = rcfg.core_size;
 
         Texture2D glow{};
-        float outerScale = 0.f, innerScale = 0.f;
+        float outer_scale = 0.f, inner_scale = 0.f;
         if (rcfg.glow_enabled) {
             glow = get_glow_tex();
-            outerScale = coreSize * rcfg.outer_scale_mul;
-            innerScale = coreSize * rcfg.inner_scale_mul;
+            outer_scale = core_size * rcfg.outer_scale_mul;
+            inner_scale = core_size * rcfg.inner_scale_mul;
         }
 
         if (ctx.can_interpolate) {
@@ -50,11 +50,13 @@ class ParticlesRenderer : public IRenderer {
                 return {x, y};
             };
             if (rcfg.glow_enabled) {
-                draw_particles_with_glow(
-                    sim.get_world(), G, posAt, glow, coreSize, outerScale,
-                    rcfg.outer_rgb_gain, innerScale, rcfg.inner_rgb_gain);
+                draw_particles_with_glow(sim.get_world(), group_size, posAt,
+                                         glow, core_size, outer_scale,
+                                         rcfg.outer_rgb_gain, inner_scale,
+                                         rcfg.inner_rgb_gain);
             } else {
-                draw_particles_simple(sim.get_world(), G, posAt, coreSize);
+                draw_particles_simple(sim.get_world(), group_size, posAt,
+                                      core_size);
             }
         } else {
             const auto &pos = *view.curr;
@@ -65,11 +67,13 @@ class ParticlesRenderer : public IRenderer {
                 return {pos[b + 0], pos[b + 1]};
             };
             if (rcfg.glow_enabled) {
-                draw_particles_with_glow(
-                    sim.get_world(), G, posAt, glow, coreSize, outerScale,
-                    rcfg.outer_rgb_gain, innerScale, rcfg.inner_rgb_gain);
+                draw_particles_with_glow(sim.get_world(), group_size, posAt,
+                                         glow, core_size, outer_scale,
+                                         rcfg.outer_rgb_gain, inner_scale,
+                                         rcfg.inner_rgb_gain);
             } else {
-                draw_particles_simple(sim.get_world(), G, posAt, coreSize);
+                draw_particles_simple(sim.get_world(), group_size, posAt,
+                                      core_size);
             }
         }
 
