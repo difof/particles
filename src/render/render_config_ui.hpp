@@ -39,6 +39,18 @@ class RenderConfigUI : public IRenderer {
                                50.0f, "%.1f");
         }
 
+        ImGui::SeparatorText("Background");
+        ImVec4 bg_color = ImVec4(
+            rcfg.background_color.r / 255.0f, rcfg.background_color.g / 255.0f,
+            rcfg.background_color.b / 255.0f, rcfg.background_color.a / 255.0f);
+        if (ImGui::ColorEdit4("Background Color", (float *)&bg_color,
+                              ImGuiColorEditFlags_NoAlpha)) {
+            rcfg.background_color = {(unsigned char)(bg_color.x * 255),
+                                     (unsigned char)(bg_color.y * 255),
+                                     (unsigned char)(bg_color.z * 255),
+                                     (unsigned char)(bg_color.w * 255)};
+        }
+
         ImGui::SeparatorText("Particle Rendering");
         ImGui::SliderFloat("Core size (px)", &rcfg.core_size, 0.5f, 4.0f,
                            "%.2f");

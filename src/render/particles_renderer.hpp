@@ -24,7 +24,7 @@ class ParticlesRenderer : public IRenderer {
         auto &view = ctx.view;
 
         BeginTextureMode(m_rt);
-        ClearBackground(Color{0, 0, 0, 255});
+        ClearBackground(rcfg.background_color);
 
         const int group_size = sim.get_world().get_groups_size();
         const float core_size = rcfg.core_size;

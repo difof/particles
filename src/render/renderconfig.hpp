@@ -22,6 +22,9 @@ struct RenderConfig {
     float inner_rgb_gain = 0.18f;
     bool final_additive_blit = true;
 
+    // background
+    Color background_color = {0, 0, 0, 255}; // black background
+
     // overlays
     bool show_density_heat = false;
     float heat_alpha = 0.6f; // 0..1 overlay opacity

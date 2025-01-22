@@ -54,6 +54,10 @@ class RenderManager {
         BeginDrawing();
         ClearBackground(BLACK);
 
+        // FIXME: if we also change this background, the preview in inspector
+        // will not have the same effect:
+        // ClearBackground(rcfg.background_color);
+
         {
             DrawTextureRec(
                 m_particles.texture().texture,
