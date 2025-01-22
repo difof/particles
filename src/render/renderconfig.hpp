@@ -6,6 +6,8 @@ struct RenderConfig {
     bool show_ui = true;
     bool show_metrics_ui = false;
     bool show_editor = false;
+    bool show_render_config = false;
+    bool show_sim_config = false;
 
     // interpolation
     bool interpolate = true;

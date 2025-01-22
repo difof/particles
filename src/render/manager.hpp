@@ -11,12 +11,15 @@
 #include "inspector_ui.hpp"
 #include "metrics_ui.hpp"
 #include "particles_renderer.hpp"
+#include "render_config_ui.hpp"
+#include "sim_config_ui.hpp"
 
 // Manages render textures and frame orchestration.
 class RenderManager {
   public:
     RenderManager(const WindowConfig &wcfg)
-        : m_wcfg(wcfg), m_particles(wcfg), m_ui(), m_editor(), m_metrics() {}
+        : m_wcfg(wcfg), m_particles(wcfg), m_ui(), m_editor(),
+          m_render_config(), m_sim_config(), m_metrics() {}
 
     ~RenderManager() {}
 
@@ -69,6 +72,8 @@ class RenderManager {
         {
             m_ui.render(ctx);
             m_editor.render(ctx);
+            m_render_config.render(ctx);
+            m_sim_config.render(ctx);
             m_metrics.render(ctx);
             m_inspector.update_selection_from_mouse(ctx);
             m_inspector.render_ui(ctx, m_particles.texture());
@@ -90,6 +95,8 @@ class RenderManager {
     InspectorUI m_inspector{};
     ControlUI m_ui;
     EditorUI m_editor;
+    RenderConfigUI m_render_config;
+    SimConfigUI m_sim_config;
     MetricsUI m_metrics;
 };
 
