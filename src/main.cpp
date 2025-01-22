@@ -95,7 +95,8 @@ void run() {
     }
 
     while (!WindowShouldClose()) {
-        rman.draw_frame(sim, rcfg);
+        if (rman.draw_frame(sim, rcfg))
+            break;
 
         if (IsKeyPressed(KEY_R)) {
             sim.push_command(mailbox::command::ResetWorld{});
@@ -118,7 +119,6 @@ void run() {
     }
 
     sim.end();
-
     rlImGuiShutdown();
     CloseWindow();
 }

@@ -15,6 +15,8 @@ struct RenderContext {
     // interpolation
     bool can_interpolate = false;
     float interp_alpha = 1.0f;
+
+    bool should_exit = false;
 };
 
 #endif

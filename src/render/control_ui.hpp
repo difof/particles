@@ -21,60 +21,64 @@ class ControlUI : public IRenderer {
 
   private:
     void render_ui(RenderContext &ctx) {
-        auto &wcfg = ctx.wcfg;
         auto &sim = ctx.sim;
         auto &rcfg = ctx.rcfg;
         mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
-        mailbox::SimulationStats::Snapshot stats = sim.get_stats();
-        const World &world = sim.get_world();
         bool scfg_updated = false;
         auto mark = [&scfg_updated](bool s) {
             if (s)
                 scfg_updated = true;
         };
 
-        auto to_imvec4 = [](Color c) -> ImVec4 {
-            return ImVec4(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f);
-        };
-        auto window_size =
-            ImVec2{(float)wcfg.panel_width, (float)wcfg.screen_height * .7f};
-        auto window_x =
-            (float)wcfg.screen_width / 2 - (float)wcfg.panel_width / 2;
+        // Create main menu bar
+        if (ImGui::BeginMainMenuBar()) {
+            // Windows menu
+            if (ImGui::BeginMenu("Windows")) {
+                if (ImGui::MenuItem("Toggle UI", "U")) {
+                    ctx.rcfg.show_ui = !ctx.rcfg.show_ui;
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Show metrics window")) {
+                    ctx.rcfg.show_metrics_ui = true;
+                }
+                if (ImGui::MenuItem("Open Particle & Rule Editor")) {
+                    ctx.rcfg.show_editor = true;
+                }
+                if (ImGui::MenuItem("Open Render Config")) {
+                    ctx.rcfg.show_render_config = true;
+                }
+                if (ImGui::MenuItem("Open Simulation Config")) {
+                    ctx.rcfg.show_sim_config = true;
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Exit", "ESC")) {
+                    ctx.should_exit = true;
+                }
+                ImGui::EndMenu();
+            }
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.);
-        ImGui::Begin("control", NULL);
-        ImGui::SetWindowPos(ImVec2{window_x, 0.f}, ImGuiCond_Appearing);
-        ImGui::SetWindowSize(window_size, ImGuiCond_Appearing);
+            // Controls menu
+            if (ImGui::BeginMenu("Controls")) {
+                if (ImGui::MenuItem("Reset world", "R")) {
+                    sim.push_command(mailbox::command::ResetWorld{});
+                }
+                if (ImGui::MenuItem("Pause/Resume", "SPACE")) {
+                    if (sim.get_run_state() == Simulation::RunState::Running) {
+                        sim.push_command(mailbox::command::Pause{});
+                    } else if (sim.get_run_state() ==
+                               Simulation::RunState::Paused) {
+                        sim.push_command(mailbox::command::Resume{});
+                    }
+                }
+                if (ImGui::MenuItem("One Step", "S")) {
+                    sim.push_command(mailbox::command::OneStep{});
+                }
+                ImGui::EndMenu();
+            }
 
-        ImGui::SeparatorText("Windows");
-        ctx.rcfg.show_metrics_ui =
-            ImGui::Button("Show metrics window") || ctx.rcfg.show_metrics_ui;
-        ctx.rcfg.show_editor = ImGui::Button("Open Particle & Rule Editor") ||
-                               ctx.rcfg.show_editor;
-        ctx.rcfg.show_render_config =
-            ImGui::Button("Open Render Config") || ctx.rcfg.show_render_config;
-        ctx.rcfg.show_sim_config =
-            ImGui::Button("Open Simulation Config") || ctx.rcfg.show_sim_config;
-
-        ImGui::SeparatorText("Controls");
-        if (ImGui::Button("Reset world")) {
-            sim.push_command(mailbox::command::ResetWorld{});
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Pause")) {
-            sim.push_command(mailbox::command::Pause{});
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Resume")) {
-            sim.push_command(mailbox::command::Resume{});
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("One Step")) {
-            sim.push_command(mailbox::command::OneStep{});
+            ImGui::EndMainMenuBar();
         }
 
-        ImGui::End();
-        ImGui::PopStyleVar();
         if (scfg_updated) {
             sim.update_config(scfg);
         }

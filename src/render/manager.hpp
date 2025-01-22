@@ -23,7 +23,7 @@ class RenderManager {
 
     ~RenderManager() {}
 
-    void draw_frame(Simulation &sim, RenderConfig &rcfg) {
+    bool draw_frame(Simulation &sim, RenderConfig &rcfg) {
         auto view = sim.begin_read_draw();
         bool canInterp = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
                          view.t1 > view.t0 && view.prev && view.curr &&
@@ -83,6 +83,8 @@ class RenderManager {
         EndDrawing();
 
         sim.end_read_draw(view);
+
+        return ctx.should_exit;
     }
 
     const RenderTexture2D &render_texture() const {
