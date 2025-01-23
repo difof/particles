@@ -5,6 +5,8 @@
 #include <raylib.h>
 
 #include "../types.hpp"
+#include "file_dialog.hpp"
+#include "json_manager.hpp"
 #include "renderconfig.hpp"
 #include "renderer.hpp"
 
@@ -13,6 +15,13 @@ class ControlUI : public IRenderer {
     ControlUI() = default;
     ~ControlUI() override = default;
 
+    // File operations
+    void set_json_manager(JsonManager *manager) { m_json_manager = manager; }
+    void set_current_filepath(const std::string &filepath) {
+        m_current_filepath = filepath;
+    }
+    std::string get_current_filepath() const { return m_current_filepath; }
+
     void render(RenderContext &ctx) override {
         if (!ctx.rcfg.show_ui)
             return;
@@ -20,6 +29,13 @@ class ControlUI : public IRenderer {
     }
 
   private:
+    JsonManager *m_json_manager = nullptr;
+    std::string m_current_filepath;
+    FileDialog m_file_dialog;
+    bool m_file_dialog_open = false;
+    enum class PendingAction { None, Open, SaveAs };
+    PendingAction m_pending_action = PendingAction::None;
+
     void render_ui(RenderContext &ctx) {
         auto &sim = ctx.sim;
         auto &rcfg = ctx.rcfg;
@@ -32,27 +48,64 @@ class ControlUI : public IRenderer {
 
         // Create main menu bar
         if (ImGui::BeginMainMenuBar()) {
+            // File menu
+            if (ImGui::BeginMenu("File")) {
+                if (ImGui::MenuItem("New", "Ctrl+N")) {
+                    handle_new_project(ctx);
+                }
+                if (ImGui::MenuItem("Open", "Ctrl+O")) {
+                    handle_open_project(ctx);
+                }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) {
+                    handle_save_project(ctx);
+                }
+                if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S")) {
+                    handle_save_as_project(ctx);
+                }
+                ImGui::Separator();
+
+                // Recent files
+                auto recent_files = m_json_manager
+                                        ? m_json_manager->get_recent_files()
+                                        : std::vector<std::string>();
+                if (!recent_files.empty()) {
+                    for (const auto &file : recent_files) {
+                        if (ImGui::MenuItem(file.c_str())) {
+                            handle_open_file(ctx, file);
+                        }
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Clear Recent Files")) {
+                        if (m_json_manager) {
+                            m_json_manager->clear_recent_files();
+                        }
+                    }
+                }
+
+                if (ImGui::MenuItem("Exit", "ESC")) {
+                    ctx.should_exit = true;
+                }
+
+                ImGui::EndMenu();
+            }
+
             // Windows menu
             if (ImGui::BeginMenu("Windows")) {
                 if (ImGui::MenuItem("Toggle UI", "U")) {
                     ctx.rcfg.show_ui = !ctx.rcfg.show_ui;
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem("Show metrics window")) {
+                if (ImGui::MenuItem("Show metrics window", "1")) {
                     ctx.rcfg.show_metrics_ui = true;
                 }
-                if (ImGui::MenuItem("Open Particle & Rule Editor")) {
+                if (ImGui::MenuItem("Open Particle & Rule Editor", "2")) {
                     ctx.rcfg.show_editor = true;
                 }
-                if (ImGui::MenuItem("Open Render Config")) {
+                if (ImGui::MenuItem("Open Render Config", "3")) {
                     ctx.rcfg.show_render_config = true;
                 }
-                if (ImGui::MenuItem("Open Simulation Config")) {
+                if (ImGui::MenuItem("Open Simulation Config", "4")) {
                     ctx.rcfg.show_sim_config = true;
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem("Exit", "ESC")) {
-                    ctx.should_exit = true;
                 }
                 ImGui::EndMenu();
             }
@@ -82,7 +135,40 @@ class ControlUI : public IRenderer {
         if (scfg_updated) {
             sim.update_config(scfg);
         }
+
+        // Render file dialog if open
+        if (m_file_dialog_open) {
+            if (m_file_dialog.render()) {
+                m_file_dialog_open = false;
+                if (m_file_dialog.has_result() && !m_file_dialog.canceled()) {
+                    const std::string path = m_file_dialog.selected_path();
+                    if (m_pending_action == PendingAction::Open) {
+                        handle_open_file(ctx, path);
+                    } else if (m_pending_action == PendingAction::SaveAs) {
+                        // Collect current state and save
+                        JsonManager::ProjectData data;
+                        data.sim_config = ctx.sim.get_config();
+                        data.render_config = ctx.rcfg;
+                        data.seed = m_json_manager
+                                        ? m_json_manager->extract_current_seed(
+                                              ctx.sim.get_world())
+                                        : nullptr;
+                        if (m_json_manager &&
+                            m_json_manager->save_project(path, data)) {
+                            m_current_filepath = path;
+                        }
+                    }
+                }
+                m_pending_action = PendingAction::None;
+            }
+        }
     }
+
+    void handle_new_project(RenderContext &ctx);
+    void handle_open_project(RenderContext &ctx);
+    void handle_save_project(RenderContext &ctx);
+    void handle_save_as_project(RenderContext &ctx);
+    void handle_open_file(RenderContext &ctx, const std::string &filepath);
 };
 
 #endif

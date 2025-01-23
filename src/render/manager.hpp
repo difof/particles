@@ -3,12 +3,14 @@
 
 #include <functional>
 #include <raylib.h>
+#include <string>
 
 #include "../types.hpp"
 #include "context.hpp"
 #include "control_ui.hpp"
 #include "editor_ui.hpp"
 #include "inspector_ui.hpp"
+#include "json_manager.hpp"
 #include "metrics_ui.hpp"
 #include "particles_renderer.hpp"
 #include "render_config_ui.hpp"
@@ -22,6 +24,14 @@ class RenderManager {
           m_render_config(), m_sim_config(), m_metrics() {}
 
     ~RenderManager() {}
+
+    void set_json_manager(JsonManager *manager) {
+        m_ui.set_json_manager(manager);
+    }
+
+    void set_current_project_path(const std::string &path) {
+        m_ui.set_current_filepath(path);
+    }
 
     bool draw_frame(Simulation &sim, RenderConfig &rcfg) {
         auto view = sim.begin_read_draw();

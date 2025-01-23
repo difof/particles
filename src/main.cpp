@@ -4,6 +4,7 @@
 
 #include "mailbox/mailbox.hpp"
 #include "render/control_ui.hpp"
+#include "render/json_manager.hpp"
 #include "render/manager.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
@@ -48,50 +49,81 @@ void run() {
     RenderManager rman({wcfg.screen_width, wcfg.screen_height, wcfg.panel_width,
                         wcfg.render_width});
 
+    // Initialize JSON manager and try to load last project
+    JsonManager json_manager;
+    std::string last_file = json_manager.get_last_opened_file();
+
+    // Set up the JSON manager in the render manager
+    rman.set_json_manager(&json_manager);
+
     sim.begin();
-    // send initial seed from main
-    {
-        auto seed = std::make_shared<mailbox::command::SeedSpec>();
-        const int groups = 5;
-        seed->sizes = std::vector<int>(groups, 1500);
-        seed->colors = {(Color){0, 228, 114, 255}, (Color){238, 70, 82, 255},
-                        (Color){227, 172, 72, 255}, (Color){0, 121, 241, 255},
-                        (Color){200, 122, 255, 255}};
-        seed->r2 = {80.f * 80.f, 80.f * 80.f, 96.6f * 96.6f, 80.f * 80.f,
-                    80.f * 80.f};
-        seed->rules = {
-            // row 0
-            +0.926f,
-            -0.834f,
-            +0.281f,
-            -0.06427308f,
-            +0.51738745f,
-            // row 1
-            -0.46170965f,
-            +0.49142435f,
-            +0.2760726f,
-            +0.6413487f,
-            -0.7276546f,
-            // row 2
-            -0.78747644f,
-            +0.23373386f,
-            -0.024112331f,
-            -0.74875921f,
-            +0.22836663f,
-            // row 3
-            +0.56558144f,
-            +0.94846946f,
-            -0.36052886f,
-            +0.44114092f,
-            -0.31766385f,
-            // row 4
-            std::sin(1.0f),
-            std::cos(2.0f),
-            +1.0f,
-            -1.0f,
-            +3.14f,
-        };
-        sim.push_command(mailbox::command::SeedWorld{seed});
+
+    // Try to load last project, otherwise use default seed
+    bool loaded_project = false;
+    if (!last_file.empty()) {
+        JsonManager::ProjectData data;
+        if (json_manager.load_project(last_file, data)) {
+            // Apply loaded project settings
+            sim.update_config(data.sim_config);
+            rcfg = data.render_config;
+
+            // Send loaded seed to simulation
+            if (data.seed) {
+                sim.push_command(mailbox::command::SeedWorld{data.seed});
+                loaded_project = true;
+            }
+            // propagate current file path so Save overwrites
+            rman.set_current_project_path(last_file);
+        }
+    }
+
+    // If no project was loaded, use default seed
+    if (!loaded_project) {
+        // send initial seed from main
+        {
+            auto seed = std::make_shared<mailbox::command::SeedSpec>();
+            const int groups = 5;
+            seed->sizes = std::vector<int>(groups, 1500);
+            seed->colors = {
+                (Color){0, 228, 114, 255}, (Color){238, 70, 82, 255},
+                (Color){227, 172, 72, 255}, (Color){0, 121, 241, 255},
+                (Color){200, 122, 255, 255}};
+            seed->r2 = {80.f * 80.f, 80.f * 80.f, 96.6f * 96.6f, 80.f * 80.f,
+                        80.f * 80.f};
+            seed->rules = {
+                // row 0
+                +0.926f,
+                -0.834f,
+                +0.281f,
+                -0.06427308f,
+                +0.51738745f,
+                // row 1
+                -0.46170965f,
+                +0.49142435f,
+                +0.2760726f,
+                +0.6413487f,
+                -0.7276546f,
+                // row 2
+                -0.78747644f,
+                +0.23373386f,
+                -0.024112331f,
+                -0.74875921f,
+                +0.22836663f,
+                // row 3
+                +0.56558144f,
+                +0.94846946f,
+                -0.36052886f,
+                +0.44114092f,
+                -0.31766385f,
+                // row 4
+                std::sin(1.0f),
+                std::cos(2.0f),
+                +1.0f,
+                -1.0f,
+                +3.14f,
+            };
+            sim.push_command(mailbox::command::SeedWorld{seed});
+        }
     }
 
     while (!WindowShouldClose()) {
@@ -115,6 +147,18 @@ void run() {
             } else if (sim.get_run_state() == Simulation::RunState::Paused) {
                 sim.push_command(mailbox::command::Resume{});
             }
+        }
+        if (IsKeyPressed(KEY_ONE)) {
+            rcfg.show_metrics_ui = !rcfg.show_metrics_ui;
+        }
+        if (IsKeyPressed(KEY_TWO)) {
+            rcfg.show_editor = !rcfg.show_editor;
+        }
+        if (IsKeyPressed(KEY_THREE)) {
+            rcfg.show_render_config = !rcfg.show_render_config;
+        }
+        if (IsKeyPressed(KEY_FOUR)) {
+            rcfg.show_sim_config = !rcfg.show_sim_config;
         }
     }
 
