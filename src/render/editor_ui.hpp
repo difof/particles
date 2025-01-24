@@ -38,6 +38,7 @@ class EditorUI : public IRenderer {
             std::vector<float> rules;
             std::vector<int> sizes;
             std::vector<Color> colors;
+            bool live_apply = false;
             bool dirty = false;
         };
         static EditorState editor;
@@ -74,6 +75,7 @@ class EditorUI : public IRenderer {
 
         ImGui::Text("Groups: %d", stats.groups);
         ImGui::Separator();
+        ImGui::Checkbox("Live apply", &editor.live_apply);
 
         ImGui::BeginChild("GroupsRulesChild", ImVec2(0, 400), true,
                           ImGuiWindowFlags_AlwaysVerticalScrollbar);
@@ -134,17 +136,20 @@ class EditorUI : public IRenderer {
 
         // Apply buttons
         bool can_hot_apply = (editor.G == stats.groups);
-        if (!can_hot_apply)
-            ImGui::BeginDisabled();
-        if (ImGui::Button("Apply (hot, no reseed)")) {
+        auto send_patch = [&](bool hot) {
             auto patch = std::make_shared<mailbox::command::RulePatch>();
             patch->groups = editor.G;
             patch->r2 = editor.r2;
             patch->rules = editor.rules;
             patch->colors = editor.colors;
-            patch->hot = true;
+            patch->hot = hot;
             sim.push_command(mailbox::command::ApplyRules{patch});
             editor.dirty = false;
+        };
+        if (!can_hot_apply)
+            ImGui::BeginDisabled();
+        if (ImGui::Button("Apply (hot, no reseed)")) {
+            send_patch(true);
         }
         if (!can_hot_apply) {
             ImGui::EndDisabled();
@@ -154,14 +159,7 @@ class EditorUI : public IRenderer {
         }
         ImGui::SameLine();
         if (ImGui::Button("Apply & Reseed")) {
-            auto patch = std::make_shared<mailbox::command::RulePatch>();
-            patch->groups = editor.G;
-            patch->r2 = editor.r2;
-            patch->rules = editor.rules;
-            patch->colors = editor.colors;
-            patch->hot = false;
-            sim.push_command(mailbox::command::ApplyRules{patch});
-            editor.dirty = false;
+            send_patch(false);
         }
 
         // Utility buttons
@@ -188,6 +186,11 @@ class EditorUI : public IRenderer {
                 for (int j = 0; j < editor.G; ++j)
                     editor.rules[i * editor.G + j] = dist(rng);
             editor.dirty = true;
+        }
+
+        // Auto-apply when live apply is enabled
+        if (editor.live_apply && editor.dirty) {
+            send_patch(can_hot_apply);
         }
 
         ImGui::End();
