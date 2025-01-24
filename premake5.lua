@@ -18,6 +18,7 @@ local function linkImGUI()
         "extlib/imgui/imgui_widgets.cpp",
         "extlib/imgui/imgui_tables.cpp",
         "extlib/imgui/imgui_demo.cpp",
+        "extlib/imgui/misc/cpp/imgui_stdlib.cpp",
         "extlib/rlimgui/rlImGui.cpp",
     }
 end
@@ -38,7 +39,10 @@ local function linkFmt()
     libdirs { "extlib/fmt/build" }
     links { "fmt" }
     dependson { "extlib_fmt" }
+end
 
+local function linkJSON()
+    includedirs { "extlib/nlohmann-json/single_include" }
 end
 
 local function raylibDeps()
@@ -74,7 +78,7 @@ local function unitTest(name)
             "extlib/catch2/extras/catch_amalgamated.cpp",
             "tests/"..name..".cpp" 
         }
-        -- Do not compile application sources in tests; we only include headers
+
         excludes { "src/**.cpp", "src/**.c" }
         includedirs { "extlib/catch2/extras", "extlib/raylib/src" }
         defines { "DEBUG" }
@@ -108,6 +112,7 @@ project "particles"
     linkTinydir()
     linkRaylib()
     linkImGUI()
+    linkJSON()
     raylibDeps()
 
     filter "configurations:Debug"
@@ -124,13 +129,10 @@ project "particles"
 
 unitTest "test_uniformgrid"
 unitTest "test_world"
-unitTest "test_multicore"
-unitTest "test_mailboxes"
-
--- Link the thread pool implementation into the multicore test only
-project "test_multicore"
-    files { "src/simulation/multicore.cpp" }
-
--- Link World implementation into world test
-project "test_world"
     files { "src/simulation/world.cpp" }
+unitTest "test_multicore"
+    files { "src/simulation/multicore.cpp" }
+unitTest "test_mailboxes"
+unitTest "test_json_manager"
+    files { "src/render/json_manager.cpp", "src/simulation/world.cpp" }
+    linkJSON()
