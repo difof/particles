@@ -89,6 +89,34 @@ class ControlUI : public IRenderer {
                 ImGui::EndMenu();
             }
 
+            // Edit menu
+            if (ImGui::BeginMenu("Edit")) {
+                if (ctx.undo) {
+                    bool canUndo = ctx.undo->canUndo();
+                    bool canRedo = ctx.undo->canRedo();
+                    if (!canUndo)
+                        ImGui::BeginDisabled();
+                    if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+                        ctx.undo->undo();
+                    }
+                    if (!canUndo)
+                        ImGui::EndDisabled();
+                    if (!canRedo)
+                        ImGui::BeginDisabled();
+                    if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+                        ctx.undo->redo();
+                    }
+                    if (!canRedo)
+                        ImGui::EndDisabled();
+                } else {
+                    ImGui::BeginDisabled();
+                    ImGui::MenuItem("Undo", "Ctrl+Z");
+                    ImGui::MenuItem("Redo", "Ctrl+Y");
+                    ImGui::EndDisabled();
+                }
+                ImGui::EndMenu();
+            }
+
             // Windows menu
             if (ImGui::BeginMenu("Windows")) {
                 if (ImGui::MenuItem("Toggle UI", "U")) {
