@@ -67,7 +67,6 @@ class Simulation {
     inline RunState get_run_state() const noexcept { return m_t_run_state; }
 
   private:
-    void seed_world(mailbox::SimulationConfig::Snapshot &cfg);
     void clear_world();
     void apply_seed(const mailbox::command::SeedSpec &seed,
                     mailbox::SimulationConfig::Snapshot &cfg);

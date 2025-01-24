@@ -488,25 +488,24 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
                 continue;
             }
 
-            for (int j = m_idx.grid.head_at(nci); j != -1;
-                 j = m_idx.grid.next_at(j)) {
+            const int start = m_idx.grid.cell_start_at(nci);
+            const int count = m_idx.grid.cell_count_at(nci);
+            const auto &idx = m_idx.grid.indices();
+            const int end = start + count;
+            for (int pos = start; pos < end; ++pos) {
+                const int j = idx[pos];
                 if (j == i) {
                     continue;
                 }
-
                 const float bx = m_world.get_px(j);
                 const float by = m_world.get_py(j);
                 const float dx = ax - bx;
                 const float dy = ay - by;
                 const float d2 = dx * dx + dy * dy;
-
                 if (d2 > 0.f && d2 < r2) {
-                    const int gj = m_world.group_of(j);
-                    const float g = rowv.get(gj);
-                    const float invd =
-                        rsqrt_fast(std::max(d2, EPS)); // 1/sqrt(d2)
+                    const float g = rowv.get(m_world.group_of(j));
+                    const float invd = rsqrt_fast(std::max(d2, EPS));
                     const float F = g * invd;
-
                     sumx += F * dx;
                     sumy += F * dy;
                 }
@@ -577,68 +576,4 @@ inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
         m_world.set_vx(i, vx);
         m_world.set_vy(i, vy);
     }
-}
-
-void Simulation::seed_world(mailbox::SimulationConfig::Snapshot &cfg) {
-    m_world.reset(false);
-
-    std::mt19937 rng{std::random_device{}()};
-    std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
-    std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
-
-    int sz = 1500;
-    const int gG = m_world.add_group(sz, {0, 228, 114, 255});
-    const int gR = m_world.add_group(sz, {238, 70, 82, 255});
-    const int gO = m_world.add_group(sz, {227, 172, 72, 255});
-    const int gB = m_world.add_group(sz, {0, 121, 241, 255});
-    const int gP = m_world.add_group(sz, {200, 122, 255, 255});
-
-    const int N = m_world.get_particles_count();
-    for (int i = 0; i < N; ++i) {
-        m_world.set_px(i, rx(rng));
-        m_world.set_py(i, ry(rng));
-        m_world.set_vx(i, 0.f);
-        m_world.set_vy(i, 0.f);
-    }
-
-    m_world.finalize_groups();
-    const int G = m_world.get_groups_size();
-    m_world.init_rule_tables(G);
-
-    auto r = 80.f;
-    m_world.set_r2(gG, r * r);
-    m_world.set_r2(gR, r * r);
-    m_world.set_r2(gO, 96.6f * 96.6f);
-    m_world.set_r2(gB, r * r);
-    m_world.set_r2(gP, r * r);
-
-    m_world.set_rule(gG, gG, +0.926f);
-    m_world.set_rule(gG, gR, -0.834f);
-    m_world.set_rule(gG, gO, +0.281f);
-    m_world.set_rule(gG, gB, -0.0642730798572301f);
-    m_world.set_rule(gG, gP, +0.5173874347821623f);
-
-    m_world.set_rule(gR, gG, -0.4617096465080976f);
-    m_world.set_rule(gR, gR, +0.4914243463426828f);
-    m_world.set_rule(gR, gO, +0.2760726027190685f);
-    m_world.set_rule(gR, gB, +0.6413487386889756f);
-    m_world.set_rule(gR, gP, -0.7276545553729321f);
-
-    m_world.set_rule(gO, gG, -0.7874764292500913f);
-    m_world.set_rule(gO, gR, +0.2337338547222316f);
-    m_world.set_rule(gO, gO, -0.0241123312152922f);
-    m_world.set_rule(gO, gB, -0.7487592226825655f);
-    m_world.set_rule(gO, gP, +0.2283666329376234f);
-
-    m_world.set_rule(gB, gG, +0.5655814143829048f);
-    m_world.set_rule(gB, gR, +0.9484694371931255f);
-    m_world.set_rule(gB, gO, -0.3605288732796907f);
-    m_world.set_rule(gB, gB, +0.4411409106105566f);
-    m_world.set_rule(gB, gP, -0.3176638387632344f);
-
-    m_world.set_rule(gP, gG, std::sin(1.0f));
-    m_world.set_rule(gP, gR, std::cos(2.0f));
-    m_world.set_rule(gP, gO, +1.0f);
-    m_world.set_rule(gP, gB, -1.0f);
-    m_world.set_rule(gP, gP, +3.14f);
 }

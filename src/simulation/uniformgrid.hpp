@@ -139,6 +139,13 @@ class UniformGrid {
     inline const std::vector<int> &next() const { return m_next; }
     inline int next_at(int i) const { return m_next[i]; }
 
+    // CSR-style contiguous storage accessors
+    inline const std::vector<int> &cell_start() const { return m_cellStart; }
+    inline const std::vector<int> &cell_count() const { return m_cellCount; }
+    inline int cell_start_at(int ci) const { return m_cellStart[ci]; }
+    inline int cell_count_at(int ci) const { return m_cellCount[ci]; }
+    inline const std::vector<int> &indices() const { return m_indices; }
+
     /**
      * @brief Convert (cx,cy) cell coordinates to a flat cell index, or -1 if
      * out of range.
@@ -175,8 +182,13 @@ class UniformGrid {
         m_cols = std::max(1, (int)std::ceil(m_width / m_cell));
         m_rows = std::max(1, (int)std::ceil(m_height / m_cell));
 
-        m_head.assign(m_cols * m_rows, -1);
+        const int C = m_cols * m_rows;
+        m_head.assign(C, -1);
         m_next.assign(count, -1);
+        // CSR buffers
+        m_cellStart.assign(C, 0);
+        m_cellCount.assign(C, 0);
+        m_indices.assign(count, -1);
     }
 
     /**
@@ -205,10 +217,13 @@ class UniformGrid {
     template <FloatGetter GetX, FloatGetter GetY>
     inline void build(int count, GetX getx, GetY gety, float /*width*/,
                       float /*height*/) {
-        // Clear heads; ensure 'next' has correct size
+        // Clear/resize structures
         std::fill(m_head.begin(), m_head.end(), -1);
         if ((int)m_next.size() != count)
             m_next.assign(count, -1);
+        if ((int)m_indices.size() != count)
+            m_indices.assign(count, -1);
+        std::fill(m_cellCount.begin(), m_cellCount.end(), 0);
 
 #ifndef NDEBUG
         // Catch mismatched resize/build quickly in debug builds
@@ -221,26 +236,50 @@ class UniformGrid {
         const int max_cy = m_rows - 1;
         const float inv_cell = 1.0f / m_cell;
 
+        // First pass: compute per-item cell, count items per cell, and build
+        // head/next lists
+        if ((int)m_itemCell.size() != count)
+            m_itemCell.assign(count, 0);
         for (int i = 0; i < count; ++i) {
             float x = getx(i);
             float y = gety(i);
 
-            // Robustness: non-finite coordinates go to origin
             if (!std::isfinite(x) || !std::isfinite(y)) {
                 x = 0.0f;
                 y = 0.0f;
             }
 
-            // Integer cell coords (clamped)
             int cx = (int)std::floor(x * inv_cell);
             int cy = (int)std::floor(y * inv_cell);
             cx = std::clamp(cx, 0, max_cx);
             cy = std::clamp(cy, 0, max_cy);
             const int ci = cy * m_cols + cx;
-
-            // Push-front in that cell's list
+            m_itemCell[i] = ci;
+            // linked list
             m_next[i] = m_head[ci];
             m_head[ci] = i;
+            // CSR counts
+            m_cellCount[ci] += 1;
+        }
+
+        // Exclusive scan over counts to produce starts
+        int running = 0;
+        for (int ci = 0; ci < (int)m_cellStart.size(); ++ci) {
+            int cnt = m_cellCount[ci];
+            m_cellStart[ci] = running;
+            running += cnt;
+        }
+
+        // Fill indices using a scratch cursor per cell
+        if ((int)m_cursor.size() != (int)m_cellStart.size())
+            m_cursor.assign(m_cellStart.size(), 0);
+        // initialize cursor to starts
+        for (size_t ci = 0; ci < m_cellStart.size(); ++ci)
+            m_cursor[ci] = m_cellStart[ci];
+        for (int i = 0; i < count; ++i) {
+            const int ci = m_itemCell[i];
+            const int pos = m_cursor[ci]++;
+            m_indices[pos] = i;
         }
     }
 
@@ -265,6 +304,15 @@ class UniformGrid {
      * cell, or -1.
      */
     std::vector<int> m_next;
+
+    // CSR-style contiguous storage per cell
+    std::vector<int> m_cellStart; // size rows*cols
+    std::vector<int> m_cellCount; // size rows*cols
+    std::vector<int> m_indices;   // size N, contiguous ranges per cell
+
+    // transient buffers reused across builds
+    std::vector<int> m_itemCell; // size N
+    std::vector<int> m_cursor;   // size rows*cols
 };
 
 #endif
