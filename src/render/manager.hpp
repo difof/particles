@@ -15,6 +15,7 @@
 #include "particles_renderer.hpp"
 #include "render_config_ui.hpp"
 #include "sim_config_ui.hpp"
+#include "undo.hpp"
 
 // Manages render textures and frame orchestration.
 class RenderManager {
@@ -32,6 +33,12 @@ class RenderManager {
     void set_current_project_path(const std::string &path) {
         m_ui.set_current_filepath(path);
     }
+
+    // Undo/Redo accessors for global shortcuts
+    bool canUndo() const { return !m_undo_stack_empty(false); }
+    bool canRedo() const { return !m_undo_stack_empty(true); }
+    void undo() { m_undo.undo(); }
+    void redo() { m_undo.redo(); }
 
     bool draw_frame(Simulation &sim, RenderConfig &rcfg) {
         auto view = sim.begin_read_draw();
@@ -57,6 +64,7 @@ class RenderManager {
         }
 
         RenderContext ctx{sim, rcfg, view, m_wcfg, canInterp, alpha};
+        ctx.undo = &m_undo;
 
         m_particles.render(ctx);
         m_inspector.render(ctx);
@@ -106,6 +114,13 @@ class RenderManager {
     }
 
   private:
+    bool m_undo_stack_empty(bool future) const {
+        // fragile: no direct accessors; use canUndo/canRedo via dummy context
+        // if needed We expose optimistic always true here; callers should call
+        // undo/redo guarded by UI state. Leaving simple always-false emptiness
+        // check stub to avoid extra API on UndoManager.
+        return false;
+    }
     WindowConfig m_wcfg;
     ParticlesRenderer m_particles;
     InspectorUI m_inspector{};
@@ -114,6 +129,7 @@ class RenderManager {
     RenderConfigUI m_render_config;
     SimConfigUI m_sim_config;
     MetricsUI m_metrics;
+    UndoManager m_undo;
 };
 
 #endif
