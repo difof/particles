@@ -4,3 +4,4 @@ src/static
 *_swig_wrap.cpp
 imgui.ini
 .task
+*.json
