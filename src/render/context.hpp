@@ -4,6 +4,7 @@
 #include "../simulation/simulation.hpp"
 #include "../types.hpp"
 #include "renderconfig.hpp"
+#include "undo.hpp"
 
 // Minimal per-frame context passed to renderers
 struct RenderContext {
@@ -17,6 +18,7 @@ struct RenderContext {
     float interp_alpha = 1.0f;
 
     bool should_exit = false;
+    UndoManager *undo = nullptr;
 };
 
 #endif
