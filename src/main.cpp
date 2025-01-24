@@ -130,6 +130,22 @@ void run() {
         if (rman.draw_frame(sim, rcfg))
             break;
 
+        // Global Undo/Redo shortcuts: Ctrl/Cmd+Z, Ctrl/Cmd+Y, Shift+Ctrl/Cmd+Z
+        bool ctrl_cmd = IsKeyDown(KEY_LEFT_CONTROL) ||
+                        IsKeyDown(KEY_RIGHT_CONTROL) ||
+                        IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
+        bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+        if (ctrl_cmd && IsKeyPressed(KEY_Z)) {
+            if (shift) {
+                rman.redo();
+            } else {
+                rman.undo();
+            }
+        }
+        if (ctrl_cmd && IsKeyPressed(KEY_Y)) {
+            rman.redo();
+        }
+
         if (IsKeyPressed(KEY_R)) {
             sim.push_command(mailbox::command::ResetWorld{});
         }
