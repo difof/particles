@@ -1,5 +1,4 @@
-#ifndef __JSON_MANAGER_HPP
-#define __JSON_MANAGER_HPP
+#pragma once
 
 #include <filesystem>
 #include <fstream>
@@ -8,10 +7,12 @@
 #include <string>
 #include <vector>
 
-#include "../mailbox/command.hpp"
-#include "../mailbox/simconfig.hpp"
-#include "../simulation/world.hpp"
-#include "renderconfig.hpp"
+#include "mailbox/command.hpp"
+#include "mailbox/simconfig.hpp"
+#include "render/types/config.hpp"
+#include "simulation/world.hpp"
+#include "utility/exceptions.hpp"
+#include "utility/logger.hpp"
 
 using json = nlohmann::json;
 
@@ -22,7 +23,7 @@ class JsonManager {
         mailbox::SimulationConfig::Snapshot sim_config;
 
         // Render config
-        RenderConfig render_config;
+        Config render_config;
 
         // Particle seed data
         std::shared_ptr<mailbox::command::SeedSpec> seed;
@@ -36,10 +37,10 @@ class JsonManager {
     JsonManager();
     ~JsonManager() = default;
 
-    // File operations
-    bool save_project(const std::string &filepath, const ProjectData &data);
-    bool load_project(const std::string &filepath, ProjectData &data);
-    bool new_project(ProjectData &data);
+    // File operations - now throw exceptions instead of returning bool
+    void save_project(const std::string &filepath, const ProjectData &data);
+    void load_project(const std::string &filepath, ProjectData &data);
+    void new_project(ProjectData &data);
 
     // Extract current world state
     std::shared_ptr<mailbox::command::SeedSpec>
@@ -67,8 +68,8 @@ class JsonManager {
     json sim_config_to_json(const mailbox::SimulationConfig::Snapshot &config);
     mailbox::SimulationConfig::Snapshot json_to_sim_config(const json &j);
 
-    json render_config_to_json(const RenderConfig &config);
-    RenderConfig json_to_render_config(const json &j);
+    json render_config_to_json(const Config &config);
+    Config json_to_render_config(const json &j);
 
     json window_config_to_json(const ProjectData::WindowConfig &config);
     ProjectData::WindowConfig json_to_window_config(const json &j);
@@ -86,5 +87,3 @@ class JsonManager {
     std::string m_last_file;
     static constexpr int MAX_RECENT_FILES = 10;
 };
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef __MULTICORE_HPP
-#define __MULTICORE_HPP
+#pragma once
 
 #include <algorithm>
 #include <concepts>
@@ -10,6 +9,9 @@
 #include <queue>
 #include <thread>
 #include <vector>
+
+#include "../utility/exceptions.hpp"
+#include "../utility/logger.hpp"
 
 using Job = std::function<void()>;
 
@@ -84,5 +86,3 @@ class SimulationThreadPool {
     std::queue<Job> m_tasks;
     bool m_stopping = false;
 };
-
-#endif

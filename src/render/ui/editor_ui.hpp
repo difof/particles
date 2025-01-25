@@ -1,26 +1,30 @@
-#ifndef __EDITOR_UI_HPP
-#define __EDITOR_UI_HPP
+#pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <imgui.h>
+#include <random>
 #include <raylib.h>
+#include <string>
+#include <vector>
 
-#include "../types.hpp"
-#include "renderer.hpp"
-#include "undo.hpp"
+#include "../../undo.hpp"
+#include "../../window_config.hpp"
+#include "../renderer.hpp"
 
 class EditorUI : public IRenderer {
   public:
     EditorUI() = default;
     ~EditorUI() override = default;
 
-    void render(RenderContext &ctx) override {
+    void render(Context &ctx) override {
         if (!ctx.rcfg.show_ui || !ctx.rcfg.show_editor)
             return;
         render_ui(ctx);
     }
 
   private:
-    void render_ui(RenderContext &ctx) {
+    void render_ui(Context &ctx) {
         auto &sim = ctx.sim;
         mailbox::SimulationStats::Snapshot stats = sim.get_stats();
         const World &world = sim.get_world();
@@ -95,27 +99,23 @@ class EditorUI : public IRenderer {
                     (unsigned char)std::clamp(int(col[2] * 255.f), 0, 255),
                     (unsigned char)std::clamp(int(col[3] * 255.f), 0, 255)};
                 Color after = editor.colors[g];
-                if (ctx.undo) {
-                    ImGuiID id = ImGui::GetItemID();
-                    if (ImGui::IsItemActivated())
-                        ctx.undo->beginInteraction(id);
-                    const int gi = g;
-                    ctx.undo->push(
-                        std::unique_ptr<IAction>(new ValueAction<Color>(
-                            (std::string("editor.color.") + std::to_string(gi))
-                                .c_str(),
-                            "Group color",
-                            []() {
-                                return Color{};
-                            },
-                            [&, gi](const Color &c) {
-                                editor.colors[gi] = c;
-                                editor.dirty = true;
-                            },
-                            before, after)));
-                    if (ImGui::IsItemDeactivatedAfterEdit())
-                        ctx.undo->endInteraction(id);
-                }
+                ImGuiID id = ImGui::GetItemID();
+                if (ImGui::IsItemActivated())
+                    ctx.undo.beginInteraction(id);
+                const int gi = g;
+                ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<Color>(
+                    (std::string("editor.color.") + std::to_string(gi)).c_str(),
+                    "Group color",
+                    []() {
+                        return Color{};
+                    },
+                    [&, gi](const Color &c) {
+                        editor.colors[gi] = c;
+                        editor.dirty = true;
+                    },
+                    before, after)));
+                if (ImGui::IsItemDeactivatedAfterEdit())
+                    ctx.undo.endInteraction(id);
                 editor.dirty = true;
             }
             int sz = editor.sizes[g];
@@ -126,27 +126,23 @@ class EditorUI : public IRenderer {
                 float before = editor.r2[g];
                 editor.r2[g] = r * r;
                 float after = editor.r2[g];
-                if (ctx.undo) {
-                    ImGuiID id = ImGui::GetItemID();
-                    if (ImGui::IsItemActivated())
-                        ctx.undo->beginInteraction(id);
-                    const int gi = g;
-                    ctx.undo->push(
-                        std::unique_ptr<IAction>(new ValueAction<float>(
-                            (std::string("editor.r2.") + std::to_string(gi))
-                                .c_str(),
-                            "Radius^2",
-                            []() {
-                                return 0.f;
-                            },
-                            [&, gi](const float &v) {
-                                editor.r2[gi] = v;
-                                editor.dirty = true;
-                            },
-                            before, after)));
-                    if (ImGui::IsItemDeactivatedAfterEdit())
-                        ctx.undo->endInteraction(id);
-                }
+                ImGuiID id = ImGui::GetItemID();
+                if (ImGui::IsItemActivated())
+                    ctx.undo.beginInteraction(id);
+                const int gi = g;
+                ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<float>(
+                    (std::string("editor.r2.") + std::to_string(gi)).c_str(),
+                    "Radius^2",
+                    []() {
+                        return 0.f;
+                    },
+                    [&, gi](const float &v) {
+                        editor.r2[gi] = v;
+                        editor.dirty = true;
+                    },
+                    before, after)));
+                if (ImGui::IsItemDeactivatedAfterEdit())
+                    ctx.undo.endInteraction(id);
                 editor.dirty = true;
             }
             if (ImGui::TreeNode("Rules Row")) {
@@ -173,30 +169,27 @@ class EditorUI : public IRenderer {
                                            "%.3f")) {
                         float before = before_v;
                         float after = v;
-                        if (ctx.undo) {
-                            ImGuiID id = ImGui::GetItemID();
-                            if (ImGui::IsItemActivated())
-                                ctx.undo->beginInteraction(id);
-                            const int gi = g;
-                            const int gj = j;
-                            ctx.undo->push(
-                                std::unique_ptr<IAction>(new ValueAction<float>(
-                                    (std::string("editor.rule.") +
-                                     std::to_string(gi) + "." +
-                                     std::to_string(gj))
-                                        .c_str(),
-                                    "Rule strength",
-                                    []() {
-                                        return 0.f;
-                                    },
-                                    [&, gi, gj](const float &val) {
-                                        editor.rules[gi * editor.G + gj] = val;
-                                        editor.dirty = true;
-                                    },
-                                    before, after)));
-                            if (ImGui::IsItemDeactivatedAfterEdit())
-                                ctx.undo->endInteraction(id);
-                        }
+                        ImGuiID id = ImGui::GetItemID();
+                        if (ImGui::IsItemActivated())
+                            ctx.undo.beginInteraction(id);
+                        const int gi = g;
+                        const int gj = j;
+                        ctx.undo.push(
+                            std::unique_ptr<IAction>(new ValueAction<float>(
+                                (std::string("editor.rule.") +
+                                 std::to_string(gi) + "." + std::to_string(gj))
+                                    .c_str(),
+                                "Rule strength",
+                                []() {
+                                    return 0.f;
+                                },
+                                [&, gi, gj](const float &val) {
+                                    editor.rules[gi * editor.G + gj] = val;
+                                    editor.dirty = true;
+                                },
+                                before, after)));
+                        if (ImGui::IsItemDeactivatedAfterEdit())
+                            ctx.undo.endInteraction(id);
                         editor.dirty = true;
                     }
                     ImGui::Separator();
@@ -270,5 +263,3 @@ class EditorUI : public IRenderer {
         ImGui::End();
     }
 };
-
-#endif

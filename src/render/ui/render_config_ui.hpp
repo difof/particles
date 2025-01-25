@@ -1,26 +1,25 @@
-#ifndef __RENDER_CONFIG_UI_HPP
-#define __RENDER_CONFIG_UI_HPP
+#pragma once
 
 #include <imgui.h>
 #include <raylib.h>
 
-#include "../types.hpp"
-#include "renderer.hpp"
-#include "undo.hpp"
+#include "../../undo.hpp"
+#include "../../window_config.hpp"
+#include "../renderer.hpp"
 
 class RenderConfigUI : public IRenderer {
   public:
     RenderConfigUI() = default;
     ~RenderConfigUI() override = default;
 
-    void render(RenderContext &ctx) override {
+    void render(Context &ctx) override {
         if (!ctx.rcfg.show_ui || !ctx.rcfg.show_render_config)
             return;
         render_ui(ctx);
     }
 
   private:
-    void render_ui(RenderContext &ctx) {
+    void render_ui(Context &ctx) {
         auto &sim = ctx.sim;
         auto &rcfg = ctx.rcfg;
         mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
@@ -35,20 +34,18 @@ class RenderConfigUI : public IRenderer {
 
         auto push_rcfg = [&](const char *key, const char *label, auto before,
                              auto after, auto setter) {
-            if (!ctx.undo)
-                return;
             ImGuiID id = ImGui::GetItemID();
             if (ImGui::IsItemActivated())
-                ctx.undo->beginInteraction(id);
+                ctx.undo.beginInteraction(id);
             using T = decltype(before);
-            ctx.undo->push(std::unique_ptr<IAction>(new ValueAction<T>(
+            ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<T>(
                 key, label,
                 []() {
                     return T{};
                 },
                 setter, before, after)));
             if (ImGui::IsItemDeactivatedAfterEdit())
-                ctx.undo->endInteraction(id);
+                ctx.undo.endInteraction(id);
         };
 
         ImGui::SeparatorText("Interpolation");
@@ -229,5 +226,3 @@ class RenderConfigUI : public IRenderer {
         }
     }
 };
-
-#endif

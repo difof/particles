@@ -2,15 +2,19 @@
 #include <raylib.h>
 #include <rlImGui.h>
 
+#include "json_manager.hpp"
 #include "mailbox/mailbox.hpp"
-#include "render/control_ui.hpp"
-#include "render/json_manager.hpp"
 #include "render/manager.hpp"
+#include "render/types/config.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
-#include "types.hpp"
+#include "undo.hpp"
+#include "utility/exceptions.hpp"
+#include "utility/logger.hpp"
+#include "window_config.hpp"
 
 void run() {
+    LOG_INFO("Starting particles application");
     InitWindow(1080, 800, "Particles");
 
     int monitor = GetCurrentMonitor();
@@ -20,7 +24,7 @@ void run() {
     int texW = screenW;
 
     WindowConfig wcfg = {screenW, screenH, panelW, texW};
-    RenderConfig rcfg;
+    Config rcfg;
     rcfg.interpolate = true;
     rcfg.core_size = 1.5f;
     rcfg.glow_enabled = true;
@@ -46,15 +50,15 @@ void run() {
     SetTargetFPS(60);
     rlImGuiSetup(true);
 
-    RenderManager rman({wcfg.screen_width, wcfg.screen_height, wcfg.panel_width,
-                        wcfg.render_width});
-
-    // Initialize JSON manager and try to load last project
+    // Initialize singletons
     JsonManager json_manager;
+    UndoManager undo_manager;
     std::string last_file = json_manager.get_last_opened_file();
 
-    // Set up the JSON manager in the render manager
-    rman.set_json_manager(&json_manager);
+    // Create render manager with dependencies
+    RenderManager rman({wcfg.screen_width, wcfg.screen_height, wcfg.panel_width,
+                        wcfg.render_width},
+                       json_manager, undo_manager);
 
     sim.begin();
 
@@ -62,7 +66,8 @@ void run() {
     bool loaded_project = false;
     if (!last_file.empty()) {
         JsonManager::ProjectData data;
-        if (json_manager.load_project(last_file, data)) {
+        try {
+            json_manager.load_project(last_file, data);
             // Apply loaded project settings
             sim.update_config(data.sim_config);
             rcfg = data.render_config;
@@ -73,7 +78,9 @@ void run() {
                 loaded_project = true;
             }
             // propagate current file path so Save overwrites
-            rman.set_current_project_path(last_file);
+            // TODO: Set current file path in menu bar through context
+        } catch (const particles::IOError &e) {
+            LOG_ERROR("Failed to load project: " + std::string(e.what()));
         }
     }
 
@@ -137,13 +144,13 @@ void run() {
         bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
         if (ctrl_cmd && IsKeyPressed(KEY_Z)) {
             if (shift) {
-                rman.redo();
+                undo_manager.redo();
             } else {
-                rman.undo();
+                undo_manager.undo();
             }
         }
         if (ctrl_cmd && IsKeyPressed(KEY_Y)) {
-            rman.redo();
+            undo_manager.redo();
         }
 
         if (IsKeyPressed(KEY_R)) {
@@ -184,6 +191,21 @@ void run() {
 }
 
 int main() {
-    run();
-    return 0;
+    try {
+        run();
+        LOG_INFO("Application shutting down normally");
+        return 0;
+    } catch (const particles::ParticlesException &e) {
+        LOG_ERROR("Particles error: " + std::string(e.what()));
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    } catch (const std::exception &e) {
+        LOG_ERROR("Standard error: " + std::string(e.what()));
+        std::cerr << "Unexpected error: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        LOG_ERROR("Unknown error occurred");
+        std::cerr << "Unknown error occurred" << std::endl;
+        return 1;
+    }
 }

@@ -9,8 +9,10 @@
 
 JsonManager::JsonManager() { load_config(); }
 
-bool JsonManager::save_project(const std::string &filepath,
+void JsonManager::save_project(const std::string &filepath,
                                const ProjectData &data) {
+    LOG_INFO("Saving project to: " + filepath);
+
     try {
         json j;
 
@@ -31,7 +33,8 @@ bool JsonManager::save_project(const std::string &filepath,
         // Write to file
         std::ofstream file(filepath);
         if (!file.is_open()) {
-            return false;
+            throw particles::IOError("Failed to open file for writing: " +
+                                     filepath);
         }
 
         file << j.dump(2); // Pretty print with 2 spaces
@@ -41,18 +44,24 @@ bool JsonManager::save_project(const std::string &filepath,
         add_to_recent(filepath);
         set_last_opened_file(filepath);
 
-        return true;
+        LOG_INFO("Project saved successfully");
+    } catch (const particles::IOError &) {
+        throw; // Re-throw our own exceptions
     } catch (const std::exception &e) {
-        std::cerr << "Error saving project: " << e.what() << std::endl;
-        return false;
+        LOG_ERROR("JSON serialization error: " + std::string(e.what()));
+        throw particles::IOError("JSON serialization failed: " +
+                                 std::string(e.what()));
     }
 }
 
-bool JsonManager::load_project(const std::string &filepath, ProjectData &data) {
+void JsonManager::load_project(const std::string &filepath, ProjectData &data) {
+    LOG_INFO("Loading project from: " + filepath);
+
     try {
         std::ifstream file(filepath);
         if (!file.is_open()) {
-            return false;
+            throw particles::IOError("Failed to open file for reading: " +
+                                     filepath);
         }
 
         json j;
@@ -83,14 +92,18 @@ bool JsonManager::load_project(const std::string &filepath, ProjectData &data) {
         add_to_recent(filepath);
         set_last_opened_file(filepath);
 
-        return true;
+        LOG_INFO("Project loaded successfully");
+    } catch (const particles::IOError &) {
+        throw; // Re-throw our own exceptions
     } catch (const std::exception &e) {
-        std::cerr << "Error loading project: " << e.what() << std::endl;
-        return false;
+        LOG_ERROR("JSON parsing error: " + std::string(e.what()));
+        throw particles::IOError("JSON parsing failed: " +
+                                 std::string(e.what()));
     }
 }
 
-bool JsonManager::new_project(ProjectData &data) {
+void JsonManager::new_project(ProjectData &data) {
+    LOG_INFO("Creating new project");
     // Set default values (from main.cpp hardcoded values)
     data.sim_config = {};
     data.sim_config.bounds_width = 1080.0f;
@@ -157,7 +170,7 @@ bool JsonManager::new_project(ProjectData &data) {
     // Default window config
     data.window_config = {1080, 800, 500, 1080};
 
-    return true;
+    LOG_INFO("New project created successfully");
 }
 
 std::shared_ptr<mailbox::command::SeedSpec>
@@ -326,7 +339,7 @@ JsonManager::json_to_sim_config(const json &j) {
     return config;
 }
 
-json JsonManager::render_config_to_json(const RenderConfig &config) {
+json JsonManager::render_config_to_json(const Config &config) {
     return json{{"show_ui", config.show_ui},
                 {"show_metrics_ui", config.show_metrics_ui},
                 {"show_editor", config.show_editor},
@@ -350,8 +363,8 @@ json JsonManager::render_config_to_json(const RenderConfig &config) {
                 {"show_grid_lines", config.show_grid_lines}};
 }
 
-RenderConfig JsonManager::json_to_render_config(const json &j) {
-    RenderConfig config = {};
+Config JsonManager::json_to_render_config(const json &j) {
+    Config config = {};
 
     if (j.contains("show_ui"))
         config.show_ui = j["show_ui"];

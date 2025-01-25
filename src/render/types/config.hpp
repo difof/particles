@@ -1,7 +1,8 @@
-#ifndef __RENDERCONFIG_HPP
-#define __RENDERCONFIG_HPP
+#pragma once
 
-struct RenderConfig {
+#include <raylib.h>
+
+struct Config {
     // ui
     bool show_ui = true;
     bool show_metrics_ui = false;
@@ -33,5 +34,3 @@ struct RenderConfig {
     float vel_thickness = 1.0f;   // line thickness
     bool show_grid_lines = false; // debug cell grid
 };
-
-#endif

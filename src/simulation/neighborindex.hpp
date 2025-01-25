@@ -1,5 +1,4 @@
-#ifndef __NEIGHBOR_INDEX_HPP
-#define __NEIGHBOR_INDEX_HPP
+#pragma once
 
 #include "uniformgrid.hpp"
 #include "world.hpp"
@@ -13,7 +12,7 @@ struct NeighborIndex {
 
     // returns inverse_cell for kernels
     inline float ensure(const World &w, float W, float H, float cell) {
-        const int N = w.get_particles_count();
+        const int N = w.get_particles_size();
         const bool needResize =
             (N != lastN) || (W != lastW) || (H != lastH) || (cell != lastCell);
         if (needResize) {
@@ -35,5 +34,3 @@ struct NeighborIndex {
         return grid.inv_cell();
     }
 };
-
-#endif

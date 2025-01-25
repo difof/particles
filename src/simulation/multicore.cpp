@@ -1,8 +1,15 @@
 #include "multicore.hpp"
 #include <stdexcept>
 
-SimulationThreadPool::SimulationThreadPool(int threads) { start(threads); }
-SimulationThreadPool::~SimulationThreadPool() { stop(); }
+SimulationThreadPool::SimulationThreadPool(int threads) {
+    LOG_DEBUG("Creating thread pool with " + std::to_string(threads) +
+              " threads");
+    start(threads);
+}
+SimulationThreadPool::~SimulationThreadPool() {
+    LOG_DEBUG("Destroying thread pool");
+    stop();
+}
 
 void SimulationThreadPool::resize(int threads) {
     stop();
@@ -20,13 +27,19 @@ void SimulationThreadPool::enqueue(Job f) {
 
 void SimulationThreadPool::start(int threads) {
     if (!m_workers.empty()) {
-        throw std::logic_error(
-            "SimulationThreadPool::start() called while already started");
+        throw particles::SimulationError("Thread pool already started");
     }
 
     int num_threads = threads <= 0 ? compute_sim_threads() : threads;
     num_threads = std::max(1, num_threads);
 
+    if (num_threads < 1) {
+        throw particles::SimulationError("Invalid thread count: " +
+                                         std::to_string(num_threads));
+    }
+
+    LOG_DEBUG("Starting thread pool with " + std::to_string(num_threads) +
+              " threads");
     m_stopping = false;
     m_workers.reserve(num_threads);
 

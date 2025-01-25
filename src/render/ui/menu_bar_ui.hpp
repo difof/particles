@@ -1,19 +1,19 @@
-#ifndef __CONTROL_UI_HPP
-#define __CONTROL_UI_HPP
+#pragma once
 
 #include <imgui.h>
 #include <raylib.h>
+#include <string>
 
-#include "../types.hpp"
-#include "file_dialog.hpp"
-#include "json_manager.hpp"
-#include "renderconfig.hpp"
-#include "renderer.hpp"
+#include "../../json_manager.hpp"
+#include "../../window_config.hpp"
+#include "../file_dialog.hpp"
+#include "../renderer.hpp"
+#include "../types/config.hpp"
 
-class ControlUI : public IRenderer {
+class MenuBarUI : public IRenderer {
   public:
-    ControlUI() = default;
-    ~ControlUI() override = default;
+    MenuBarUI() = default;
+    ~MenuBarUI() override = default;
 
     // File operations
     void set_json_manager(JsonManager *manager) { m_json_manager = manager; }
@@ -22,7 +22,7 @@ class ControlUI : public IRenderer {
     }
     std::string get_current_filepath() const { return m_current_filepath; }
 
-    void render(RenderContext &ctx) override {
+    void render(Context &ctx) override {
         if (!ctx.rcfg.show_ui)
             return;
         render_ui(ctx);
@@ -36,7 +36,7 @@ class ControlUI : public IRenderer {
     enum class PendingAction { None, Open, SaveAs };
     PendingAction m_pending_action = PendingAction::None;
 
-    void render_ui(RenderContext &ctx) {
+    void render_ui(Context &ctx) {
         auto &sim = ctx.sim;
         auto &rcfg = ctx.rcfg;
         mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
@@ -91,29 +91,22 @@ class ControlUI : public IRenderer {
 
             // Edit menu
             if (ImGui::BeginMenu("Edit")) {
-                if (ctx.undo) {
-                    bool canUndo = ctx.undo->canUndo();
-                    bool canRedo = ctx.undo->canRedo();
-                    if (!canUndo)
-                        ImGui::BeginDisabled();
-                    if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
-                        ctx.undo->undo();
-                    }
-                    if (!canUndo)
-                        ImGui::EndDisabled();
-                    if (!canRedo)
-                        ImGui::BeginDisabled();
-                    if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
-                        ctx.undo->redo();
-                    }
-                    if (!canRedo)
-                        ImGui::EndDisabled();
-                } else {
+                bool canUndo = ctx.undo.canUndo();
+                bool canRedo = ctx.undo.canRedo();
+                if (!canUndo)
                     ImGui::BeginDisabled();
-                    ImGui::MenuItem("Undo", "Ctrl+Z");
-                    ImGui::MenuItem("Redo", "Ctrl+Y");
-                    ImGui::EndDisabled();
+                if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+                    ctx.undo.undo();
                 }
+                if (!canUndo)
+                    ImGui::EndDisabled();
+                if (!canRedo)
+                    ImGui::BeginDisabled();
+                if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+                    ctx.undo.redo();
+                }
+                if (!canRedo)
+                    ImGui::EndDisabled();
                 ImGui::EndMenu();
             }
 
@@ -181,9 +174,13 @@ class ControlUI : public IRenderer {
                                         ? m_json_manager->extract_current_seed(
                                               ctx.sim.get_world())
                                         : nullptr;
-                        if (m_json_manager &&
-                            m_json_manager->save_project(path, data)) {
-                            m_current_filepath = path;
+                        if (m_json_manager) {
+                            try {
+                                m_json_manager->save_project(path, data);
+                                m_current_filepath = path;
+                            } catch (const particles::IOError &e) {
+                                // Error handling is done in the catch block
+                            }
                         }
                     }
                 }
@@ -192,11 +189,9 @@ class ControlUI : public IRenderer {
         }
     }
 
-    void handle_new_project(RenderContext &ctx);
-    void handle_open_project(RenderContext &ctx);
-    void handle_save_project(RenderContext &ctx);
-    void handle_save_as_project(RenderContext &ctx);
-    void handle_open_file(RenderContext &ctx, const std::string &filepath);
+    void handle_new_project(Context &ctx);
+    void handle_open_project(Context &ctx);
+    void handle_save_project(Context &ctx);
+    void handle_save_as_project(Context &ctx);
+    void handle_open_file(Context &ctx, const std::string &filepath);
 };
-
-#endif

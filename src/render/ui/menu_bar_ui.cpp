@@ -1,14 +1,15 @@
-#include "control_ui.hpp"
+#include "menu_bar_ui.hpp"
 #include <filesystem>
 #include <iostream>
 #include <raylib.h>
 
-void ControlUI::handle_new_project(RenderContext &ctx) {
+void MenuBarUI::handle_new_project(Context &ctx) {
     if (!m_json_manager)
         return;
 
     JsonManager::ProjectData data;
-    if (m_json_manager->new_project(data)) {
+    try {
+        m_json_manager->new_project(data);
         // Use current window/render sizes for bounds (avoid small default)
         data.sim_config.bounds_width = (float)ctx.wcfg.render_width;
         data.sim_config.bounds_height = (float)ctx.wcfg.screen_height;
@@ -26,10 +27,12 @@ void ControlUI::handle_new_project(RenderContext &ctx) {
         m_current_filepath.clear();
 
         std::cout << "New project created" << std::endl;
+    } catch (const particles::IOError &e) {
+        std::cerr << "Error creating new project: " << e.what() << std::endl;
     }
 }
 
-void ControlUI::handle_open_project(RenderContext &ctx) {
+void MenuBarUI::handle_open_project(Context &ctx) {
     if (!m_json_manager)
         return;
 
@@ -42,7 +45,7 @@ void ControlUI::handle_open_project(RenderContext &ctx) {
     }
 }
 
-void ControlUI::handle_save_project(RenderContext &ctx) {
+void MenuBarUI::handle_save_project(Context &ctx) {
     if (!m_json_manager)
         return;
 
@@ -60,15 +63,15 @@ void ControlUI::handle_save_project(RenderContext &ctx) {
     // Extract current seed from world
     data.seed = m_json_manager->extract_current_seed(ctx.sim.get_world());
 
-    if (m_json_manager->save_project(m_current_filepath, data)) {
+    try {
+        m_json_manager->save_project(m_current_filepath, data);
         std::cout << "Project saved to: " << m_current_filepath << std::endl;
-    } else {
-        std::cout << "Failed to save project to: " << m_current_filepath
-                  << std::endl;
+    } catch (const particles::IOError &e) {
+        std::cerr << "Failed to save project: " << e.what() << std::endl;
     }
 }
 
-void ControlUI::handle_save_as_project(RenderContext &ctx) {
+void MenuBarUI::handle_save_as_project(Context &ctx) {
     if (!m_json_manager)
         return;
 
@@ -91,13 +94,13 @@ void ControlUI::handle_save_as_project(RenderContext &ctx) {
     }
 }
 
-void ControlUI::handle_open_file(RenderContext &ctx,
-                                 const std::string &filepath) {
+void MenuBarUI::handle_open_file(Context &ctx, const std::string &filepath) {
     if (!m_json_manager)
         return;
 
     JsonManager::ProjectData data;
-    if (m_json_manager->load_project(filepath, data)) {
+    try {
+        m_json_manager->load_project(filepath, data);
         // Apply the loaded project data
         ctx.sim.update_config(data.sim_config);
         ctx.rcfg = data.render_config;
@@ -109,7 +112,7 @@ void ControlUI::handle_open_file(RenderContext &ctx,
 
         m_current_filepath = filepath;
         std::cout << "Project loaded from: " << filepath << std::endl;
-    } else {
-        std::cout << "Failed to load project from: " << filepath << std::endl;
+    } catch (const particles::IOError &e) {
+        std::cerr << "Failed to load project: " << e.what() << std::endl;
     }
 }

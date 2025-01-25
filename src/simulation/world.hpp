@@ -1,10 +1,12 @@
-#ifndef __WORLD_HPP
-#define __WORLD_HPP
+#pragma once
 
 #include <algorithm>
 #include <cmath>
 #include <raylib.h>
 #include <vector>
+
+#include "../utility/exceptions.hpp"
+#include "../utility/logger.hpp"
 
 class World {
   public:
@@ -41,15 +43,21 @@ class World {
     void remove_group(int g);
 
   public:
-    inline int get_groups_size() const { return (int)m_g_ranges.size() / 2; }
-    inline int get_group_start(int g) const { return m_g_ranges[g * 2 + 0]; }
-    inline int get_group_end(int g) const { return m_g_ranges[g * 2 + 1]; }
+    inline int get_groups_size() const noexcept {
+        return (int)m_g_ranges.size() / 2;
+    }
+    inline int get_group_start(int g) const noexcept {
+        return m_g_ranges[g * 2 + 0];
+    }
+    inline int get_group_end(int g) const noexcept {
+        return m_g_ranges[g * 2 + 1];
+    }
 
-    inline int get_group_size(int g) const {
+    inline int get_group_size(int g) const noexcept {
         return get_group_end(g) - get_group_start(g);
     }
 
-    inline int get_particles_count() const {
+    inline int get_particles_size() const noexcept {
         return (int)m_particles.size() / 4;
     }
 
@@ -90,9 +98,9 @@ class World {
 
     inline void set_r2(int g_src, float r2) { m_g_radii2[g_src] = r2; }
 
-    inline int group_of(int i) const { return m_p_group[i]; }
+    inline int group_of(int i) const noexcept { return m_p_group[i]; }
 
-    inline float r2_of(int gsrc) const {
+    inline float r2_of(int gsrc) const noexcept {
         if ((size_t)gsrc >= m_g_radii2.size())
             return 0.f;
         return m_g_radii2[gsrc];
@@ -111,5 +119,3 @@ class World {
         m_g_radii2; // size G: interaction radius^2 for source group
     std::vector<Color> m_g_colors;
 };
-
-#endif

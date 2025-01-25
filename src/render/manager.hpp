@@ -1,54 +1,41 @@
-#ifndef __RENDER_MANAGER_HPP
-#define __RENDER_MANAGER_HPP
+#pragma once
 
+#include <chrono>
 #include <functional>
 #include <raylib.h>
 #include <string>
 
-#include "../types.hpp"
-#include "context.hpp"
-#include "control_ui.hpp"
-#include "editor_ui.hpp"
-#include "inspector_ui.hpp"
-#include "json_manager.hpp"
-#include "metrics_ui.hpp"
+#include "../json_manager.hpp"
+#include "../undo.hpp"
+#include "../window_config.hpp"
 #include "particles_renderer.hpp"
-#include "render_config_ui.hpp"
-#include "sim_config_ui.hpp"
-#include "undo.hpp"
+#include "types/context.hpp"
+#include "ui/editor_ui.hpp"
+#include "ui/inspector_ui.hpp"
+#include "ui/menu_bar_ui.hpp"
+#include "ui/metrics_ui.hpp"
+#include "ui/render_config_ui.hpp"
+#include "ui/sim_config_ui.hpp"
 
 // Manages render textures and frame orchestration.
 class RenderManager {
   public:
-    RenderManager(const WindowConfig &wcfg)
-        : m_wcfg(wcfg), m_particles(wcfg), m_ui(), m_editor(),
-          m_render_config(), m_sim_config(), m_metrics() {}
+    RenderManager(const WindowConfig &wcfg, JsonManager &json_manager,
+                  UndoManager &undo_manager)
+        : m_wcfg(wcfg), m_particles(wcfg), m_json_manager(json_manager),
+          m_undo_manager(undo_manager) {}
 
     ~RenderManager() {}
 
-    void set_json_manager(JsonManager *manager) {
-        m_ui.set_json_manager(manager);
-    }
-
-    void set_current_project_path(const std::string &path) {
-        m_ui.set_current_filepath(path);
-    }
-
-    // Undo/Redo accessors for global shortcuts
-    bool canUndo() const { return !m_undo_stack_empty(false); }
-    bool canRedo() const { return !m_undo_stack_empty(true); }
-    void undo() { m_undo.undo(); }
-    void redo() { m_undo.redo(); }
-
-    bool draw_frame(Simulation &sim, RenderConfig &rcfg) {
+    bool draw_frame(Simulation &sim, Config &rcfg) {
         auto view = sim.begin_read_draw();
-        bool canInterp = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
-                         view.t1 > view.t0 && view.prev && view.curr &&
-                         view.prev->size() == view.curr->size() &&
-                         !view.curr->empty();
+        bool can_interpolate = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
+                               view.t1 > view.t0 && view.prev && view.curr &&
+                               view.prev->size() == view.curr->size() &&
+                               !view.curr->empty();
 
         float alpha = 1.0f;
-        if (canInterp) {
+        if (can_interpolate) {
             const long long now_ns =
                 std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now().time_since_epoch())
@@ -63,8 +50,8 @@ class RenderManager {
                 alpha = float(target_ns - view.t0) / float(view.t1 - view.t0);
         }
 
-        RenderContext ctx{sim, rcfg, view, m_wcfg, canInterp, alpha};
-        ctx.undo = &m_undo;
+        Context ctx{sim,   rcfg,          view, m_wcfg, can_interpolate,
+                    alpha, m_undo_manager};
 
         m_particles.render(ctx);
         m_inspector.render(ctx);
@@ -92,7 +79,7 @@ class RenderManager {
 
         rlImGuiBegin();
         {
-            m_ui.render(ctx);
+            m_menu_bar.render(ctx);
             m_editor.render(ctx);
             m_render_config.render(ctx);
             m_sim_config.render(ctx);
@@ -109,27 +96,15 @@ class RenderManager {
         return ctx.should_exit;
     }
 
-    const RenderTexture2D &render_texture() const {
-        return m_particles.texture();
-    }
-
   private:
-    bool m_undo_stack_empty(bool future) const {
-        // fragile: no direct accessors; use canUndo/canRedo via dummy context
-        // if needed We expose optimistic always true here; callers should call
-        // undo/redo guarded by UI state. Leaving simple always-false emptiness
-        // check stub to avoid extra API on UndoManager.
-        return false;
-    }
     WindowConfig m_wcfg;
     ParticlesRenderer m_particles;
     InspectorUI m_inspector{};
-    ControlUI m_ui;
+    MenuBarUI m_menu_bar;
     EditorUI m_editor;
     RenderConfigUI m_render_config;
     SimConfigUI m_sim_config;
     MetricsUI m_metrics;
-    UndoManager m_undo;
+    JsonManager &m_json_manager;
+    UndoManager &m_undo_manager;
 };
-
-#endif

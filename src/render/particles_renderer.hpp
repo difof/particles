@@ -1,12 +1,13 @@
-#ifndef __PARTICLES_RENDERER_HPP
-#define __PARTICLES_RENDERER_HPP
+#pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <raylib.h>
 #include <raymath.h>
 
-#include "../types.hpp"
-#include "renderconfig.hpp"
+#include "../window_config.hpp"
 #include "renderer.hpp"
+#include "types/config.hpp"
 
 class ParticlesRenderer : public IRenderer {
   public:
@@ -18,7 +19,7 @@ class ParticlesRenderer : public IRenderer {
     RenderTexture2D &texture() { return m_rt; }
     const RenderTexture2D &texture() const { return m_rt; }
 
-    void render(RenderContext &ctx) override {
+    void render(Context &ctx) override {
         auto &sim = ctx.sim;
         auto &rcfg = ctx.rcfg;
         auto &view = ctx.view;
@@ -278,5 +279,3 @@ class ParticlesRenderer : public IRenderer {
         }
     }
 };
-
-#endif

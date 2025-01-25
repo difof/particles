@@ -5,22 +5,22 @@
 #include <imgui.h>
 #include <raylib.h>
 
-#include "renderconfig.hpp"
-#include "renderer.hpp"
+#include "../types/config.hpp"
+#include "../renderer.hpp"
 
 class MetricsUI : public IRenderer {
   public:
     MetricsUI() = default;
     ~MetricsUI() override = default;
 
-    void render(RenderContext &ctx) override {
+    void render(Context &ctx) override {
         if (!ctx.rcfg.show_ui || !ctx.rcfg.show_metrics_ui)
             return;
         render_ui(ctx);
     }
 
   private:
-    void render_ui(RenderContext &ctx) {
+    void render_ui(Context &ctx) {
         static std::array<float, 240> fps_buf{};
         static std::array<float, 240> tps_buf{};
         static int head = 0;

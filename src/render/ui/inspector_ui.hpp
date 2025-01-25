@@ -5,7 +5,7 @@
 #include <raylib.h>
 #include <rlImGui.h>
 
-#include "renderer.hpp"
+#include "../renderer.hpp"
 
 // Internal helpers local to this translation unit.
 namespace {
@@ -60,7 +60,7 @@ class InspectorUI : public IRenderer {
     RenderTexture2D &texture() { return m_rt; }
     const RenderTexture2D &texture() const { return m_rt; }
 
-    void render(RenderContext &ctx) override {
+    void render(Context &ctx) override {
         follow_tracked(ctx);
         BeginTextureMode(m_rt);
         ClearBackground({0, 0, 0, 0});
@@ -68,7 +68,7 @@ class InspectorUI : public IRenderer {
         EndTextureMode();
     }
 
-    void update_selection_from_mouse(RenderContext &ctx) {
+    void update_selection_from_mouse(Context &ctx) {
         if (!ctx.rcfg.show_ui)
             return;
         ImGuiIO &io = ImGui::GetIO();
@@ -98,7 +98,7 @@ class InspectorUI : public IRenderer {
         }
     }
 
-    void render_ui(RenderContext &ctx, const RenderTexture2D &colorRt) {
+    void render_ui(Context &ctx, const RenderTexture2D &colorRt) {
         if (!ctx.rcfg.show_ui)
             return;
         if (!m_sel.show_window)
@@ -137,7 +137,7 @@ class InspectorUI : public IRenderer {
             return Vector2{pos1[b] - pos0[b], pos1[b + 1] - pos0[b + 1]};
         };
 
-        const int totalParticles = world.get_particles_count();
+        const int totalParticles = world.get_particles_size();
         const int G = world.get_groups_size();
 
         ImGui::Begin("Region Inspector", &m_sel.show_window);
@@ -294,10 +294,10 @@ class InspectorUI : public IRenderer {
     }
 
   private:
-    void follow_tracked(RenderContext &ctx) {
+    void follow_tracked(Context &ctx) {
         if (!m_sel.track_enabled || m_sel.tracked_id < 0)
             return;
-        const int totalParticles = ctx.sim.get_world().get_particles_count();
+        const int totalParticles = ctx.sim.get_world().get_particles_size();
         auto posAt = [&](int i) -> Vector2 {
             const float a = std::clamp(ctx.interp_alpha, 0.0f, 1.0f);
             if (ctx.can_interpolate) {

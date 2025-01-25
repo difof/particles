@@ -1,12 +1,9 @@
-#ifndef __IRENDERER_HPP
-#define __IRENDERER_HPP
+#pragma once
 
-#include "context.hpp"
+#include "types/context.hpp"
 
 class IRenderer {
   public:
     virtual ~IRenderer() = default;
-    virtual void render(RenderContext &ctx) = 0;
+    virtual void render(Context &ctx) = 0;
 };
-
-#endif

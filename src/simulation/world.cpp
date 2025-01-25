@@ -4,7 +4,7 @@
 
 void World::finalize_groups() {
     const int G = get_groups_size();
-    m_p_group.assign(get_particles_count(), 0);
+    m_p_group.assign(get_particles_size(), 0);
     for (int g = 0; g < G; ++g) {
         for (int i = get_group_start(g); i < get_group_end(g); ++i) {
             m_p_group[i] = g;
@@ -13,6 +13,12 @@ void World::finalize_groups() {
 }
 
 void World::init_rule_tables(int G) {
+    if (G < 0) {
+        throw particles::SimulationError("Invalid group count: " +
+                                         std::to_string(G));
+    }
+
+    LOG_DEBUG("Initializing rule tables for " + std::to_string(G) + " groups");
     m_g_rules.assign(G * G, 0.f);
     m_g_radii2.assign(G, 0.f);
 }
@@ -40,14 +46,16 @@ float World::rule_val(int gsrc, int gdst) const {
 
 int World::add_group(int count, Color color) {
     if (count <= 0) {
-        return -1;
+        throw particles::SimulationError("Invalid particle count: " +
+                                         std::to_string(count));
     }
 
-    int start = get_particles_count();
+    LOG_DEBUG("Adding group with " + std::to_string(count) + " particles");
+    int start = get_particles_size();
 
     m_g_ranges.push_back(start);
     m_particles.resize(m_particles.size() + count * 4, 0.);
-    m_g_ranges.push_back(get_particles_count());
+    m_g_ranges.push_back(get_particles_size());
     m_g_colors.push_back(color);
 
     return m_g_colors.size() - 1;

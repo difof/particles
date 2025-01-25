@@ -15,6 +15,7 @@ inline long long now_ns() {
 Simulation::Simulation(mailbox::SimulationConfig::Snapshot cfg)
     : m_world(), m_idx(), m_pool(std::make_unique<SimulationThreadPool>(1)),
       m_mail_cmd(), m_mail_draw(), m_mail_cfg(), m_mail_stats() {
+    LOG_INFO("Initializing simulation");
     update_config(cfg);
 }
 
@@ -47,6 +48,33 @@ void Simulation::resume() { push_command(mailbox::command::Resume{}); }
 void Simulation::reset() { push_command(mailbox::command::ResetWorld{}); }
 
 void Simulation::update_config(mailbox::SimulationConfig::Snapshot &cfg) {
+    // Validate configuration
+    if (cfg.bounds_width <= 0 || cfg.bounds_height <= 0) {
+        throw particles::ConfigError(
+            "Invalid bounds: " + std::to_string(cfg.bounds_width) + "x" +
+            std::to_string(cfg.bounds_height));
+    }
+
+    if (cfg.time_scale < 0) {
+        throw particles::ConfigError("Invalid time scale: " +
+                                     std::to_string(cfg.time_scale));
+    }
+
+    if (cfg.viscosity < 0 || cfg.viscosity > 1) {
+        throw particles::ConfigError("Invalid viscosity: " +
+                                     std::to_string(cfg.viscosity));
+    }
+
+    if (cfg.sim_threads < -1) {
+        throw particles::ConfigError("Invalid thread count: " +
+                                     std::to_string(cfg.sim_threads));
+    }
+
+    LOG_DEBUG(
+        "Updating simulation config: " + std::to_string(cfg.bounds_width) +
+        "x" + std::to_string(cfg.bounds_height) +
+        ", threads=" + std::to_string(cfg.sim_threads));
+
     m_mail_cfg.publish(cfg);
 }
 
@@ -77,7 +105,7 @@ mailbox::SimulationConfig::Snapshot Simulation::get_config() const {
 const World &Simulation::get_world() const { return m_world; }
 
 void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
-    const int particles_count = m_world.get_particles_count();
+    const int particles_count = m_world.get_particles_size();
     if (particles_count == 0)
         return;
 
@@ -155,7 +183,7 @@ void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
 
         mailbox::SimulationStats::Snapshot st;
         st.effective_tps = m_t_last_published_tps;
-        st.particles = m_world.get_particles_count();
+        st.particles = m_world.get_particles_size();
         st.groups = m_world.get_groups_size();
         st.sim_threads = n_threads;
         st.last_step_ns = step_diff_ns.count();
@@ -372,7 +400,7 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
 }
 
 void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
-    const int particles_count = m_world.get_particles_count();
+    const int particles_count = m_world.get_particles_size();
 
     auto &pos = m_mail_draw.begin_write_pos(size_t(particles_count) * 2);
     auto &vel = m_mail_draw.begin_write_vel(size_t(particles_count) * 2);
@@ -430,7 +458,7 @@ void Simulation::apply_seed(const mailbox::command::SeedSpec &seed,
         m_world.add_group(seed.sizes[g], col);
     }
 
-    const int N = m_world.get_particles_count();
+    const int N = m_world.get_particles_size();
     std::mt19937 rng{std::random_device{}()};
     std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
     std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
