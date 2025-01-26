@@ -3,8 +3,9 @@
 #include <fstream>
 #include <iostream>
 
-#include "render/json_manager.hpp"
+#include "json_manager.hpp"
 #include "simulation/world.hpp"
+#include "utility/exceptions.hpp"
 
 TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
     JsonManager manager;
@@ -15,7 +16,7 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
 
     SECTION("New project creation") {
         JsonManager::ProjectData data;
-        REQUIRE(manager.new_project(data));
+        REQUIRE_NOTHROW(manager.new_project(data));
 
         // Check default values
         REQUIRE(data.sim_config.bounds_width == 1080.0f);
@@ -50,7 +51,7 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
 
         // Create test data
         JsonManager::ProjectData original_data;
-        REQUIRE(manager.new_project(original_data));
+        REQUIRE_NOTHROW(manager.new_project(original_data));
 
         // Modify some values to make them unique
         original_data.sim_config.viscosity = 0.5f;
@@ -60,11 +61,11 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
                                                         255}; // Red background
 
         // Save project
-        REQUIRE(manager.save_project(test_file, original_data));
+        REQUIRE_NOTHROW(manager.save_project(test_file, original_data));
 
         // Load project
         JsonManager::ProjectData loaded_data;
-        REQUIRE(manager.load_project(test_file, loaded_data));
+        REQUIRE_NOTHROW(manager.load_project(test_file, loaded_data));
 
         // Verify loaded data matches original
         REQUIRE(loaded_data.sim_config.viscosity == 0.5f);
@@ -96,11 +97,11 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
 
         // Create and save test projects
         JsonManager::ProjectData data;
-        manager.new_project(data);
+        REQUIRE_NOTHROW(manager.new_project(data));
 
-        REQUIRE(manager.save_project(test_file1, data));
-        REQUIRE(manager.save_project(test_file2, data));
-        REQUIRE(manager.save_project(test_file3, data));
+        REQUIRE_NOTHROW(manager.save_project(test_file1, data));
+        REQUIRE_NOTHROW(manager.save_project(test_file2, data));
+        REQUIRE_NOTHROW(manager.save_project(test_file3, data));
 
         // Check recent files
         auto recent_files = manager.get_recent_files();
@@ -202,16 +203,19 @@ TEST_CASE("JsonManager - Error handling", "[json_manager]") {
 
     SECTION("Load non-existent file") {
         JsonManager::ProjectData data;
-        REQUIRE_FALSE(manager.load_project("non_existent_file.json", data));
+        REQUIRE_THROWS_AS(manager.load_project("non_existent_file.json", data),
+                          particles::IOError);
     }
 
     SECTION("Save to invalid path") {
         JsonManager::ProjectData data;
-        manager.new_project(data);
+        REQUIRE_NOTHROW(manager.new_project(data));
 
         // Try to save to a directory that doesn't exist and can't be created
-        REQUIRE_FALSE(manager.save_project(
-            "/invalid/path/that/does/not/exist/file.json", data));
+        REQUIRE_THROWS_AS(
+            manager.save_project("/invalid/path/that/does/not/exist/file.json",
+                                 data),
+            particles::IOError);
     }
 }
 
