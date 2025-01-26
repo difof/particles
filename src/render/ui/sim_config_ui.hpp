@@ -49,6 +49,76 @@ class SimConfigUI : public IRenderer {
         ImGui::SetWindowSize(ImVec2{450, 500}, ImGuiCond_FirstUseEver);
 
         ImGui::SeparatorText("Simulation Parameters");
+        ImGui::SeparatorText("Bounds");
+        {
+            struct BoundsUIState {
+                bool inited = false;
+                int bw = 0;
+                int bh = 0;
+                int applied_w = 0; // last committed to sim config
+                int applied_h = 0;
+            };
+            static BoundsUIState bs;
+            if (!bs.inited || ImGui::IsWindowAppearing()) {
+                bs.bw = (int)std::lrint(scfg.bounds_width);
+                bs.bh = (int)std::lrint(scfg.bounds_height);
+                bs.applied_w = bs.bw;
+                bs.applied_h = bs.bh;
+                bs.inited = true;
+            }
+            ImGui::SliderInt("Bounds Width", &bs.bw, 64, 5000);
+            bool widthActive = ImGui::IsItemActive();
+            ImGui::SliderInt("Bounds Height", &bs.bh, 64, 5000);
+            bool heightActive = ImGui::IsItemActive();
+            // Only reflect external changes (e.g., undo) when the committed
+            // config changed since last apply; do NOT clobber local edits.
+            if (!widthActive && !heightActive) {
+                int cfgW = (int)std::lrint(scfg.bounds_width);
+                int cfgH = (int)std::lrint(scfg.bounds_height);
+                if (cfgW != bs.applied_w || cfgH != bs.applied_h) {
+                    bs.bw = cfgW;
+                    bs.bh = cfgH;
+                    bs.applied_w = cfgW;
+                    bs.applied_h = cfgH;
+                }
+            }
+            if (ImGui::Button("Apply Bounds")) {
+                auto before_w = (int)std::lrint(scfg.bounds_width);
+                auto before_h = (int)std::lrint(scfg.bounds_height);
+                ImGuiID id = ImGui::GetItemID();
+                ctx.undo.beginInteraction(id);
+                ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<int>(
+                    "sim.bounds_width", "Bounds Width",
+                    []() {
+                        return 0;
+                    },
+                    [&](const int &v) {
+                        auto cfg = sim.get_config();
+                        cfg.bounds_width = (float)v;
+                        sim.update_config(cfg);
+                    },
+                    before_w, bs.bw)));
+                ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<int>(
+                    "sim.bounds_height", "Bounds Height",
+                    []() {
+                        return 0;
+                    },
+                    [&](const int &v) {
+                        auto cfg = sim.get_config();
+                        cfg.bounds_height = (float)v;
+                        sim.update_config(cfg);
+                    },
+                    before_h, bs.bh)));
+                ctx.undo.endInteraction(id);
+                scfg.bounds_width = (float)bs.bw;
+                scfg.bounds_height = (float)bs.bh;
+                bs.applied_w = bs.bw;
+                bs.applied_h = bs.bh;
+                mark(true);
+            }
+        }
+
+        ImGui::Separator();
         {
             int before = scfg.target_tps;
             if (ImGui::SliderInt("Target TPS", &scfg.target_tps, 0, 240, "%d",

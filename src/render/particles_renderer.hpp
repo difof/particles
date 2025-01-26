@@ -27,6 +27,19 @@ class ParticlesRenderer : public IRenderer {
         BeginTextureMode(m_rt);
         ClearBackground(rcfg.background_color);
 
+        // Center sim bounds inside render target without scaling
+        mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
+        const float bounds_w = std::max(0.f, scfg.bounds_width);
+        const float bounds_h = std::max(0.f, scfg.bounds_height);
+        const float rt_w = (float)m_rt.texture.width;
+        const float rt_h = (float)m_rt.texture.height;
+        const float ox = std::floor((rt_w - bounds_w) * 0.5f);
+        const float oy = std::floor((rt_h - bounds_h) * 0.5f);
+
+        // Clip rendering to bounds rectangle using scissor mode
+        BeginScissorMode((int)ox, (int)oy, (int)std::max(0.f, bounds_w),
+                         (int)std::max(0.f, bounds_h));
+
         const int group_size = sim.get_world().get_groups_size();
         const float core_size = rcfg.core_size;
 
@@ -51,13 +64,14 @@ class ParticlesRenderer : public IRenderer {
                 return {x, y};
             };
             if (rcfg.glow_enabled) {
-                draw_particles_with_glow(sim.get_world(), group_size, posAt,
-                                         glow, core_size, outer_scale,
-                                         rcfg.outer_rgb_gain, inner_scale,
-                                         rcfg.inner_rgb_gain);
+                draw_particles_with_glow_offset(
+                    sim.get_world(), group_size, posAt, glow, core_size,
+                    outer_scale, rcfg.outer_rgb_gain, inner_scale,
+                    rcfg.inner_rgb_gain, ox, oy, bounds_w, bounds_h);
             } else {
-                draw_particles_simple(sim.get_world(), group_size, posAt,
-                                      core_size);
+                draw_particles_simple_offset(sim.get_world(), group_size, posAt,
+                                             core_size, ox, oy, bounds_w,
+                                             bounds_h);
             }
         } else {
             const auto &pos = *view.curr;
@@ -68,39 +82,42 @@ class ParticlesRenderer : public IRenderer {
                 return {pos[b + 0], pos[b + 1]};
             };
             if (rcfg.glow_enabled) {
-                draw_particles_with_glow(sim.get_world(), group_size, posAt,
-                                         glow, core_size, outer_scale,
-                                         rcfg.outer_rgb_gain, inner_scale,
-                                         rcfg.inner_rgb_gain);
+                draw_particles_with_glow_offset(
+                    sim.get_world(), group_size, posAt, glow, core_size,
+                    outer_scale, rcfg.outer_rgb_gain, inner_scale,
+                    rcfg.inner_rgb_gain, ox, oy, bounds_w, bounds_h);
             } else {
-                draw_particles_simple(sim.get_world(), group_size, posAt,
-                                      core_size);
+                draw_particles_simple_offset(sim.get_world(), group_size, posAt,
+                                             core_size, ox, oy, bounds_w,
+                                             bounds_h);
             }
         }
 
         auto grid = view.grid;
         if (grid) {
             if (rcfg.show_density_heat) {
-                draw_density_heat(*grid, rcfg.heat_alpha);
+                draw_density_heat_offset(*grid, rcfg.heat_alpha, ox, oy);
             }
             if (rcfg.show_velocity_field) {
                 Color velCol = ColorWithA(WHITE, 200);
-                draw_velocity_field(*grid, rcfg.vel_scale, rcfg.vel_thickness,
-                                    velCol);
+                draw_velocity_field_offset(*grid, rcfg.vel_scale,
+                                           rcfg.vel_thickness, velCol, ox, oy);
             }
             if (rcfg.show_grid_lines) {
                 Color gc = ColorWithA(WHITE, 40);
                 for (int cx = 0; cx <= grid->cols; ++cx) {
                     float x = std::min(cx * grid->cell, grid->width);
-                    DrawLineEx({x, 0}, {x, grid->height}, 1.0f, gc);
+                    DrawLineEx({x + ox, oy}, {x + ox, oy + grid->height}, 1.0f,
+                               gc);
                 }
                 for (int cy = 0; cy <= grid->rows; ++cy) {
                     float y = std::min(cy * grid->cell, grid->height);
-                    DrawLineEx({0, y}, {grid->width, y}, 1.0f, gc);
+                    DrawLineEx({ox, y + oy}, {ox + grid->width, y + oy}, 1.0f,
+                               gc);
                 }
             }
         }
-
+        EndScissorMode();
         EndTextureMode();
     }
 
@@ -161,8 +178,9 @@ class ParticlesRenderer : public IRenderer {
             h = std::max(0.f, maxH - y);
     }
 
-    static void draw_density_heat(const mailbox::DrawBuffer::GridFrame &g,
-                                  float alpha) {
+    static void
+    draw_density_heat_offset(const mailbox::DrawBuffer::GridFrame &g,
+                             float alpha, float ox, float oy) {
         if (g.cols <= 0 || g.rows <= 0)
             return;
         const int C = g.cols * g.rows;
@@ -182,14 +200,16 @@ class ParticlesRenderer : public IRenderer {
                 c.a = A;
                 float x, y, w, h;
                 cell_rect(g, cx, cy, x, y, w, h);
-                DrawRectangle((int)x, (int)y, (int)std::ceil(w),
+                DrawRectangle((int)(x + ox), (int)(y + oy), (int)std::ceil(w),
                               (int)std::ceil(h), c);
             }
         }
     }
 
-    static void draw_velocity_field(const mailbox::DrawBuffer::GridFrame &g,
-                                    float scale, float thickness, Color col) {
+    static void
+    draw_velocity_field_offset(const mailbox::DrawBuffer::GridFrame &g,
+                               float scale, float thickness, Color col,
+                               float ox, float oy) {
         if (g.cols <= 0 || g.rows <= 0)
             return;
         for (int cy = 0; cy < g.rows; ++cy) {
@@ -202,8 +222,8 @@ class ParticlesRenderer : public IRenderer {
                 float vy = g.sumVy[idx] / (float)cnt;
                 float x, y, w, h;
                 cell_rect(g, cx, cy, x, y, w, h);
-                float x0 = x + w * 0.5f;
-                float y0 = y + h * 0.5f;
+                float x0 = x + w * 0.5f + ox;
+                float y0 = y + h * 0.5f + oy;
                 float x1 = x0 + vx * scale;
                 float y1 = y0 + vy * scale;
                 DrawLineEx({x0, y0}, {x1, y1}, thickness, col);
@@ -221,11 +241,10 @@ class ParticlesRenderer : public IRenderer {
     }
 
     template <typename PosFn>
-    static void draw_particles_with_glow(const World &world, int groupsCount,
-                                         PosFn posAt, Texture2D glow,
-                                         float coreSize, float outerScale,
-                                         float outerRGBGain, float innerScale,
-                                         float innerRGBGain) {
+    static void draw_particles_with_glow_offset(
+        const World &world, int groupsCount, PosFn posAt, Texture2D glow,
+        float coreSize, float outerScale, float outerRGBGain, float innerScale,
+        float innerRGBGain, float ox, float oy, float bw, float bh) {
         const Rectangle src = {0, 0, (float)glow.width, (float)glow.height};
         const Vector2 org = {0, 0};
         BeginBlendMode(BLEND_ALPHA);
@@ -235,7 +254,9 @@ class ParticlesRenderer : public IRenderer {
             const Color tint = TintRGB(world.get_group_color(g), outerRGBGain);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
-                Rectangle dest = {p.x - outerScale, p.y - outerScale,
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                Rectangle dest = {p.x - outerScale + ox, p.y - outerScale + oy,
                                   outerScale * 2, outerScale * 2};
                 DrawTexturePro(glow, src, dest, org, 0, tint);
             }
@@ -248,7 +269,9 @@ class ParticlesRenderer : public IRenderer {
             const Color tint = TintRGB(world.get_group_color(g), innerRGBGain);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
-                Rectangle dest = {p.x - innerScale, p.y - innerScale,
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                Rectangle dest = {p.x - innerScale + ox, p.y - innerScale + oy,
                                   innerScale * 2, innerScale * 2};
                 DrawTexturePro(glow, src, dest, org, 0, tint);
             }
@@ -260,21 +283,27 @@ class ParticlesRenderer : public IRenderer {
             const Color col = world.get_group_color(g);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
-                DrawCircleV(p, coreSize, col);
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                DrawCircleV({p.x + ox, p.y + oy}, coreSize, col);
             }
         }
     }
 
     template <typename PosFn>
-    static void draw_particles_simple(const World &world, int groupsCount,
-                                      PosFn posAt, float coreSize) {
+    static void draw_particles_simple_offset(const World &world,
+                                             int groupsCount, PosFn posAt,
+                                             float coreSize, float ox, float oy,
+                                             float bw, float bh) {
         for (int g = 0; g < groupsCount; ++g) {
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color col = world.get_group_color(g);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
-                DrawCircleV(p, coreSize, col);
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                DrawCircleV({p.x + ox, p.y + oy}, coreSize, col);
             }
         }
     }

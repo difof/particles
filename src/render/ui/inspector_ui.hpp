@@ -105,6 +105,11 @@ class InspectorUI : public IRenderer {
             return;
 
         const World &world = ctx.sim.get_world();
+        mailbox::SimulationConfig::Snapshot scfg = ctx.sim.get_config();
+        const float rt_w = (float)ctx.wcfg.render_width;
+        const float rt_h = (float)ctx.wcfg.screen_height;
+        const float ox = std::floor((rt_w - scfg.bounds_width) * 0.5f);
+        const float oy = std::floor((rt_h - scfg.bounds_height) * 0.5f);
         Rectangle logical = norm(m_sel.rect);
         if (logical.width <= 0 || logical.height <= 0)
             return;
@@ -207,8 +212,9 @@ class InspectorUI : public IRenderer {
         int inCount = 0;
         for (int i = 0; i < totalParticles; ++i) {
             Vector2 p = posAt(i);
-            if (p.x >= logical.x && p.x < logical.x + logical.width &&
-                p.y >= logical.y && p.y < logical.y + logical.height) {
+            Vector2 ps = {p.x + ox, p.y + oy};
+            if (ps.x >= logical.x && ps.x < logical.x + logical.width &&
+                ps.y >= logical.y && ps.y < logical.y + logical.height) {
                 ++inCount;
                 int g = world.group_of(i);
                 if (g >= 0 && g < G)
@@ -263,11 +269,12 @@ class InspectorUI : public IRenderer {
             float bestD2 = 1e30f;
             for (int i = 0; i < totalParticles; ++i) {
                 Vector2 p = posAt(i);
-                if (p.x < logical.x || p.x > logical.x + logical.width ||
-                    p.y < logical.y || p.y > logical.y + logical.height)
+                Vector2 ps = {p.x + ox, p.y + oy};
+                if (ps.x < logical.x || ps.x > logical.x + logical.width ||
+                    ps.y < logical.y || ps.y > logical.y + logical.height)
                     continue;
-                float dx = p.x - wx;
-                float dy = p.y - wy;
+                float dx = ps.x - wx;
+                float dy = ps.y - wy;
                 float d2 = dx * dx + dy * dy;
                 if (d2 < bestD2) {
                     bestD2 = d2;
@@ -298,6 +305,11 @@ class InspectorUI : public IRenderer {
         if (!m_sel.track_enabled || m_sel.tracked_id < 0)
             return;
         const int totalParticles = ctx.sim.get_world().get_particles_size();
+        mailbox::SimulationConfig::Snapshot scfg = ctx.sim.get_config();
+        const float rt_w = (float)ctx.wcfg.render_width;
+        const float rt_h = (float)ctx.wcfg.screen_height;
+        const float ox = std::floor((rt_w - scfg.bounds_width) * 0.5f);
+        const float oy = std::floor((rt_h - scfg.bounds_height) * 0.5f);
         auto posAt = [&](int i) -> Vector2 {
             const float a = std::clamp(ctx.interp_alpha, 0.0f, 1.0f);
             if (ctx.can_interpolate) {
@@ -319,7 +331,9 @@ class InspectorUI : public IRenderer {
         };
         if (m_sel.tracked_id < totalParticles) {
             Vector2 tp = posAt(m_sel.tracked_id);
-            Rectangle r = CenteredRect(tp, m_sel.base_w, m_sel.base_h);
+            // Convert to screen space by applying render offset
+            Vector2 tps = {tp.x + ox, tp.y + oy};
+            Rectangle r = CenteredRect(tps, m_sel.base_w, m_sel.base_h);
             float sw = (float)GetScreenWidth();
             float sh = (float)GetScreenHeight();
             if (r.x < 0)
