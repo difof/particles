@@ -1,9 +1,9 @@
 --[[ TODO:
     link these:
-        - chipmunk2d
         - curl
         - mbedtls
         - zlib
+        - ffmpeg
 ]]
 
 local function linkImGUI()
@@ -50,7 +50,38 @@ local function raylibDeps()
         linkoptions { "-framework CoreVideo", "-framework IOKit", "-framework Cocoa", "-framework GLUT", "-framework OpenGL" }
 end
 
-local function projectBase()
+local function applyOSAndArchDefines()
+    filter "system:windows"
+        defines { "PLATFORM_WINDOWS" }
+        removefiles { "src/**.c" }
+        links { "ws2_32", "winmm" }
+        removebuildoptions { "-Wno-deprecated-declarations", "-Wno-c++11-narrowing" }
+        buildoptions { "/W3" }
+
+    filter "system:macosx"
+        defines { "PLATFORM_MACOS" }
+
+    filter "system:linux"
+        defines { "PLATFORM_LINUX" }
+
+    filter "architecture:x64"
+        defines { "ARCH_X64" }
+        filter "system:windows"
+            defines { "USE_X86_SSE" }
+        filter "system:macosx"
+            defines { "USE_X86_SSE" }
+        filter "system:linux"
+            defines { "USE_X86_SSE" }
+
+    filter "architecture:ARM64"
+        defines { "ARCH_ARM64" }
+        filter "system:macosx"
+            defines { "__ARM_NEON" }
+        filter "system:linux"
+            defines { "__ARM_NEON" }
+end
+
+local function applyBaseConfig() 
     kind "ConsoleApp"
     language "C++"
     targetdir "build/bin/%{cfg.buildcfg}"
@@ -61,26 +92,61 @@ local function projectBase()
         "-Wno-deprecated-declarations",
         "-Wno-c++11-narrowing",
     }
+end
+
+local function projectBase()
+    applyBaseConfig()
+
     files { 
         "src/**.h", "src/**.c",
         "src/**.hpp", "src/**.cpp",
     }
-    includedirs { "src" }
+    includedirs { 
+        "src",
+        "extlib/imgui",
+        "extlib/rlimgui", 
+        "extlib/raylib/src",
+        "extlib/tinydir",
+        "extlib/fmt/include",
+        "extlib/nlohmann-json/single_include"
+    }
     links { "m", "dl", "pthread" }
     dependson { }
+
+    applyOSAndArchDefines()
 end
 
-local function unitTest(name)
+local function unitTest(name, extraIncludes, extraFiles)
     project(name)
-        projectBase()
-
+        applyBaseConfig()
+        
         files {
             "extlib/catch2/extras/catch_amalgamated.cpp",
             "tests/"..name..".cpp" 
         }
+        
+        if extraFiles then
+            for _, file in ipairs(extraFiles) do
+                files { file }
+            end
+        end
 
-        excludes { "src/**.cpp", "src/**.c" }
-        includedirs { "extlib/catch2/extras", "extlib/raylib/src" }
+        includedirs { 
+            "src",
+            "extlib/catch2/extras"
+        }
+        
+        if extraIncludes then
+            for _, include in ipairs(extraIncludes) do
+                includedirs { include }
+            end
+        end
+        
+        links { "m", "dl", "pthread" }
+        dependson { }
+
+        applyOSAndArchDefines()
+
         defines { "DEBUG" }
         symbols "On"
 end
@@ -106,14 +172,14 @@ project "extlib_raylib"
     cleancommands { maxosx_deployment_target .. "make -C ../extlib/raylib/src clean" }
 
 project "particles"
-    projectBase()
-
     linkFmt()
     linkTinydir()
     linkRaylib()
     linkImGUI()
     linkJSON()
     raylibDeps()
+    
+    projectBase()
 
     filter "configurations:Debug"
         defines { "DEBUG" }
@@ -128,11 +194,8 @@ project "particles"
         buildoptions { "-O3", "-ffast-math", "-fno-math-errno", "-fno-trapping-math" }
 
 unitTest "test_uniformgrid"
-unitTest "test_world"
-    files { "src/simulation/world.cpp" }
-unitTest "test_multicore"
-    files { "src/simulation/multicore.cpp" }
-unitTest "test_mailboxes"
-unitTest "test_json_manager"
-    files { "src/render/json_manager.cpp", "src/simulation/world.cpp" }
-    linkJSON()
+unitTest("test_world", { "extlib/raylib/src" }, { "src/simulation/world.cpp" })
+unitTest("test_multicore", { "extlib/raylib/src" }, { "src/simulation/multicore.cpp" })
+unitTest("test_mailboxes", { "extlib/raylib/src" })
+unitTest("test_json_manager", { "extlib/raylib/src", "extlib/nlohmann-json/single_include" }, { "src/json_manager.cpp", "src/simulation/world.cpp" })
+unitTest("test_simulation", { "extlib/raylib/src" }, { "src/simulation/simulation.cpp", "src/simulation/world.cpp", "src/simulation/multicore.cpp" })
