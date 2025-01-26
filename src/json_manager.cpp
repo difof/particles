@@ -1,6 +1,9 @@
-#include "json_manager.hpp"
 #include <algorithm>
 #include <iostream>
+
+#include "json_manager.hpp"
+#include "utility/logger.hpp"
+
 #ifndef _WIN32
 #include <pwd.h>
 #include <sys/types.h>
@@ -485,6 +488,8 @@ void JsonManager::save_config() {
 void JsonManager::load_config() {
     try {
         std::string config_path = get_config_path();
+        LOG_INFO("Loading config from " + config_path);
+
         std::ifstream file(config_path);
         if (!file.is_open()) {
             return; // No config file exists yet
