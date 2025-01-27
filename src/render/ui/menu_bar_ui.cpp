@@ -4,12 +4,9 @@
 #include <raylib.h>
 
 void MenuBarUI::handle_new_project(Context &ctx) {
-    if (!m_json_manager)
-        return;
-
     JsonManager::ProjectData data;
     try {
-        m_json_manager->new_project(data);
+        ctx.json.new_project(data);
         // Use current window/render sizes for bounds (avoid small default)
         data.sim_config.bounds_width = (float)ctx.wcfg.render_width;
         data.sim_config.bounds_height = (float)ctx.wcfg.screen_height;
@@ -33,9 +30,6 @@ void MenuBarUI::handle_new_project(Context &ctx) {
 }
 
 void MenuBarUI::handle_open_project(Context &ctx) {
-    if (!m_json_manager)
-        return;
-
     if (!m_file_dialog_open) {
         m_file_dialog.set_filename("");
         m_file_dialog.open(FileDialog::Mode::Open, "Open Project");
@@ -46,9 +40,6 @@ void MenuBarUI::handle_open_project(Context &ctx) {
 }
 
 void MenuBarUI::handle_save_project(Context &ctx) {
-    if (!m_json_manager)
-        return;
-
     if (m_current_filepath.empty()) {
         // No current file, do save as instead (open dialog)
         handle_save_as_project(ctx);
@@ -61,10 +52,10 @@ void MenuBarUI::handle_save_project(Context &ctx) {
     data.render_config = ctx.rcfg;
 
     // Extract current seed from world
-    data.seed = m_json_manager->extract_current_seed(ctx.sim.get_world());
+    data.seed = ctx.json.extract_current_seed(ctx.sim.get_world());
 
     try {
-        m_json_manager->save_project(m_current_filepath, data);
+        ctx.json.save_project(m_current_filepath, data);
         std::cout << "Project saved to: " << m_current_filepath << std::endl;
     } catch (const particles::IOError &e) {
         std::cerr << "Failed to save project: " << e.what() << std::endl;
@@ -72,9 +63,6 @@ void MenuBarUI::handle_save_project(Context &ctx) {
 }
 
 void MenuBarUI::handle_save_as_project(Context &ctx) {
-    if (!m_json_manager)
-        return;
-
     if (!m_file_dialog_open) {
         // Prefill filename if we have a current one
         if (!m_current_filepath.empty()) {
@@ -95,12 +83,9 @@ void MenuBarUI::handle_save_as_project(Context &ctx) {
 }
 
 void MenuBarUI::handle_open_file(Context &ctx, const std::string &filepath) {
-    if (!m_json_manager)
-        return;
-
     JsonManager::ProjectData data;
     try {
-        m_json_manager->load_project(filepath, data);
+        ctx.json.load_project(filepath, data);
         // Apply the loaded project data
         ctx.sim.update_config(data.sim_config);
         ctx.rcfg = data.render_config;

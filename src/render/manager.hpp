@@ -50,8 +50,9 @@ class RenderManager {
                 alpha = float(target_ns - view.t0) / float(view.t1 - view.t0);
         }
 
-        Context ctx{sim,   rcfg,          view, m_wcfg, can_interpolate,
-                    alpha, m_undo_manager};
+        Context ctx{
+            sim,   rcfg,           view,          m_wcfg, can_interpolate,
+            alpha, m_undo_manager, m_json_manager};
 
         m_particles.render(ctx);
         m_inspector.render(ctx);

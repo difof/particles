@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../json_manager.hpp"
 #include "../../simulation/simulation.hpp"
 #include "../../undo.hpp"
 #include "../../window_config.hpp"
@@ -11,6 +12,7 @@ struct Context {
     Config &rcfg;
     mailbox::DrawBuffer::ReadView &view;
     const WindowConfig &wcfg;
+    JsonManager &json;
     UndoManager &undo;
 
     // interpolation
@@ -21,7 +23,7 @@ struct Context {
 
     Context(Simulation &sim, Config &rcfg, mailbox::DrawBuffer::ReadView &view,
             const WindowConfig &wcfg, bool can_interpolate, float interp_alpha,
-            UndoManager &undo)
-        : sim(sim), rcfg(rcfg), view(view), wcfg(wcfg), undo(undo),
+            UndoManager &undo, JsonManager &json)
+        : sim(sim), rcfg(rcfg), view(view), wcfg(wcfg), json(json), undo(undo),
           can_interpolate(can_interpolate), interp_alpha(interp_alpha) {}
 };

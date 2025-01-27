@@ -16,11 +16,6 @@ class MenuBarUI : public IRenderer {
     ~MenuBarUI() override = default;
 
     // File operations
-    void set_json_manager(JsonManager *manager) { m_json_manager = manager; }
-    void set_current_filepath(const std::string &filepath) {
-        m_current_filepath = filepath;
-    }
-    std::string get_current_filepath() const { return m_current_filepath; }
 
     void render(Context &ctx) override {
         if (!ctx.rcfg.show_ui)
@@ -29,7 +24,6 @@ class MenuBarUI : public IRenderer {
     }
 
   private:
-    JsonManager *m_json_manager = nullptr;
     std::string m_current_filepath;
     FileDialog m_file_dialog;
     bool m_file_dialog_open = false;
@@ -65,9 +59,7 @@ class MenuBarUI : public IRenderer {
                 ImGui::Separator();
 
                 // Recent files
-                auto recent_files = m_json_manager
-                                        ? m_json_manager->get_recent_files()
-                                        : std::vector<std::string>();
+                auto recent_files = ctx.json.get_recent_files();
                 if (!recent_files.empty()) {
                     for (const auto &file : recent_files) {
                         if (ImGui::MenuItem(file.c_str())) {
@@ -76,9 +68,7 @@ class MenuBarUI : public IRenderer {
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("Clear Recent Files")) {
-                        if (m_json_manager) {
-                            m_json_manager->clear_recent_files();
-                        }
+                        ctx.json.clear_recent_files();
                     }
                 }
 
@@ -170,17 +160,13 @@ class MenuBarUI : public IRenderer {
                         JsonManager::ProjectData data;
                         data.sim_config = ctx.sim.get_config();
                         data.render_config = ctx.rcfg;
-                        data.seed = m_json_manager
-                                        ? m_json_manager->extract_current_seed(
-                                              ctx.sim.get_world())
-                                        : nullptr;
-                        if (m_json_manager) {
-                            try {
-                                m_json_manager->save_project(path, data);
-                                m_current_filepath = path;
-                            } catch (const particles::IOError &e) {
-                                // Error handling is done in the catch block
-                            }
+                        data.seed =
+                            ctx.json.extract_current_seed(ctx.sim.get_world());
+                        try {
+                            ctx.json.save_project(path, data);
+                            m_current_filepath = path;
+                        } catch (const particles::IOError &e) {
+                            // Error handling is done in the catch block
                         }
                     }
                 }
