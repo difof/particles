@@ -8,6 +8,8 @@ tasks:
       - src/**/*.cpp
       - src/**/*.h
       - src/**/*.c
+      - tests/**/.cpp
+      - tests/**/.hpp
       - premake5.lua
     generates:
       - build/Makefile
@@ -104,17 +106,17 @@ tasks:
       - test:build:test_mailboxes
     cmd: build/bin/Debug/test_mailboxes
 
-  test:build:test_json_manager:
-    desc: Build unit test test_json_manager
+  test:build:test_save_manager:
+    desc: Build unit test test_save_manager
     deps:
       - premake
-    cmd: make -C build config=debug -j4 test_json_manager
+    cmd: make -C build config=debug -j4 test_save_manager
 
-  test:run:test_json_manager:
-    desc: Run unit test test_json_manager
+  test:run:test_save_manager:
+    desc: Run unit test test_save_manager
     deps:
-      - test:build:test_json_manager
-    cmd: build/bin/Debug/test_json_manager
+      - test:build:test_save_manager
+    cmd: build/bin/Debug/test_save_manager
 
   test:build:test_simulation:
     desc: Build unit test test_simulation
@@ -137,5 +139,5 @@ tasks:
       - task: test:run:test_world
       - task: test:run:test_multicore
       - task: test:run:test_mailboxes
-      - task: test:run:test_json_manager
+      - task: test:run:test_save_manager
       - task: test:run:test_simulation

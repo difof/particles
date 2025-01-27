@@ -2,10 +2,10 @@
 #include <raylib.h>
 #include <rlImGui.h>
 
-#include "json_manager.hpp"
 #include "mailbox/mailbox.hpp"
 #include "render/manager.hpp"
 #include "render/types/config.hpp"
+#include "save_manager.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
 #include "undo.hpp"
@@ -51,7 +51,7 @@ void run() {
     rlImGuiSetup(true);
 
     // Initialize singletons
-    JsonManager json_manager;
+    SaveManager json_manager;
     UndoManager undo_manager;
     std::string last_file = json_manager.get_last_opened_file();
 
@@ -65,7 +65,7 @@ void run() {
     // Try to load last project, otherwise use default seed
     bool loaded_project = false;
     if (!last_file.empty()) {
-        JsonManager::ProjectData data;
+        SaveManager::ProjectData data;
         try {
             json_manager.load_project(last_file, data);
             // Apply loaded project settings

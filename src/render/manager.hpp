@@ -5,7 +5,7 @@
 #include <raylib.h>
 #include <string>
 
-#include "../json_manager.hpp"
+#include "../save_manager.hpp"
 #include "../undo.hpp"
 #include "../window_config.hpp"
 #include "particles_renderer.hpp"
@@ -20,7 +20,7 @@
 // Manages render textures and frame orchestration.
 class RenderManager {
   public:
-    RenderManager(const WindowConfig &wcfg, JsonManager &json_manager,
+    RenderManager(const WindowConfig &wcfg, SaveManager &json_manager,
                   UndoManager &undo_manager)
         : m_wcfg(wcfg), m_particles(wcfg), m_json_manager(json_manager),
           m_undo_manager(undo_manager) {}
@@ -106,6 +106,6 @@ class RenderManager {
     RenderConfigUI m_render_config;
     SimConfigUI m_sim_config;
     MetricsUI m_metrics;
-    JsonManager &m_json_manager;
+    SaveManager &m_json_manager;
     UndoManager &m_undo_manager;
 };

@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <iostream>
 
-#include "json_manager.hpp"
+#include "save_manager.hpp"
 #include "utility/logger.hpp"
 
 #ifndef _WIN32
@@ -10,9 +10,9 @@
 #include <unistd.h>
 #endif
 
-JsonManager::JsonManager() { load_config(); }
+SaveManager::SaveManager() { load_config(); }
 
-void JsonManager::save_project(const std::string &filepath,
+void SaveManager::save_project(const std::string &filepath,
                                const ProjectData &data) {
     LOG_INFO("Saving project to: " + filepath);
 
@@ -57,7 +57,7 @@ void JsonManager::save_project(const std::string &filepath,
     }
 }
 
-void JsonManager::load_project(const std::string &filepath, ProjectData &data) {
+void SaveManager::load_project(const std::string &filepath, ProjectData &data) {
     LOG_INFO("Loading project from: " + filepath);
 
     try {
@@ -105,7 +105,7 @@ void JsonManager::load_project(const std::string &filepath, ProjectData &data) {
     }
 }
 
-void JsonManager::new_project(ProjectData &data) {
+void SaveManager::new_project(ProjectData &data) {
     LOG_INFO("Creating new project");
     // Set default values (from main.cpp hardcoded values)
     data.sim_config = {};
@@ -177,7 +177,7 @@ void JsonManager::new_project(ProjectData &data) {
 }
 
 std::shared_ptr<mailbox::command::SeedSpec>
-JsonManager::extract_current_seed(const World &world) {
+SaveManager::extract_current_seed(const World &world) {
     auto seed = std::make_shared<mailbox::command::SeedSpec>();
 
     const int G = world.get_groups_size();
@@ -214,7 +214,7 @@ JsonManager::extract_current_seed(const World &world) {
     return seed;
 }
 
-void JsonManager::add_to_recent(const std::string &filepath) {
+void SaveManager::add_to_recent(const std::string &filepath) {
     // Remove if already exists
     auto it = std::find(m_recent_files.begin(), m_recent_files.end(), filepath);
     if (it != m_recent_files.end()) {
@@ -232,35 +232,35 @@ void JsonManager::add_to_recent(const std::string &filepath) {
     save_config();
 }
 
-std::vector<std::string> JsonManager::get_recent_files() const {
+std::vector<std::string> SaveManager::get_recent_files() const {
     return m_recent_files;
 }
 
-void JsonManager::clear_recent_files() {
+void SaveManager::clear_recent_files() {
     m_recent_files.clear();
     save_config();
 }
 
-std::string JsonManager::get_last_opened_file() const { return m_last_file; }
+std::string SaveManager::get_last_opened_file() const { return m_last_file; }
 
-void JsonManager::set_last_opened_file(const std::string &filepath) {
+void SaveManager::set_last_opened_file(const std::string &filepath) {
     m_last_file = filepath;
     save_config();
 }
 
 // JSON serialization helpers
-json JsonManager::color_to_json(const Color &color) {
+json SaveManager::color_to_json(const Color &color) {
     return json{{"r", color.r}, {"g", color.g}, {"b", color.b}, {"a", color.a}};
 }
 
-Color JsonManager::json_to_color(const json &j) {
+Color SaveManager::json_to_color(const json &j) {
     return Color{static_cast<unsigned char>(j["r"].get<int>()),
                  static_cast<unsigned char>(j["g"].get<int>()),
                  static_cast<unsigned char>(j["b"].get<int>()),
                  static_cast<unsigned char>(j["a"].get<int>())};
 }
 
-json JsonManager::seed_to_json(
+json SaveManager::seed_to_json(
     const std::shared_ptr<mailbox::command::SeedSpec> &seed) {
     if (!seed)
         return json::object();
@@ -277,7 +277,7 @@ json JsonManager::seed_to_json(
 }
 
 std::shared_ptr<mailbox::command::SeedSpec>
-JsonManager::json_to_seed(const json &j) {
+SaveManager::json_to_seed(const json &j) {
     auto seed = std::make_shared<mailbox::command::SeedSpec>();
 
     if (j.contains("sizes")) {
@@ -302,7 +302,7 @@ JsonManager::json_to_seed(const json &j) {
     return seed;
 }
 
-json JsonManager::sim_config_to_json(
+json SaveManager::sim_config_to_json(
     const mailbox::SimulationConfig::Snapshot &config) {
     return json{{"bounds_width", config.bounds_width},
                 {"bounds_height", config.bounds_height},
@@ -316,7 +316,7 @@ json JsonManager::sim_config_to_json(
 }
 
 mailbox::SimulationConfig::Snapshot
-JsonManager::json_to_sim_config(const json &j) {
+SaveManager::json_to_sim_config(const json &j) {
     mailbox::SimulationConfig::Snapshot config = {};
 
     if (j.contains("bounds_width"))
@@ -342,7 +342,7 @@ JsonManager::json_to_sim_config(const json &j) {
     return config;
 }
 
-json JsonManager::render_config_to_json(const Config &config) {
+json SaveManager::render_config_to_json(const Config &config) {
     return json{{"show_ui", config.show_ui},
                 {"show_metrics_ui", config.show_metrics_ui},
                 {"show_editor", config.show_editor},
@@ -366,7 +366,7 @@ json JsonManager::render_config_to_json(const Config &config) {
                 {"show_grid_lines", config.show_grid_lines}};
 }
 
-Config JsonManager::json_to_render_config(const json &j) {
+Config SaveManager::json_to_render_config(const json &j) {
     Config config = {};
 
     if (j.contains("show_ui"))
@@ -415,7 +415,7 @@ Config JsonManager::json_to_render_config(const json &j) {
     return config;
 }
 
-json JsonManager::window_config_to_json(
+json SaveManager::window_config_to_json(
     const ProjectData::WindowConfig &config) {
     return json{{"screen_width", config.screen_width},
                 {"screen_height", config.screen_height},
@@ -423,8 +423,8 @@ json JsonManager::window_config_to_json(
                 {"render_width", config.render_width}};
 }
 
-JsonManager::ProjectData::WindowConfig
-JsonManager::json_to_window_config(const json &j) {
+SaveManager::ProjectData::WindowConfig
+SaveManager::json_to_window_config(const json &j) {
     ProjectData::WindowConfig config = {};
 
     if (j.contains("screen_width"))
@@ -460,12 +460,12 @@ static std::string get_home_directory() {
 #endif
 }
 
-std::string JsonManager::get_config_path() const {
+std::string SaveManager::get_config_path() const {
     const std::string home = get_home_directory();
     return home + "/.particles/" + CONFIG_FILE;
 }
 
-void JsonManager::save_config() {
+void SaveManager::save_config() {
     try {
         json j;
         j[RECENT_FILES_KEY] = m_recent_files;
@@ -485,7 +485,7 @@ void JsonManager::save_config() {
     }
 }
 
-void JsonManager::load_config() {
+void SaveManager::load_config() {
     try {
         std::string config_path = get_config_path();
         LOG_INFO("Loading config from " + config_path);

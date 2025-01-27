@@ -4,9 +4,9 @@
 #include <raylib.h>
 
 void MenuBarUI::handle_new_project(Context &ctx) {
-    JsonManager::ProjectData data;
+    SaveManager::ProjectData data;
     try {
-        ctx.json.new_project(data);
+        ctx.save.new_project(data);
         // Use current window/render sizes for bounds (avoid small default)
         data.sim_config.bounds_width = (float)ctx.wcfg.render_width;
         data.sim_config.bounds_height = (float)ctx.wcfg.screen_height;
@@ -47,15 +47,15 @@ void MenuBarUI::handle_save_project(Context &ctx) {
     }
 
     // Collect current state
-    JsonManager::ProjectData data;
+    SaveManager::ProjectData data;
     data.sim_config = ctx.sim.get_config();
     data.render_config = ctx.rcfg;
 
     // Extract current seed from world
-    data.seed = ctx.json.extract_current_seed(ctx.sim.get_world());
+    data.seed = ctx.save.extract_current_seed(ctx.sim.get_world());
 
     try {
-        ctx.json.save_project(m_current_filepath, data);
+        ctx.save.save_project(m_current_filepath, data);
         std::cout << "Project saved to: " << m_current_filepath << std::endl;
     } catch (const particles::IOError &e) {
         std::cerr << "Failed to save project: " << e.what() << std::endl;
@@ -83,9 +83,9 @@ void MenuBarUI::handle_save_as_project(Context &ctx) {
 }
 
 void MenuBarUI::handle_open_file(Context &ctx, const std::string &filepath) {
-    JsonManager::ProjectData data;
+    SaveManager::ProjectData data;
     try {
-        ctx.json.load_project(filepath, data);
+        ctx.save.load_project(filepath, data);
         // Apply the loaded project data
         ctx.sim.update_config(data.sim_config);
         ctx.rcfg = data.render_config;

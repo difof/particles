@@ -3,19 +3,19 @@
 #include <fstream>
 #include <iostream>
 
-#include "json_manager.hpp"
+#include "save_manager.hpp"
 #include "simulation/world.hpp"
 #include "utility/exceptions.hpp"
 
-TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
-    JsonManager manager;
+TEST_CASE("SaveManager - Basic functionality", "[json_manager]") {
+    SaveManager manager;
 
     // Clean up any existing state
     manager.clear_recent_files();
     manager.set_last_opened_file("");
 
     SECTION("New project creation") {
-        JsonManager::ProjectData data;
+        SaveManager::ProjectData data;
         REQUIRE_NOTHROW(manager.new_project(data));
 
         // Check default values
@@ -50,7 +50,7 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
         const std::string test_file = "test_project.json";
 
         // Create test data
-        JsonManager::ProjectData original_data;
+        SaveManager::ProjectData original_data;
         REQUIRE_NOTHROW(manager.new_project(original_data));
 
         // Modify some values to make them unique
@@ -64,7 +64,7 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
         REQUIRE_NOTHROW(manager.save_project(test_file, original_data));
 
         // Load project
-        JsonManager::ProjectData loaded_data;
+        SaveManager::ProjectData loaded_data;
         REQUIRE_NOTHROW(manager.load_project(test_file, loaded_data));
 
         // Verify loaded data matches original
@@ -96,7 +96,7 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
         const std::string test_file3 = "test3.json";
 
         // Create and save test projects
-        JsonManager::ProjectData data;
+        SaveManager::ProjectData data;
         REQUIRE_NOTHROW(manager.new_project(data));
 
         REQUIRE_NOTHROW(manager.save_project(test_file1, data));
@@ -136,8 +136,8 @@ TEST_CASE("JsonManager - Basic functionality", "[json_manager]") {
     }
 }
 
-TEST_CASE("JsonManager - World seed extraction", "[json_manager]") {
-    JsonManager manager;
+TEST_CASE("SaveManager - World seed extraction", "[json_manager]") {
+    SaveManager manager;
     World world;
 
     // Clean up any existing state
@@ -198,17 +198,17 @@ TEST_CASE("JsonManager - World seed extraction", "[json_manager]") {
     }
 }
 
-TEST_CASE("JsonManager - Error handling", "[json_manager]") {
-    JsonManager manager;
+TEST_CASE("SaveManager - Error handling", "[json_manager]") {
+    SaveManager manager;
 
     SECTION("Load non-existent file") {
-        JsonManager::ProjectData data;
+        SaveManager::ProjectData data;
         REQUIRE_THROWS_AS(manager.load_project("non_existent_file.json", data),
                           particles::IOError);
     }
 
     SECTION("Save to invalid path") {
-        JsonManager::ProjectData data;
+        SaveManager::ProjectData data;
         REQUIRE_NOTHROW(manager.new_project(data));
 
         // Try to save to a directory that doesn't exist and can't be created
@@ -219,8 +219,8 @@ TEST_CASE("JsonManager - Error handling", "[json_manager]") {
     }
 }
 
-TEST_CASE("JsonManager - Color serialization", "[json_manager]") {
-    JsonManager manager;
+TEST_CASE("SaveManager - Color serialization", "[json_manager]") {
+    SaveManager manager;
 
     SECTION("Color round-trip") {
         Color original = {128, 64, 192, 255};

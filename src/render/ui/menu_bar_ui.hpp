@@ -4,7 +4,7 @@
 #include <raylib.h>
 #include <string>
 
-#include "../../json_manager.hpp"
+#include "../../save_manager.hpp"
 #include "../../window_config.hpp"
 #include "../file_dialog.hpp"
 #include "../renderer.hpp"
@@ -59,7 +59,7 @@ class MenuBarUI : public IRenderer {
                 ImGui::Separator();
 
                 // Recent files
-                auto recent_files = ctx.json.get_recent_files();
+                auto recent_files = ctx.save.get_recent_files();
                 if (!recent_files.empty()) {
                     for (const auto &file : recent_files) {
                         if (ImGui::MenuItem(file.c_str())) {
@@ -68,7 +68,7 @@ class MenuBarUI : public IRenderer {
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("Clear Recent Files")) {
-                        ctx.json.clear_recent_files();
+                        ctx.save.clear_recent_files();
                     }
                 }
 
@@ -157,13 +157,13 @@ class MenuBarUI : public IRenderer {
                         handle_open_file(ctx, path);
                     } else if (m_pending_action == PendingAction::SaveAs) {
                         // Collect current state and save
-                        JsonManager::ProjectData data;
+                        SaveManager::ProjectData data;
                         data.sim_config = ctx.sim.get_config();
                         data.render_config = ctx.rcfg;
                         data.seed =
-                            ctx.json.extract_current_seed(ctx.sim.get_world());
+                            ctx.save.extract_current_seed(ctx.sim.get_world());
                         try {
-                            ctx.json.save_project(path, data);
+                            ctx.save.save_project(path, data);
                             m_current_filepath = path;
                         } catch (const particles::IOError &e) {
                             // Error handling is done in the catch block

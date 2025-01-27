@@ -197,5 +197,5 @@ unitTest "test_uniformgrid"
 unitTest("test_world", { "extlib/raylib/src" }, { "src/simulation/world.cpp" })
 unitTest("test_multicore", { "extlib/raylib/src" }, { "src/simulation/multicore.cpp" })
 unitTest("test_mailboxes", { "extlib/raylib/src" })
-unitTest("test_json_manager", { "extlib/raylib/src", "extlib/nlohmann-json/single_include" }, { "src/json_manager.cpp", "src/simulation/world.cpp" })
+unitTest("test_save_manager", { "extlib/raylib/src", "extlib/nlohmann-json/single_include" }, { "src/save_manager.cpp", "src/simulation/world.cpp" })
 unitTest("test_simulation", { "extlib/raylib/src" }, { "src/simulation/simulation.cpp", "src/simulation/world.cpp", "src/simulation/multicore.cpp" })

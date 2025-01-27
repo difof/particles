@@ -16,7 +16,7 @@
 
 using json = nlohmann::json;
 
-class JsonManager {
+class SaveManager {
   public:
     struct ProjectData {
         // Simulation config
@@ -34,8 +34,8 @@ class JsonManager {
         } window_config;
     };
 
-    JsonManager();
-    ~JsonManager() = default;
+    SaveManager();
+    ~SaveManager() = default;
 
     // File operations - now throw exceptions instead of returning bool
     void save_project(const std::string &filepath, const ProjectData &data);
