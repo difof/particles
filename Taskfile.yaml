@@ -28,6 +28,10 @@ tasks:
     requires:
       vars: [CONFIG, PROJECT]
     sources:
+      - src/**/*.hpp
+      - src/**/*.cpp
+      - tests/**/.cpp
+      - tests/**/.hpp
       - premake5.lua
       - build/Makefile
       - build/{{.PROJECT}}.make
