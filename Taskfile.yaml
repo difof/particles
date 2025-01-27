@@ -1,13 +1,20 @@
 version: "3.44"
 
+vars:
+  TESTS:
+    - test_uniformgrid
+    - test_world
+    - test_multicore
+    - test_mailboxes
+    - test_save_manager
+    - test_simulation
+
 tasks:
   premake:
     desc: Generate project build files
     sources:
       - src/**/*.hpp
       - src/**/*.cpp
-      - src/**/*.h
-      - src/**/*.c
       - tests/**/.cpp
       - tests/**/.hpp
       - premake5.lua
@@ -16,128 +23,106 @@ tasks:
       - build/*.make
     cmd: premake gmake2
 
-  build-debug:
-    desc: Build project (Debug)
+  build-binary:
+    internal: true
+    requires:
+      vars: [CONFIG, PROJECT]
     sources:
+      - premake5.lua
       - build/Makefile
-      - build/*.make
+      - build/{{.PROJECT}}.make
     generates:
-      - build/obj/*.o
+      - build/bin/{{.CONFIG}}/{{.PROJECT}}
     deps:
       - premake
-    cmd: make -C build config=debug -j4 particles
+    cmd: make -C build config={{.CONFIG}} -j4 {{.PROJECT}}
 
-  build-release:
+  run-binary:
+    internal: true
+    requires:
+      vars: [CONFIG, PROJECT]
+    deps:
+      - task: build-binary
+        vars:
+          CONFIG: "{{.CONFIG}}"
+          PROJECT: "{{.PROJECT}}"
+    cmd: build/bin/{{.CONFIG}}/{{.PROJECT}}
+
+  build:debug:
+    desc: Build project (Debug)
+    cmds:
+      - task: build-binary
+        vars:
+          CONFIG: debug
+          PROJECT: particles
+
+  build:release:
     desc: Build project (Release)
-    sources:
-      - build/Makefile
-      - build/*.make
-    generates:
-      - build/obj/*.o
     aliases:
       - build
-    deps:
-      - premake
-    cmd: make -C build config=release -j4 particles
+    cmds:
+      - task: build-binary
+        vars:
+          CONFIG: release
+          PROJECT: particles
 
-  run-debug:
+  run:debug:
     desc: Run project
-    deps:
-      - build-debug
-    cmd: build/bin/Debug/particles
+    cmds:
+      - task: run-binary
+        vars:
+          CONFIG: debug
+          PROJECT: particles
 
-  run-release:
+  run:release:
     desc: Run project
-    deps:
-      - build-release
     aliases:
       - run
-    cmd: build/bin/Release/particles
+    cmds:
+      - task: run-binary
+        vars:
+          CONFIG: release
+          PROJECT: particles
 
-  clean:
-    desc: Clean builds
-    cmd: make -C build clean; rm -fr build
+  build:test:
+    desc: Build a unit test
+    requires:
+      vars: [PROJECT]
+    cmds:
+      - task: build-binary
+        vars:
+          CONFIG: debug
+          PROJECT: "{{.PROJECT}}"
 
-  test:build:test_uniformgrid:
-    desc: Build unit test test_uniformgrid
-    deps:
-      - premake
-    cmd: make -C build config=debug -j4 test_uniformgrid
-
-  test:run:test_uniformgrid:
-    desc: Run unit test test_uniformgrid
-    deps:
-      - test:build:test_uniformgrid
-    cmd: build/bin/Debug/test_uniformgrid
-
-  test:build:test_world:
-    desc: Build unit test test_world
-    deps:
-      - premake
-    cmd: make -C build config=debug -j4 test_world
-
-  test:run:test_world:
-    desc: Run unit test test_world
-    deps:
-      - test:build:test_world
-    cmd: build/bin/Debug/test_world
-
-  test:build:test_multicore:
-    desc: Build unit test test_multicore
-    deps:
-      - premake
-    cmd: make -C build config=debug -j4 test_multicore
-
-  test:run:test_multicore:
-    desc: Run unit test test_multicore
-    deps:
-      - test:build:test_multicore
-    cmd: build/bin/Debug/test_multicore
-
-  test:build:test_mailboxes:
-    desc: Build unit test test_mailboxes
-    deps:
-      - premake
-    cmd: make -C build config=debug -j4 test_mailboxes
-
-  test:run:test_mailboxes:
-    desc: Run unit test test_mailboxes
-    deps:
-      - test:build:test_mailboxes
-    cmd: build/bin/Debug/test_mailboxes
-
-  test:build:test_save_manager:
-    desc: Build unit test test_save_manager
-    deps:
-      - premake
-    cmd: make -C build config=debug -j4 test_save_manager
-
-  test:run:test_save_manager:
-    desc: Run unit test test_save_manager
-    deps:
-      - test:build:test_save_manager
-    cmd: build/bin/Debug/test_save_manager
-
-  test:build:test_simulation:
-    desc: Build unit test test_simulation
-    deps:
-      - premake
-    cmd: make -C build config=debug -j4 test_simulation
-
-  test:run:test_simulation:
-    desc: Run unit test test_simulation
-    deps:
-      - test:build:test_simulation
-    cmd: build/bin/Debug/test_simulation
+  build:test:all:
+    desc: Build all unit tests
+    cmds:
+      - for:
+          var: TESTS
+        task: build-binary
+        vars:
+          CONFIG: debug
+          PROJECT: "{{.ITEM}}"
 
   test:all:
     desc: Build and run all unit tests
-    aliases:
-      - test
+    deps:
+      - build:test:all
     cmds:
-      - task: test:run:test_uniformgrid
-      - task: test:run:test_world
-      - task: test:run:test_multicore
-      - task: test:run:test_mailboxes
-      - task: test:run:test_save_manager
-      - task: test:run:test_simulation
+      - for:
+          var: TESTS
+        task: run-binary
+        vars:
+          CONFIG: debug
+          PROJECT: "{{.ITEM}}"
+
+  test:
+    desc: Build and run a unit test. Use `task test -- test_uniformgrid`
+    cmds:
+      - task: build:test
+        vars:
+          PROJECT: "{{index .CLI_ARGS 0}}"
+
+  clean:
+    desc: Clean builds
+    cmd: rm -fr build

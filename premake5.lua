@@ -6,7 +6,7 @@
         - ffmpeg
 ]]
 
-local function linkImGUI()
+local function addImGUI()
     includedirs {
         "extlib/imgui",
         "extlib/rlimgui",
@@ -23,31 +23,30 @@ local function linkImGUI()
     }
 end
 
-local function linkRaylib()
+local function addRaylib()
     includedirs { "extlib/raylib/src" }
     libdirs { "extlib/raylib/src" }
     links { "raylib" }
     dependson { "extlib_raylib" }
+
+    filter "system:macosx"
+        linkoptions { "-framework CoreVideo", "-framework IOKit", "-framework Cocoa", "-framework GLUT", "-framework OpenGL" }
+    filter {}
 end
 
-local function linkTinydir()
+local function addTinydir()
     includedirs { "extlib/tinydir" }
 end
 
-local function linkFmt()
+local function addFmt()
     includedirs { "extlib/fmt/include" }
     libdirs { "extlib/fmt/build" }
     links { "fmt" }
     dependson { "extlib_fmt" }
 end
 
-local function linkJSON()
+local function addJSON()
     includedirs { "extlib/nlohmann-json/single_include" }
-end
-
-local function raylibDeps()
-    filter "system:macosx"
-        linkoptions { "-framework CoreVideo", "-framework IOKit", "-framework Cocoa", "-framework GLUT", "-framework OpenGL" }
 end
 
 local function applyOSAndArchDefines()
@@ -79,13 +78,18 @@ local function applyOSAndArchDefines()
             defines { "__ARM_NEON" }
         filter "system:linux"
             defines { "__ARM_NEON" }
+    
+    filter {}
+end
+
+local function applyOutDir(build) 
+    targetdir ("build/bin/" .. build)
+    objdir ("build/obj/" .. build)
 end
 
 local function applyBaseConfig() 
     kind "ConsoleApp"
     language "C++"
-    targetdir "build/bin/%{cfg.buildcfg}"
-    objdir "build/obj/%{cfg.buildcfg}"
 
     buildoptions { 
         "-std=c++20",
@@ -101,6 +105,7 @@ local function projectBase()
         "src/**.h", "src/**.c",
         "src/**.hpp", "src/**.cpp",
     }
+
     includedirs { 
         "src",
         "extlib/imgui",
@@ -110,8 +115,8 @@ local function projectBase()
         "extlib/fmt/include",
         "extlib/nlohmann-json/single_include"
     }
+
     links { "m", "dl", "pthread" }
-    dependson { }
 
     applyOSAndArchDefines()
 end
@@ -143,12 +148,12 @@ local function unitTest(name, extraIncludes, extraFiles)
         end
         
         links { "m", "dl", "pthread" }
-        dependson { }
 
         applyOSAndArchDefines()
 
         defines { "DEBUG" }
         symbols "On"
+        applyOutDir("debug")
 end
 
 local maxosx_deployment_target = "export MACOSX_DEPLOYMENT_TARGET=10.15; "
@@ -162,24 +167,23 @@ project "extlib_fmt"
     buildcommands {
         "mkdir -p ../extlib/fmt/build",
         maxosx_deployment_target .. "cd ../extlib/fmt/build && " .. "cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE",
-        maxosx_deployment_target .. "make -C ../extlib/fmt/build fmt -j8",
+        maxosx_deployment_target .. "make -C ../extlib/fmt/build fmt -j4",
     }
     cleancommands { maxosx_deployment_target .. "make -C ../extlib/fmt/build clean" }
 
 project "extlib_raylib"
     kind "Makefile"
-    buildcommands { maxosx_deployment_target .. "make -C ../extlib/raylib/src -j8" }
+    buildcommands { maxosx_deployment_target .. "make -C ../extlib/raylib/src -j4" }
     cleancommands { maxosx_deployment_target .. "make -C ../extlib/raylib/src clean" }
 
 project "particles"
-    linkFmt()
-    linkTinydir()
-    linkRaylib()
-    linkImGUI()
-    linkJSON()
-    raylibDeps()
-    
     projectBase()
+
+    addFmt()
+    addTinydir()
+    addRaylib()
+    addImGUI()
+    addJSON()
 
     filter "configurations:Debug"
         defines { "DEBUG" }
@@ -187,11 +191,13 @@ project "particles"
         optimize "Off"
         buildoptions { "-O1", "-fsanitize=address,undefined", "-fno-omit-frame-pointer"}
         linkoptions { "-fsanitize=address,undefined" }
-
+        applyOutDir("debug")
+        
     filter "configurations:Release"
         defines { "NDEBUG" }
         optimize "On"
         buildoptions { "-O3", "-ffast-math", "-fno-math-errno", "-fno-trapping-math" }
+        applyOutDir("release")
 
 unitTest "test_uniformgrid"
 unitTest("test_world", { "extlib/raylib/src" }, { "src/simulation/world.cpp" })
