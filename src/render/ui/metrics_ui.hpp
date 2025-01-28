@@ -76,6 +76,22 @@ class MetricsUI : public IRenderer {
         ImGui::Text("Sim Bounds: %.0f x %.0f", scfg.bounds_width,
                     scfg.bounds_height);
 
+        ImGui::SeparatorText("Camera");
+        ImGui::Text("Position: %.1f, %.1f", ctx.rcfg.camera.x,
+                    ctx.rcfg.camera.y);
+        ImGui::SameLine();
+        if (ImGui::Button("Center")) {
+            // Center camera at (0,0) which centers on the bounds center
+            ctx.rcfg.camera.x = 0.0f;
+            ctx.rcfg.camera.y = 0.0f;
+        }
+        ImGui::Text("Zoom: %.2fx (log: %.2f)", ctx.rcfg.camera.zoom(),
+                    ctx.rcfg.camera.zoom_log);
+        ImGui::SameLine();
+        if (ImGui::Button("Reset")) {
+            ctx.rcfg.camera.zoom_log = 0.0f;
+        }
+
         ImGui::SeparatorText("Debug DPI");
         ImGui::Text("Screen %d x %d", GetScreenWidth(), GetScreenHeight());
         ImGui::Text("Render %d x %d", GetRenderWidth(), GetRenderHeight());

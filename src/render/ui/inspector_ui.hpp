@@ -73,14 +73,20 @@ class InspectorUI : public IRenderer {
             return;
         ImGuiIO &io = ImGui::GetIO();
         const bool uiCapturing = io.WantCaptureMouse;
-        if (m_sel.track_enabled)
+        if (m_sel.track_enabled) {
             return;
-        if (!uiCapturing && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-            m_sel.show_window = false;
-            m_sel.dragging = true;
-            m_sel.has = true;
-            Vector2 mp = GetMousePosition();
-            m_sel.rect = {mp.x, mp.y, 0, 0};
+        }
+        if (!uiCapturing) {
+            bool ctrl_cmd =
+                IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) ||
+                IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
+            if (ctrl_cmd && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                m_sel.show_window = false;
+                m_sel.dragging = true;
+                m_sel.has = true;
+                Vector2 mp = GetMousePosition();
+                m_sel.rect = {mp.x, mp.y, 0, 0};
+            }
         }
         if (m_sel.dragging) {
             Vector2 mp = GetMousePosition();
@@ -110,6 +116,15 @@ class InspectorUI : public IRenderer {
         const float rt_h = (float)ctx.wcfg.screen_height;
         const float ox = std::floor((rt_w - scfg.bounds_width) * 0.5f);
         const float oy = std::floor((rt_h - scfg.bounds_height) * 0.5f);
+
+        // Apply camera transform with proper center-based zooming
+        const float zoom = ctx.rcfg.camera.zoom();
+        const float center_x = scfg.bounds_width * 0.5f;
+        const float center_y = scfg.bounds_height * 0.5f;
+        const float ox_cam =
+            ox + center_x - center_x * zoom - ctx.rcfg.camera.x * zoom;
+        const float oy_cam =
+            oy + center_y - center_y * zoom - ctx.rcfg.camera.y * zoom;
         Rectangle logical = norm(m_sel.rect);
         if (logical.width <= 0 || logical.height <= 0)
             return;
@@ -212,7 +227,7 @@ class InspectorUI : public IRenderer {
         int inCount = 0;
         for (int i = 0; i < totalParticles; ++i) {
             Vector2 p = posAt(i);
-            Vector2 ps = {p.x + ox, p.y + oy};
+            Vector2 ps = {p.x * zoom + ox_cam, p.y * zoom + oy_cam};
             if (ps.x >= logical.x && ps.x < logical.x + logical.width &&
                 ps.y >= logical.y && ps.y < logical.y + logical.height) {
                 ++inCount;
@@ -269,7 +284,7 @@ class InspectorUI : public IRenderer {
             float bestD2 = 1e30f;
             for (int i = 0; i < totalParticles; ++i) {
                 Vector2 p = posAt(i);
-                Vector2 ps = {p.x + ox, p.y + oy};
+                Vector2 ps = {p.x * zoom + ox_cam, p.y * zoom + oy_cam};
                 if (ps.x < logical.x || ps.x > logical.x + logical.width ||
                     ps.y < logical.y || ps.y > logical.y + logical.height)
                     continue;
@@ -310,6 +325,15 @@ class InspectorUI : public IRenderer {
         const float rt_h = (float)ctx.wcfg.screen_height;
         const float ox = std::floor((rt_w - scfg.bounds_width) * 0.5f);
         const float oy = std::floor((rt_h - scfg.bounds_height) * 0.5f);
+
+        // Apply camera transform with proper center-based zooming
+        const float zoom = ctx.rcfg.camera.zoom();
+        const float center_x = scfg.bounds_width * 0.5f;
+        const float center_y = scfg.bounds_height * 0.5f;
+        const float ox_cam =
+            ox + center_x - center_x * zoom - ctx.rcfg.camera.x * zoom;
+        const float oy_cam =
+            oy + center_y - center_y * zoom - ctx.rcfg.camera.y * zoom;
         auto posAt = [&](int i) -> Vector2 {
             const float a = std::clamp(ctx.interp_alpha, 0.0f, 1.0f);
             if (ctx.can_interpolate) {
@@ -331,8 +355,8 @@ class InspectorUI : public IRenderer {
         };
         if (m_sel.tracked_id < totalParticles) {
             Vector2 tp = posAt(m_sel.tracked_id);
-            // Convert to screen space by applying render offset
-            Vector2 tps = {tp.x + ox, tp.y + oy};
+            // Convert to screen space by applying camera transform
+            Vector2 tps = {tp.x * zoom + ox_cam, tp.y * zoom + oy_cam};
             Rectangle r = CenteredRect(tps, m_sel.base_w, m_sel.base_h);
             float sw = (float)GetScreenWidth();
             float sh = (float)GetScreenHeight();

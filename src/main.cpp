@@ -153,6 +153,17 @@ void run() {
             undo_manager.redo();
         }
 
+        // Check if ImGui is capturing input (moved up to be available for all
+        // shortcuts)
+        bool imgui_mouse_captured = false;
+        bool imgui_keyboard_captured = false;
+        if (rcfg.show_ui) {
+            // Check ImGui IO state to see if input is captured
+            ImGuiIO &io = ImGui::GetIO();
+            imgui_mouse_captured = io.WantCaptureMouse;
+            imgui_keyboard_captured = io.WantCaptureKeyboard;
+        }
+
         if (IsKeyPressed(KEY_R)) {
             sim.push_command(mailbox::command::ResetWorld{});
         }
@@ -171,17 +182,78 @@ void run() {
                 sim.push_command(mailbox::command::Resume{});
             }
         }
-        if (IsKeyPressed(KEY_ONE)) {
-            rcfg.show_metrics_ui = !rcfg.show_metrics_ui;
+        // Window toggle shortcuts (only when ImGui is not capturing keyboard)
+        if (!imgui_keyboard_captured) {
+            if (IsKeyPressed(KEY_ONE)) {
+                rcfg.show_metrics_ui = !rcfg.show_metrics_ui;
+            }
+            if (IsKeyPressed(KEY_TWO)) {
+                rcfg.show_editor = !rcfg.show_editor;
+            }
+            if (IsKeyPressed(KEY_THREE)) {
+                rcfg.show_render_config = !rcfg.show_render_config;
+            }
+            if (IsKeyPressed(KEY_FOUR)) {
+                rcfg.show_sim_config = !rcfg.show_sim_config;
+            }
         }
-        if (IsKeyPressed(KEY_TWO)) {
-            rcfg.show_editor = !rcfg.show_editor;
+
+        // Camera controls (keyboard and mouse)
+        const float pan_speed = 10.0f;
+        const float zoom_step = 0.1f;
+        const float min_zoom_log = -3.0f; // 0.125x zoom
+        const float max_zoom_log = 3.0f;  // 8x zoom
+
+        // ImGui input capture already checked above
+
+        // Keyboard panning (only when ImGui is not capturing keyboard)
+        if (!imgui_keyboard_captured) {
+            if (IsKeyDown(KEY_LEFT)) {
+                rcfg.camera.x -= pan_speed;
+            }
+            if (IsKeyDown(KEY_RIGHT)) {
+                rcfg.camera.x += pan_speed;
+            }
+            if (IsKeyDown(KEY_UP)) {
+                rcfg.camera.y -= pan_speed;
+            }
+            if (IsKeyDown(KEY_DOWN)) {
+                rcfg.camera.y += pan_speed;
+            }
         }
-        if (IsKeyPressed(KEY_THREE)) {
-            rcfg.show_render_config = !rcfg.show_render_config;
+
+        // Mouse panning (left click and drag) - only when not over ImGui
+        if (!ctrl_cmd && !imgui_mouse_captured &&
+            IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            Vector2 delta = GetMouseDelta();
+            const float zoom = rcfg.camera.zoom();
+            rcfg.camera.x -= delta.x / zoom;
+            rcfg.camera.y -= delta.y / zoom;
         }
-        if (IsKeyPressed(KEY_FOUR)) {
-            rcfg.show_sim_config = !rcfg.show_sim_config;
+
+        // Keyboard zoom (only when ImGui is not capturing keyboard)
+        if (!imgui_keyboard_captured) {
+            if (IsKeyPressed(KEY_MINUS)) {
+                rcfg.camera.zoom_log =
+                    std::clamp(rcfg.camera.zoom_log - zoom_step, min_zoom_log,
+                               max_zoom_log);
+            }
+            if (IsKeyPressed(KEY_EQUAL)) {
+                rcfg.camera.zoom_log =
+                    std::clamp(rcfg.camera.zoom_log + zoom_step, min_zoom_log,
+                               max_zoom_log);
+            }
+        }
+
+        // Mouse wheel zoom (center-based) - only when not over ImGui
+        if (!imgui_mouse_captured) {
+            float wheel = GetMouseWheelMove();
+            if (wheel != 0) {
+                const float zoom_scale = 0.1f * wheel;
+                rcfg.camera.zoom_log =
+                    std::clamp(rcfg.camera.zoom_log + zoom_scale, min_zoom_log,
+                               max_zoom_log);
+            }
         }
     }
 

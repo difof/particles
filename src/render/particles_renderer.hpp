@@ -36,9 +36,22 @@ class ParticlesRenderer : public IRenderer {
         const float ox = std::floor((rt_w - bounds_w) * 0.5f);
         const float oy = std::floor((rt_h - bounds_h) * 0.5f);
 
-        // Clip rendering to bounds rectangle using scissor mode
-        BeginScissorMode((int)ox, (int)oy, (int)std::max(0.f, bounds_w),
-                         (int)std::max(0.f, bounds_h));
+        // Apply camera transform with proper center-based zooming
+        const float zoom = rcfg.camera.zoom();
+        const float center_x = bounds_w * 0.5f;
+        const float center_y = bounds_h * 0.5f;
+        const float ox_cam =
+            ox + center_x - center_x * zoom - rcfg.camera.x * zoom;
+        const float oy_cam =
+            oy + center_y - center_y * zoom - rcfg.camera.y * zoom;
+
+        // Don't use scissor mode when bounds are smaller than render target
+        // This prevents the visible crop issue with thin bounds
+        // Instead, let the camera transform handle the positioning naturally
+        if (bounds_w >= rt_w && bounds_h >= rt_h) {
+            BeginScissorMode((int)ox, (int)oy, (int)std::max(0.f, bounds_w),
+                             (int)std::max(0.f, bounds_h));
+        }
 
         const int group_size = sim.get_world().get_groups_size();
         const float core_size = rcfg.core_size;
@@ -64,14 +77,15 @@ class ParticlesRenderer : public IRenderer {
                 return {x, y};
             };
             if (rcfg.glow_enabled) {
-                draw_particles_with_glow_offset(
+                draw_particles_with_glow_camera(
                     sim.get_world(), group_size, posAt, glow, core_size,
                     outer_scale, rcfg.outer_rgb_gain, inner_scale,
-                    rcfg.inner_rgb_gain, ox, oy, bounds_w, bounds_h);
+                    rcfg.inner_rgb_gain, ox_cam, oy_cam, bounds_w, bounds_h,
+                    zoom);
             } else {
-                draw_particles_simple_offset(sim.get_world(), group_size, posAt,
-                                             core_size, ox, oy, bounds_w,
-                                             bounds_h);
+                draw_particles_simple_camera(sim.get_world(), group_size, posAt,
+                                             core_size, ox_cam, oy_cam,
+                                             bounds_w, bounds_h, zoom);
             }
         } else {
             const auto &pos = *view.curr;
@@ -82,42 +96,50 @@ class ParticlesRenderer : public IRenderer {
                 return {pos[b + 0], pos[b + 1]};
             };
             if (rcfg.glow_enabled) {
-                draw_particles_with_glow_offset(
+                draw_particles_with_glow_camera(
                     sim.get_world(), group_size, posAt, glow, core_size,
                     outer_scale, rcfg.outer_rgb_gain, inner_scale,
-                    rcfg.inner_rgb_gain, ox, oy, bounds_w, bounds_h);
+                    rcfg.inner_rgb_gain, ox_cam, oy_cam, bounds_w, bounds_h,
+                    zoom);
             } else {
-                draw_particles_simple_offset(sim.get_world(), group_size, posAt,
-                                             core_size, ox, oy, bounds_w,
-                                             bounds_h);
+                draw_particles_simple_camera(sim.get_world(), group_size, posAt,
+                                             core_size, ox_cam, oy_cam,
+                                             bounds_w, bounds_h, zoom);
             }
         }
 
         auto grid = view.grid;
         if (grid) {
             if (rcfg.show_density_heat) {
-                draw_density_heat_offset(*grid, rcfg.heat_alpha, ox, oy);
+                draw_density_heat_camera(*grid, rcfg.heat_alpha, ox_cam, oy_cam,
+                                         zoom);
             }
             if (rcfg.show_velocity_field) {
                 Color velCol = ColorWithA(WHITE, 200);
-                draw_velocity_field_offset(*grid, rcfg.vel_scale,
-                                           rcfg.vel_thickness, velCol, ox, oy);
+                draw_velocity_field_camera(*grid, rcfg.vel_scale,
+                                           rcfg.vel_thickness, velCol, ox_cam,
+                                           oy_cam, zoom);
             }
             if (rcfg.show_grid_lines) {
                 Color gc = ColorWithA(WHITE, 40);
                 for (int cx = 0; cx <= grid->cols; ++cx) {
                     float x = std::min(cx * grid->cell, grid->width);
-                    DrawLineEx({x + ox, oy}, {x + ox, oy + grid->height}, 1.0f,
-                               gc);
+                    DrawLineEx(
+                        {x * zoom + ox_cam, oy_cam},
+                        {x * zoom + ox_cam, oy_cam + grid->height * zoom}, 1.0f,
+                        gc);
                 }
                 for (int cy = 0; cy <= grid->rows; ++cy) {
                     float y = std::min(cy * grid->cell, grid->height);
-                    DrawLineEx({ox, y + oy}, {ox + grid->width, y + oy}, 1.0f,
-                               gc);
+                    DrawLineEx({ox_cam, y * zoom + oy_cam},
+                               {ox_cam + grid->width * zoom, y * zoom + oy_cam},
+                               1.0f, gc);
                 }
             }
         }
-        EndScissorMode();
+        if (bounds_w >= rt_w && bounds_h >= rt_h) {
+            EndScissorMode();
+        }
         EndTextureMode();
     }
 
@@ -304,6 +326,145 @@ class ParticlesRenderer : public IRenderer {
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
                     continue;
                 DrawCircleV({p.x + ox, p.y + oy}, coreSize, col);
+            }
+        }
+    }
+
+    // Camera-aware drawing functions
+    template <typename PosFn>
+    static void draw_particles_with_glow_camera(
+        const World &world, int groupsCount, PosFn posAt, Texture2D glow,
+        float coreSize, float outerScale, float outerRGBGain, float innerScale,
+        float innerRGBGain, float ox, float oy, float bw, float bh,
+        float zoom) {
+        const Rectangle src = {0, 0, (float)glow.width, (float)glow.height};
+        const Vector2 org = {0, 0};
+        BeginBlendMode(BLEND_ALPHA);
+        for (int g = 0; g < groupsCount; ++g) {
+            const int start = world.get_group_start(g);
+            const int end = world.get_group_end(g);
+            const Color tint = TintRGB(world.get_group_color(g), outerRGBGain);
+            for (int i = start; i < end; ++i) {
+                Vector2 p = posAt(i);
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                Vector2 p_screen = {p.x * zoom + ox, p.y * zoom + oy};
+                Rectangle dest = {p_screen.x - outerScale,
+                                  p_screen.y - outerScale, outerScale * 2,
+                                  outerScale * 2};
+                DrawTexturePro(glow, src, dest, org, 0, tint);
+            }
+        }
+        EndBlendMode();
+        BeginBlendMode(BLEND_ALPHA);
+        for (int g = 0; g < groupsCount; ++g) {
+            const int start = world.get_group_start(g);
+            const int end = world.get_group_end(g);
+            const Color tint = TintRGB(world.get_group_color(g), innerRGBGain);
+            for (int i = start; i < end; ++i) {
+                Vector2 p = posAt(i);
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                Vector2 p_screen = {p.x * zoom + ox, p.y * zoom + oy};
+                Rectangle dest = {p_screen.x - innerScale,
+                                  p_screen.y - innerScale, innerScale * 2,
+                                  innerScale * 2};
+                DrawTexturePro(glow, src, dest, org, 0, tint);
+            }
+        }
+        EndBlendMode();
+        for (int g = 0; g < groupsCount; ++g) {
+            const int start = world.get_group_start(g);
+            const int end = world.get_group_end(g);
+            const Color col = world.get_group_color(g);
+            for (int i = start; i < end; ++i) {
+                Vector2 p = posAt(i);
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                Vector2 p_screen = {p.x * zoom + ox, p.y * zoom + oy};
+                DrawCircleV(p_screen, coreSize, col);
+            }
+        }
+    }
+
+    template <typename PosFn>
+    static void draw_particles_simple_camera(const World &world,
+                                             int groupsCount, PosFn posAt,
+                                             float coreSize, float ox, float oy,
+                                             float bw, float bh, float zoom) {
+        for (int g = 0; g < groupsCount; ++g) {
+            const int start = world.get_group_start(g);
+            const int end = world.get_group_end(g);
+            const Color col = world.get_group_color(g);
+            for (int i = start; i < end; ++i) {
+                Vector2 p = posAt(i);
+                if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
+                    continue;
+                Vector2 p_screen = {p.x * zoom + ox, p.y * zoom + oy};
+                DrawCircleV(p_screen, coreSize, col);
+            }
+        }
+    }
+
+    static void
+    draw_density_heat_camera(const mailbox::DrawBuffer::GridFrame &g,
+                             float alpha, float ox, float oy, float zoom) {
+        if (g.cols <= 0 || g.rows <= 0)
+            return;
+        const int C = g.cols * g.rows;
+        int maxCount = 1;
+        for (int i = 0; i < C; ++i)
+            maxCount = std::max(maxCount, g.count[i]);
+        if (maxCount <= 0)
+            return;
+        const unsigned char A =
+            (unsigned char)std::lrint(255.f * std::clamp(alpha, 0.f, 1.f));
+        for (int cy = 0; cy < g.rows; ++cy) {
+            for (int cx = 0; cx < g.cols; ++cx) {
+                int idx = cy * g.cols + cx;
+                float t = (float)g.count[idx] / (float)maxCount;
+                float hue = 270.0f - 210.0f * t;
+                Color c = ColorFromHSV(hue, 0.85f, 1.0f);
+                c.a = A;
+                float x, y, w, h;
+                cell_rect(g, cx, cy, x, y, w, h);
+                DrawRectangle((int)(x * zoom + ox), (int)(y * zoom + oy),
+                              (int)std::ceil(w * zoom),
+                              (int)std::ceil(h * zoom), c);
+            }
+        }
+    }
+
+    static void
+    draw_velocity_field_camera(const mailbox::DrawBuffer::GridFrame &g,
+                               float scale, float thickness, Color col,
+                               float ox, float oy, float zoom) {
+        if (g.cols <= 0 || g.rows <= 0)
+            return;
+        for (int cy = 0; cy < g.rows; ++cy) {
+            for (int cx = 0; cx < g.cols; ++cx) {
+                int idx = cy * g.cols + cx;
+                int cnt = g.count[idx];
+                if (cnt <= 0)
+                    continue;
+                float vx = g.sumVx[idx] / (float)cnt;
+                float vy = g.sumVy[idx] / (float)cnt;
+                float x, y, w, h;
+                cell_rect(g, cx, cy, x, y, w, h);
+                float x0 = (x + w * 0.5f) * zoom + ox;
+                float y0 = (y + h * 0.5f) * zoom + oy;
+                float x1 = x0 + vx * scale * zoom;
+                float y1 = y0 + vy * scale * zoom;
+                DrawLineEx({x0, y0}, {x1, y1}, thickness, col);
+                Vector2 dir = Vector2Normalize({vx, vy});
+                Vector2 ort = {-dir.y, dir.x};
+                float ah = 4.0f + 0.5f * thickness;
+                Vector2 p1 = {x1, y1};
+                Vector2 p2 = {x1 - dir.x * ah + ort.x * ah * 0.5f,
+                              y1 - dir.y * ah + ort.y * ah * 0.5f};
+                Vector2 p3 = {x1 - dir.x * ah - ort.x * ah * 0.5f,
+                              y1 - dir.y * ah - ort.y * ah * 0.5f};
+                DrawTriangle(p1, p2, p3, col);
             }
         }
     }

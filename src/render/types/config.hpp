@@ -1,6 +1,15 @@
 #pragma once
 
+#include <cmath>
 #include <raylib.h>
+
+struct CameraState {
+    float x = 0.0f;
+    float y = 0.0f;
+    float zoom_log = 0.0f; // zoom = 2^zoom_log
+
+    float zoom() const { return std::exp2f(zoom_log); }
+};
 
 struct Config {
     // ui
@@ -33,4 +42,7 @@ struct Config {
     float vel_scale = 0.75f;      // px per (avg speed unit)
     float vel_thickness = 1.0f;   // line thickness
     bool show_grid_lines = false; // debug cell grid
+
+    // camera
+    CameraState camera;
 };
