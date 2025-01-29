@@ -43,6 +43,7 @@ class EditorUI : public IRenderer {
             std::vector<float> rules;
             std::vector<int> sizes;
             std::vector<Color> colors;
+            std::vector<bool> enabled;
             bool live_apply = false;
             bool dirty = false;
         };
@@ -55,11 +56,13 @@ class EditorUI : public IRenderer {
             editor.rules.resize(G * G);
             editor.sizes.resize(G);
             editor.colors.resize(G);
+            editor.enabled.resize(G);
             for (int g = 0; g < G; ++g) {
                 editor.r2[g] = world.r2_of(g);
                 editor.colors[g] = world.get_group_color(g);
                 editor.sizes[g] =
                     world.get_group_end(g) - world.get_group_start(g);
+                editor.enabled[g] = world.is_group_enabled(g);
                 const auto rowv = world.rules_of(g);
                 if (!rowv.row) {
                     for (int j = 0; j < G; ++j)
@@ -88,6 +91,34 @@ class EditorUI : public IRenderer {
             ImGui::PushID(g);
             ImGui::SeparatorText(
                 (std::string("Group ") + std::to_string(g)).c_str());
+
+            // Enable/disable checkbox
+            bool enabled = editor.enabled[g];
+            if (ImGui::Checkbox("Enabled", &enabled)) {
+                bool before = editor.enabled[g];
+                editor.enabled[g] = enabled;
+                bool after = editor.enabled[g];
+                ImGuiID id = ImGui::GetItemID();
+                if (ImGui::IsItemActivated())
+                    ctx.undo.beginInteraction(id);
+                const int gi = g;
+                ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<bool>(
+                    (std::string("editor.enabled.") + std::to_string(gi))
+                        .c_str(),
+                    "Group enabled",
+                    []() {
+                        return false;
+                    },
+                    [&, gi](const bool &e) {
+                        editor.enabled[gi] = e;
+                        editor.dirty = true;
+                    },
+                    before, after)));
+                if (ImGui::IsItemDeactivatedAfterEdit())
+                    ctx.undo.endInteraction(id);
+                editor.dirty = true;
+            }
+
             float col[4] = {
                 editor.colors[g].r / 255.f, editor.colors[g].g / 255.f,
                 editor.colors[g].b / 255.f, editor.colors[g].a / 255.f};
@@ -209,6 +240,7 @@ class EditorUI : public IRenderer {
             patch->r2 = editor.r2;
             patch->rules = editor.rules;
             patch->colors = editor.colors;
+            patch->enabled = editor.enabled;
             patch->hot = hot;
             sim.push_command(mailbox::command::ApplyRules{patch});
             editor.dirty = false;

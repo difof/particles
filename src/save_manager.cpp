@@ -211,6 +211,12 @@ SaveManager::extract_current_seed(const World &world) {
         }
     }
 
+    // Extract enabled state
+    seed->enabled.clear();
+    for (int g = 0; g < G; ++g) {
+        seed->enabled.push_back(world.is_group_enabled(g));
+    }
+
     return seed;
 }
 
@@ -273,6 +279,7 @@ json SaveManager::seed_to_json(
     }
     j["r2"] = seed->r2;
     j["rules"] = seed->rules;
+    j["enabled"] = seed->enabled;
     return j;
 }
 
@@ -297,6 +304,10 @@ SaveManager::json_to_seed(const json &j) {
 
     if (j.contains("rules")) {
         seed->rules = j["rules"].get<std::vector<float>>();
+    }
+
+    if (j.contains("enabled")) {
+        seed->enabled = j["enabled"].get<std::vector<bool>>();
     }
 
     return seed;

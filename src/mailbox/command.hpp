@@ -20,6 +20,8 @@ struct SeedSpec {
     std::vector<float> r2;
     // Full rule matrix row-major (G*G). Optional; if empty defaults used
     std::vector<float> rules;
+    // Per-group enable/disable state; optional, defaults to enabled if empty
+    std::vector<bool> enabled;
 };
 
 // A full rules/radii snapshot to apply. Hot if G same, else sim will require
@@ -29,7 +31,8 @@ struct RulePatch {
     std::vector<float> r2;    // size G, r^2 per group
     std::vector<float> rules; // size G*G, row-major: rules[i*G + j]
     std::vector<Color> colors;
-    bool hot = true; // try hot-apply without reseed
+    std::vector<bool> enabled; // size G, enable/disable per group
+    bool hot = true;           // try hot-apply without reseed
 };
 
 struct SeedWorld {

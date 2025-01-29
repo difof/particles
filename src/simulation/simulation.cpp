@@ -297,6 +297,13 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                                     m_world.set_group_color(i, p.colors[i]);
                             }
                         };
+                        auto apply_enabled_if_any = [&](int Gnow) {
+                            if (!p.enabled.empty() &&
+                                (int)p.enabled.size() == Gnow) {
+                                for (int i = 0; i < Gnow; ++i)
+                                    m_world.set_group_enabled(i, p.enabled[i]);
+                            }
+                        };
                         if (p.groups == groups_count && p.hot) {
                             for (int g = 0; g < groups_count; ++g)
                                 m_world.set_r2(g, p.r2[g]);
@@ -307,6 +314,7 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                                     m_world.set_rule(i, j, row[j]);
                             }
                             apply_colors_if_any(groups_count);
+                            apply_enabled_if_any(groups_count);
                         } else {
                             const int Gnow = m_world.get_groups_size();
                             auto new_seed =
@@ -349,6 +357,7 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                             m_current_seed = new_seed;
                             m_initial_seed = new_seed;
                             apply_colors_if_any(Gnow);
+                            apply_enabled_if_any(Gnow);
                             apply_seed(*m_current_seed, cfg);
                             m_t_window_steps = 0;
                             m_t_window_start = steady_clock::now();
@@ -486,6 +495,12 @@ void Simulation::apply_seed(const mailbox::command::SeedSpec &seed,
             }
         }
     }
+
+    // enabled state
+    for (int g = 0; g < G; ++g) {
+        bool enabled = (g < (int)seed.enabled.size()) ? seed.enabled[g] : true;
+        m_world.set_group_enabled(g, enabled);
+    }
 }
 
 inline void Simulation::kernel_force(int start, int end, KernelData &data) {
@@ -494,6 +509,13 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
         const float ay = m_world.get_py(i);
         const int gi = m_world.group_of(i);
         const float r2 = m_world.r2_of(gi);
+
+        // Skip disabled groups
+        if (!m_world.is_group_enabled(gi)) {
+            data.fx[i] = 0.f;
+            data.fy[i] = 0.f;
+            continue;
+        }
 
         if (r2 <= 0.f) {
             data.fx[i] = 0.f;
@@ -531,7 +553,12 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
                 const float dy = ay - by;
                 const float d2 = dx * dx + dy * dy;
                 if (d2 > 0.f && d2 < r2) {
-                    const float g = rowv.get(m_world.group_of(j));
+                    const int gj = m_world.group_of(j);
+                    // Skip if target particle's group is disabled
+                    if (!m_world.is_group_enabled(gj)) {
+                        continue;
+                    }
+                    const float g = rowv.get(gj);
                     const float invd = rsqrt_fast(std::max(d2, EPS));
                     const float F = g * invd;
                     sumx += F * dx;

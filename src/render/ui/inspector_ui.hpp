@@ -230,10 +230,12 @@ class InspectorUI : public IRenderer {
             Vector2 ps = {p.x * zoom + ox_cam, p.y * zoom + oy_cam};
             if (ps.x >= logical.x && ps.x < logical.x + logical.width &&
                 ps.y >= logical.y && ps.y < logical.y + logical.height) {
-                ++inCount;
                 int g = world.group_of(i);
-                if (g >= 0 && g < G)
+                // Skip disabled groups
+                if (g >= 0 && g < G && world.is_group_enabled(g)) {
+                    ++inCount;
                     ++perGroup[g];
+                }
             }
         }
         ImGui::Text("Particles in region: %d", inCount);
@@ -245,6 +247,9 @@ class InspectorUI : public IRenderer {
             for (int g = 0; g < G; ++g) {
                 int cnt = perGroup[g];
                 if (cnt <= 0)
+                    continue;
+                // Skip disabled groups
+                if (!world.is_group_enabled(g))
                     continue;
                 ImGui::PushID(g);
                 Color rc = world.get_group_color(g);

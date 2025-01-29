@@ -271,6 +271,9 @@ class ParticlesRenderer : public IRenderer {
         const Vector2 org = {0, 0};
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color tint = TintRGB(world.get_group_color(g), outerRGBGain);
@@ -286,6 +289,9 @@ class ParticlesRenderer : public IRenderer {
         EndBlendMode();
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color tint = TintRGB(world.get_group_color(g), innerRGBGain);
@@ -300,6 +306,9 @@ class ParticlesRenderer : public IRenderer {
         }
         EndBlendMode();
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color col = world.get_group_color(g);
@@ -318,6 +327,9 @@ class ParticlesRenderer : public IRenderer {
                                              float coreSize, float ox, float oy,
                                              float bw, float bh) {
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color col = world.get_group_color(g);
@@ -341,6 +353,9 @@ class ParticlesRenderer : public IRenderer {
         const Vector2 org = {0, 0};
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color tint = TintRGB(world.get_group_color(g), outerRGBGain);
@@ -358,6 +373,9 @@ class ParticlesRenderer : public IRenderer {
         EndBlendMode();
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color tint = TintRGB(world.get_group_color(g), innerRGBGain);
@@ -374,6 +392,9 @@ class ParticlesRenderer : public IRenderer {
         }
         EndBlendMode();
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color col = world.get_group_color(g);
@@ -393,6 +414,9 @@ class ParticlesRenderer : public IRenderer {
                                              float coreSize, float ox, float oy,
                                              float bw, float bh, float zoom) {
         for (int g = 0; g < groupsCount; ++g) {
+            // Skip disabled groups
+            if (!world.is_group_enabled(g))
+                continue;
             const int start = world.get_group_start(g);
             const int end = world.get_group_end(g);
             const Color col = world.get_group_color(g);

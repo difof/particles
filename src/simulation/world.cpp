@@ -21,6 +21,7 @@ void World::init_rule_tables(int G) {
     LOG_DEBUG("Initializing rule tables for " + std::to_string(G) + " groups");
     m_g_rules.assign(G * G, 0.f);
     m_g_radii2.assign(G, 0.f);
+    m_g_enabled.assign(G, true); // default to enabled
 }
 
 float World::max_interaction_radius() const {
@@ -68,6 +69,7 @@ void World::reset(bool shrink) {
     m_p_group.clear();
     m_g_rules.clear();
     m_g_radii2.clear();
+    m_g_enabled.clear();
 
     if (shrink) {
         std::vector<float>().swap(m_particles);
@@ -76,6 +78,7 @@ void World::reset(bool shrink) {
         std::vector<int>().swap(m_p_group);
         std::vector<float>().swap(m_g_rules);
         std::vector<float>().swap(m_g_radii2);
+        std::vector<bool>().swap(m_g_enabled);
     }
 }
 
@@ -132,5 +135,8 @@ void World::remove_group(int g) {
     }
     if (!m_g_radii2.empty()) {
         m_g_radii2.erase(m_g_radii2.begin() + g);
+    }
+    if (!m_g_enabled.empty()) {
+        m_g_enabled.erase(m_g_enabled.begin() + g);
     }
 }

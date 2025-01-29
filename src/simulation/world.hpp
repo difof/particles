@@ -106,6 +106,17 @@ class World {
         return m_g_radii2[gsrc];
     }
 
+    inline bool is_group_enabled(int g) const noexcept {
+        if ((size_t)g >= m_g_enabled.size())
+            return true; // default to enabled
+        return m_g_enabled[g];
+    }
+
+    inline void set_group_enabled(int g, bool enabled) {
+        if ((size_t)g < m_g_enabled.size())
+            m_g_enabled[g] = enabled;
+    }
+
   private:
     // each particle takes 4 items
     // px, py, vx, vy
@@ -118,4 +129,5 @@ class World {
     std::vector<float>
         m_g_radii2; // size G: interaction radius^2 for source group
     std::vector<Color> m_g_colors;
+    std::vector<bool> m_g_enabled; // size G: enable/disable state per group
 };
