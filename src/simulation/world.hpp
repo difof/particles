@@ -41,6 +41,8 @@ class World {
         return {&m_g_rules[gsrc * G], G};
     }
     void remove_group(int g);
+    void resize_group(int g, int new_size);
+    void preserve_rules_on_add_group();
 
   public:
     inline int get_groups_size() const noexcept {

@@ -76,12 +76,104 @@ class EditorUI : public IRenderer {
         };
 
         static int last_seen_groups = -1;
-        if (last_seen_groups != stats.groups) {
+        static int last_seen_particles = -1;
+        if (last_seen_groups != stats.groups ||
+            last_seen_particles != stats.particles) {
             refresh_from_world();
             last_seen_groups = stats.groups;
+            last_seen_particles = stats.particles;
         }
 
         ImGui::Text("Groups: %d", stats.groups);
+        ImGui::Separator();
+
+        // Group management controls
+        if (ImGui::Button("Add Group")) {
+            static std::mt19937 rng{std::random_device{}()};
+            std::uniform_real_distribution<float> color_dist(0.2f, 1.0f);
+            Color random_color = {(unsigned char)(color_dist(rng) * 255),
+                                  (unsigned char)(color_dist(rng) * 255),
+                                  (unsigned char)(color_dist(rng) * 255), 255};
+
+            // Create backup of current state before adding group
+            auto backup_state = std::make_shared<mailbox::command::SeedSpec>();
+            const int G = world.get_groups_size();
+            backup_state->sizes.resize(G);
+            backup_state->colors.resize(G);
+            backup_state->r2.resize(G);
+            backup_state->enabled.resize(G);
+            backup_state->rules.resize(G * G);
+
+            for (int g = 0; g < G; ++g) {
+                backup_state->sizes[g] =
+                    world.get_group_end(g) - world.get_group_start(g);
+                backup_state->colors[g] = world.get_group_color(g);
+                backup_state->r2[g] = world.r2_of(g);
+                backup_state->enabled[g] = world.is_group_enabled(g);
+                const auto rowv = world.rules_of(g);
+                for (int j = 0; j < G; ++j) {
+                    backup_state->rules[g * G + j] = rowv.get(j);
+                }
+            }
+
+            // Create undo action
+            auto undo_action =
+                std::make_unique<AddGroupAction>(100, random_color, 4096.f, G);
+            undo_action->set_apply_func([&sim, random_color]() {
+                sim.push_command(
+                    mailbox::command::AddGroup{100, random_color, 4096.f});
+                sim.force_stats_update();
+            });
+            undo_action->set_unapply_func([&sim, backup_state]() {
+                sim.push_command(mailbox::command::SeedWorld{backup_state});
+                sim.force_stats_update();
+            });
+
+            ctx.undo.push(std::move(undo_action));
+            sim.push_command(
+                mailbox::command::AddGroup{100, random_color, 4096.f});
+            sim.force_stats_update();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Remove All Groups")) {
+            // Create backup of current state before clearing all groups
+            auto backup_state = std::make_shared<mailbox::command::SeedSpec>();
+            const int G = world.get_groups_size();
+            backup_state->sizes.resize(G);
+            backup_state->colors.resize(G);
+            backup_state->r2.resize(G);
+            backup_state->enabled.resize(G);
+            backup_state->rules.resize(G * G);
+
+            for (int g = 0; g < G; ++g) {
+                backup_state->sizes[g] =
+                    world.get_group_end(g) - world.get_group_start(g);
+                backup_state->colors[g] = world.get_group_color(g);
+                backup_state->r2[g] = world.r2_of(g);
+                backup_state->enabled[g] = world.is_group_enabled(g);
+                const auto rowv = world.rules_of(g);
+                for (int j = 0; j < G; ++j) {
+                    backup_state->rules[g * G + j] = rowv.get(j);
+                }
+            }
+
+            // Create undo action
+            auto undo_action =
+                std::make_unique<ClearAllGroupsAction>(backup_state);
+            undo_action->set_apply_func([&sim]() {
+                sim.push_command(mailbox::command::RemoveAllGroups{});
+                sim.force_stats_update();
+            });
+            undo_action->set_unapply_func([&sim, backup_state]() {
+                sim.push_command(mailbox::command::SeedWorld{backup_state});
+                sim.force_stats_update();
+            });
+
+            ctx.undo.push(std::move(undo_action));
+            sim.push_command(mailbox::command::RemoveAllGroups{});
+            sim.force_stats_update();
+        }
+
         ImGui::Separator();
         ImGui::Checkbox("Live apply", &editor.live_apply);
 
@@ -91,6 +183,99 @@ class EditorUI : public IRenderer {
             ImGui::PushID(g);
             ImGui::SeparatorText(
                 (std::string("Group ") + std::to_string(g)).c_str());
+
+            // Group management controls
+            ImGui::BeginGroup();
+            if (ImGui::Button("Remove")) {
+                // Create backup of current state before removing group
+                auto backup_state =
+                    std::make_shared<mailbox::command::SeedSpec>();
+                const int G = world.get_groups_size();
+                backup_state->sizes.resize(G);
+                backup_state->colors.resize(G);
+                backup_state->r2.resize(G);
+                backup_state->enabled.resize(G);
+                backup_state->rules.resize(G * G);
+
+                for (int gi = 0; gi < G; ++gi) {
+                    backup_state->sizes[gi] =
+                        world.get_group_end(gi) - world.get_group_start(gi);
+                    backup_state->colors[gi] = world.get_group_color(gi);
+                    backup_state->r2[gi] = world.r2_of(gi);
+                    backup_state->enabled[gi] = world.is_group_enabled(gi);
+                    const auto rowv = world.rules_of(gi);
+                    for (int j = 0; j < G; ++j) {
+                        backup_state->rules[gi * G + j] = rowv.get(j);
+                    }
+                }
+
+                // Create undo action
+                auto undo_action =
+                    std::make_unique<RemoveGroupAction>(g, backup_state);
+                undo_action->set_apply_func([&sim, g]() {
+                    sim.push_command(mailbox::command::RemoveGroup{g});
+                    sim.force_stats_update();
+                });
+                undo_action->set_unapply_func([&sim, backup_state]() {
+                    sim.push_command(mailbox::command::SeedWorld{backup_state});
+                    sim.force_stats_update();
+                });
+
+                ctx.undo.push(std::move(undo_action));
+                sim.push_command(mailbox::command::RemoveGroup{g});
+                sim.force_stats_update();
+            }
+            ImGui::SameLine();
+            int new_size = editor.sizes[g];
+            if (ImGui::InputInt("Size", &new_size, 1, 10,
+                                ImGuiInputTextFlags_EnterReturnsTrue)) {
+                new_size = std::max(0, new_size);
+                if (new_size != editor.sizes[g]) {
+                    int old_size = editor.sizes[g];
+
+                    // Create backup of current state before resizing group
+                    auto backup_state =
+                        std::make_shared<mailbox::command::SeedSpec>();
+                    const int G = world.get_groups_size();
+                    backup_state->sizes.resize(G);
+                    backup_state->colors.resize(G);
+                    backup_state->r2.resize(G);
+                    backup_state->enabled.resize(G);
+                    backup_state->rules.resize(G * G);
+
+                    for (int gi = 0; gi < G; ++gi) {
+                        backup_state->sizes[gi] =
+                            world.get_group_end(gi) - world.get_group_start(gi);
+                        backup_state->colors[gi] = world.get_group_color(gi);
+                        backup_state->r2[gi] = world.r2_of(gi);
+                        backup_state->enabled[gi] = world.is_group_enabled(gi);
+                        const auto rowv = world.rules_of(gi);
+                        for (int j = 0; j < G; ++j) {
+                            backup_state->rules[gi * G + j] = rowv.get(j);
+                        }
+                    }
+
+                    // Create undo action
+                    auto undo_action = std::make_unique<ResizeGroupAction>(
+                        g, old_size, new_size);
+                    undo_action->set_apply_func([&sim, g, new_size]() {
+                        sim.push_command(
+                            mailbox::command::ResizeGroup{g, new_size});
+                        sim.force_stats_update();
+                    });
+                    undo_action->set_unapply_func([&sim, backup_state]() {
+                        sim.push_command(
+                            mailbox::command::SeedWorld{backup_state});
+                        sim.force_stats_update();
+                    });
+
+                    ctx.undo.push(std::move(undo_action));
+                    sim.push_command(
+                        mailbox::command::ResizeGroup{g, new_size});
+                    sim.force_stats_update();
+                }
+            }
+            ImGui::EndGroup();
 
             // Enable/disable checkbox
             bool enabled = editor.enabled[g];
@@ -149,9 +334,6 @@ class EditorUI : public IRenderer {
                     ctx.undo.endInteraction(id);
                 editor.dirty = true;
             }
-            int sz = editor.sizes[g];
-            ImGui::InputInt("Size (info)", &sz, 0, 0,
-                            ImGuiInputTextFlags_ReadOnly);
             float r = std::sqrt(std::max(0.f, editor.r2[g]));
             if (ImGui::SliderFloat("Radius (r)", &r, 0.f, 300.f, "%.1f")) {
                 float before = editor.r2[g];

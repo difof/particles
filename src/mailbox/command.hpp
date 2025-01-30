@@ -57,14 +57,22 @@ struct RemoveGroup {
     int group_index = -1;
 };
 
+struct RemoveAllGroups {};
+
+struct ResizeGroup {
+    int group_index = -1;
+    int new_size = 0;
+};
+
 struct Pause {};
 
 struct Resume {};
 
 struct OneStep {};
 
-using Command = std::variant<SeedWorld, ResetWorld, Quit, ApplyRules, AddGroup,
-                             RemoveGroup, Pause, Resume, OneStep>;
+using Command =
+    std::variant<SeedWorld, ResetWorld, Quit, ApplyRules, AddGroup, RemoveGroup,
+                 RemoveAllGroups, ResizeGroup, Pause, Resume, OneStep>;
 
 class QueueV {
   public:

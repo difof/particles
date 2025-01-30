@@ -140,3 +140,75 @@ void World::remove_group(int g) {
         m_g_enabled.erase(m_g_enabled.begin() + g);
     }
 }
+
+void World::resize_group(int g, int new_size) {
+    const int G = get_groups_size();
+    if (g < 0 || g >= G || new_size < 0)
+        return;
+
+    const int current_size = get_group_size(g);
+    const int start = get_group_start(g);
+
+    if (new_size == current_size) {
+        // Still need to finalize groups to ensure consistency
+        finalize_groups();
+        return;
+    }
+
+    if (new_size > current_size) {
+        // Add particles
+        const int add_count = new_size - current_size;
+        m_particles.resize(m_particles.size() + add_count * 4, 0.);
+
+        // Update group ranges for subsequent groups
+        for (int gi = g + 1; gi < G; ++gi) {
+            m_g_ranges[gi * 2 + 0] += add_count;
+            m_g_ranges[gi * 2 + 1] += add_count;
+        }
+        m_g_ranges[g * 2 + 1] += add_count;
+
+    } else if (new_size < current_size) {
+        // Remove particles
+        const int remove_count = current_size - new_size;
+        const int end = get_group_end(g);
+
+        // Remove particles from the end of the group
+        const size_t f0 = size_t(end - remove_count) * 4;
+        const size_t f1 = size_t(end) * 4;
+        m_particles.erase(m_particles.begin() + f0, m_particles.begin() + f1);
+
+        // Update group ranges for subsequent groups
+        for (int gi = g + 1; gi < G; ++gi) {
+            m_g_ranges[gi * 2 + 0] -= remove_count;
+            m_g_ranges[gi * 2 + 1] -= remove_count;
+        }
+        m_g_ranges[g * 2 + 1] -= remove_count;
+    }
+
+    finalize_groups();
+}
+
+void World::preserve_rules_on_add_group() {
+    const int old_G = get_groups_size() - 1; // -1 because we just added a group
+    if (old_G <= 0)
+        return;
+
+    const int new_G = get_groups_size();
+
+    // Backup old data
+    std::vector<float> old_rules = m_g_rules;
+    std::vector<float> old_radii2 = m_g_radii2;
+    std::vector<bool> old_enabled = m_g_enabled;
+
+    // Reinitialize rule tables
+    init_rule_tables(new_G);
+
+    // Restore old rules
+    for (int i = 0; i < old_G; ++i) {
+        for (int j = 0; j < old_G; ++j) {
+            set_rule(i, j, old_rules[i * old_G + j]);
+        }
+        set_r2(i, old_radii2[i]);
+        set_group_enabled(i, old_enabled[i]);
+    }
+}

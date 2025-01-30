@@ -4,9 +4,15 @@
 #include <functional>
 #include <imgui.h>
 #include <memory>
+#include <raylib.h>
 #include <string>
 #include <utility>
 #include <vector>
+
+// Forward declarations
+namespace mailbox::command {
+struct SeedSpec;
+}
 
 // Simple, generic undo/redo with interaction-based coalescing.
 
@@ -149,6 +155,94 @@ class ValueAction : public IAction {
     Setter m_set;
     T m_before;
     T m_after;
+};
+
+// Forward declarations for group undo actions
+class Simulation;
+class World;
+
+// Custom undo action for group removal
+class RemoveGroupAction : public IAction {
+  public:
+    RemoveGroupAction(int group_index,
+                      std::shared_ptr<mailbox::command::SeedSpec> backup_state);
+    const char *name() const override { return "Remove Group"; }
+    void apply() override;
+    void unapply() override;
+    bool canCoalesce(const IAction &other) const override { return false; }
+    bool coalesce(const IAction &other) override { return false; }
+
+    void set_apply_func(std::function<void()> func) { m_apply_func = func; }
+    void set_unapply_func(std::function<void()> func) { m_unapply_func = func; }
+
+  private:
+    int m_group_index;
+    std::shared_ptr<mailbox::command::SeedSpec> m_backup_state;
+    std::function<void()> m_apply_func;
+    std::function<void()> m_unapply_func;
+};
+
+// Custom undo action for group addition
+class AddGroupAction : public IAction {
+  public:
+    AddGroupAction(int size, Color color, float r2, int group_index);
+    const char *name() const override { return "Add Group"; }
+    void apply() override;
+    void unapply() override;
+    bool canCoalesce(const IAction &other) const override { return false; }
+    bool coalesce(const IAction &other) override { return false; }
+
+    void set_apply_func(std::function<void()> func) { m_apply_func = func; }
+    void set_unapply_func(std::function<void()> func) { m_unapply_func = func; }
+
+  private:
+    int m_size;
+    Color m_color;
+    float m_r2;
+    int m_group_index;
+    std::function<void()> m_apply_func;
+    std::function<void()> m_unapply_func;
+};
+
+// Custom undo action for clearing all groups
+class ClearAllGroupsAction : public IAction {
+  public:
+    ClearAllGroupsAction(
+        std::shared_ptr<mailbox::command::SeedSpec> backup_state);
+    const char *name() const override { return "Clear All Groups"; }
+    void apply() override;
+    void unapply() override;
+    bool canCoalesce(const IAction &other) const override { return false; }
+    bool coalesce(const IAction &other) override { return false; }
+
+    void set_apply_func(std::function<void()> func) { m_apply_func = func; }
+    void set_unapply_func(std::function<void()> func) { m_unapply_func = func; }
+
+  private:
+    std::shared_ptr<mailbox::command::SeedSpec> m_backup_state;
+    std::function<void()> m_apply_func;
+    std::function<void()> m_unapply_func;
+};
+
+// Custom undo action for group resize
+class ResizeGroupAction : public IAction {
+  public:
+    ResizeGroupAction(int group_index, int old_size, int new_size);
+    const char *name() const override { return "Resize Group"; }
+    void apply() override;
+    void unapply() override;
+    bool canCoalesce(const IAction &other) const override { return false; }
+    bool coalesce(const IAction &other) override { return false; }
+
+    void set_apply_func(std::function<void()> func) { m_apply_func = func; }
+    void set_unapply_func(std::function<void()> func) { m_unapply_func = func; }
+
+  private:
+    int m_group_index;
+    int m_old_size;
+    int m_new_size;
+    std::function<void()> m_apply_func;
+    std::function<void()> m_unapply_func;
 };
 
 #endif

@@ -68,6 +68,7 @@ class Simulation {
     mailbox::SimulationConfig::Snapshot get_config() const;
     const World &get_world() const;
     inline RunState get_run_state() const noexcept { return m_t_run_state; }
+    void force_stats_update();
 
   private:
     void clear_world();

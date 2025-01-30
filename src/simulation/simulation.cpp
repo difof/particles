@@ -104,6 +104,18 @@ mailbox::SimulationConfig::Snapshot Simulation::get_config() const {
 
 const World &Simulation::get_world() const { return m_world; }
 
+void Simulation::force_stats_update() {
+    mailbox::SimulationStats::Snapshot st;
+    st.effective_tps = m_t_last_published_tps;
+    st.particles = m_world.get_particles_size();
+    st.groups = m_world.get_groups_size();
+    st.sim_threads = 1;  // Default value for forced update
+    st.last_step_ns = 0; // Not applicable for forced update
+    st.published_ns = now_ns();
+    st.num_steps = 0; // Not applicable for forced update
+    m_mail_stats.publish(st);
+}
+
 void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     const int particles_count = m_world.get_particles_size();
     if (particles_count == 0)
@@ -366,9 +378,19 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                 } else if constexpr (std::is_same_v<
                                          T, mailbox::command::AddGroup>) {
                     const auto &ag = c;
+                    const int old_G = m_world.get_groups_size();
                     m_world.add_group(ag.size, ag.color);
                     m_world.finalize_groups();
-                    m_world.init_rule_tables(m_world.get_groups_size());
+
+                    // Only initialize rule tables if this is the first group
+                    if (old_G == 0) {
+                        m_world.init_rule_tables(m_world.get_groups_size());
+                    } else {
+                        // Preserve existing rules when adding to existing
+                        // groups
+                        m_world.preserve_rules_on_add_group();
+                    }
+
                     int gn = m_world.get_groups_size() - 1;
                     m_world.set_r2(gn, ag.r2);
                     {
@@ -391,11 +413,100 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
                     int gi = c.group_index;
                     const int G = m_world.get_groups_size();
                     if (gi >= 0 && gi < G) {
+                        // Backup data BEFORE removing the group
+                        std::vector<float> old_rules;
+                        std::vector<float> old_radii2;
+                        std::vector<bool> old_enabled;
+                        if (G > 1) {
+                            // Backup current state
+                            for (int i = 0; i < G; ++i) {
+                                old_radii2.push_back(m_world.r2_of(i));
+                                old_enabled.push_back(
+                                    m_world.is_group_enabled(i));
+                                for (int j = 0; j < G; ++j) {
+                                    old_rules.push_back(m_world.rule_val(i, j));
+                                }
+                            }
+                        }
+
                         m_world.remove_group(gi);
                         m_world.finalize_groups();
-                        m_world.init_rule_tables(m_world.get_groups_size());
-                        if (m_current_seed)
-                            apply_seed(*m_current_seed, cfg);
+
+                        // Restore rules if we had multiple groups
+                        if (G > 1) {
+                            m_world.init_rule_tables(m_world.get_groups_size());
+
+                            // Restore old rules, skipping the removed group
+                            for (int i = 0; i < G; ++i) {
+                                if (i == gi)
+                                    continue; // Skip the removed group
+
+                                int new_i =
+                                    (i > gi)
+                                        ? i - 1
+                                        : i; // Adjust index for removed group
+
+                                for (int j = 0; j < G; ++j) {
+                                    if (j == gi)
+                                        continue; // Skip the removed group
+
+                                    int new_j = (j > gi)
+                                                    ? j - 1
+                                                    : j; // Adjust index for
+                                                         // removed group
+                                    m_world.set_rule(new_i, new_j,
+                                                     old_rules[i * G + j]);
+                                }
+                                m_world.set_r2(new_i, old_radii2[i]);
+                                m_world.set_group_enabled(new_i,
+                                                          old_enabled[i]);
+                            }
+                        } else {
+                            m_world.init_rule_tables(m_world.get_groups_size());
+                        }
+
+                        // Don't reseed - just clear the current seed since it's
+                        // no longer valid
+                        m_current_seed = nullptr;
+                        m_t_window_steps = 0;
+                        m_t_window_start = steady_clock::now();
+                    }
+                } else if constexpr (std::is_same_v<
+                                         T,
+                                         mailbox::command::RemoveAllGroups>) {
+                    m_world.reset(true);
+                    m_world.init_rule_tables(0);
+                    m_current_seed = nullptr;
+                    m_t_window_steps = 0;
+                    m_t_window_start = steady_clock::now();
+                } else if constexpr (std::is_same_v<
+                                         T, mailbox::command::ResizeGroup>) {
+                    int gi = c.group_index;
+                    int new_size = c.new_size;
+                    const int G = m_world.get_groups_size();
+                    if (gi >= 0 && gi < G && new_size >= 0) {
+                        const int current_size = m_world.get_group_size(gi);
+                        const int start = m_world.get_group_start(gi);
+
+                        m_world.resize_group(gi, new_size);
+
+                        // Initialize new particles if we added any
+                        if (new_size > current_size) {
+                            std::mt19937 rng{std::random_device{}()};
+                            std::uniform_real_distribution<float> rx(
+                                0.f, cfg.bounds_width);
+                            std::uniform_real_distribution<float> ry(
+                                0.f, cfg.bounds_height);
+
+                            for (int i = start + current_size;
+                                 i < start + new_size; ++i) {
+                                m_world.set_px(i, rx(rng));
+                                m_world.set_py(i, ry(rng));
+                                m_world.set_vx(i, 0.f);
+                                m_world.set_vy(i, 0.f);
+                            }
+                        }
+
                         m_t_window_steps = 0;
                         m_t_window_start = steady_clock::now();
                     }
