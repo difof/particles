@@ -15,6 +15,7 @@
 
 void run() {
     LOG_INFO("Starting particles application");
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1080, 800, "Particles");
 
     int monitor = GetCurrentMonitor();
@@ -134,6 +135,22 @@ void run() {
     }
 
     while (!WindowShouldClose()) {
+        // Handle window resize
+        if (IsWindowResized()) {
+            int newWidth = GetScreenWidth();
+            int newHeight = GetScreenHeight();
+            LOG_INFO("Window resized to " + std::to_string(newWidth) + "x" +
+                     std::to_string(newHeight));
+
+            // Update window config
+            wcfg.screen_width = newWidth;
+            wcfg.screen_height = newHeight;
+            wcfg.render_width = newWidth;
+
+            // Resize render manager components
+            rman.resize(wcfg);
+        }
+
         if (rman.draw_frame(sim, rcfg))
             break;
 

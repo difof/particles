@@ -27,6 +27,12 @@ class RenderManager {
 
     ~RenderManager() {}
 
+    void resize(const WindowConfig &wcfg) {
+        m_wcfg = wcfg;
+        m_particles.resize(wcfg);
+        m_inspector.resize();
+    }
+
     bool draw_frame(Simulation &sim, Config &rcfg) {
         auto view = sim.begin_read_draw();
         bool can_interpolate = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&

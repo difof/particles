@@ -12,9 +12,16 @@
 class ParticlesRenderer : public IRenderer {
   public:
     ParticlesRenderer(const WindowConfig &wcfg)
-        : m_rt(LoadRenderTexture(wcfg.render_width, wcfg.screen_height)) {}
+        : m_wcfg(wcfg),
+          m_rt(LoadRenderTexture(wcfg.render_width, wcfg.screen_height)) {}
 
     ~ParticlesRenderer() override { UnloadRenderTexture(m_rt); }
+
+    void resize(const WindowConfig &wcfg) {
+        UnloadRenderTexture(m_rt);
+        m_wcfg = wcfg;
+        m_rt = LoadRenderTexture(wcfg.render_width, wcfg.screen_height);
+    }
 
     RenderTexture2D &texture() { return m_rt; }
     const RenderTexture2D &texture() const { return m_rt; }
@@ -144,6 +151,7 @@ class ParticlesRenderer : public IRenderer {
     }
 
   private:
+    WindowConfig m_wcfg;
     RenderTexture2D m_rt{};
     static inline Color TintRGB(Color c, float k) {
         auto clamp = [](int v) {

@@ -57,6 +57,11 @@ class InspectorUI : public IRenderer {
     }
     ~InspectorUI() override { UnloadRenderTexture(m_rt); }
 
+    void resize() {
+        UnloadRenderTexture(m_rt);
+        m_rt = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
+    }
+
     RenderTexture2D &texture() { return m_rt; }
     const RenderTexture2D &texture() const { return m_rt; }
 
