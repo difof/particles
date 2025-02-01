@@ -11,6 +11,7 @@
 #include "../../undo.hpp"
 #include "../../window_config.hpp"
 #include "../renderer.hpp"
+#include "smart_randomizer.hpp"
 
 class EditorUI : public IRenderer {
   public:
@@ -466,6 +467,13 @@ class EditorUI : public IRenderer {
             for (int i = 0; i < editor.G; ++i)
                 for (int j = 0; j < editor.G; ++j)
                     editor.rules[i * editor.G + j] = dist(rng);
+            editor.dirty = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Smart Randomize")) {
+            SmartRandomizer randomizer;
+            editor.rules = randomizer.generate_rules(editor.colors,
+                                                     editor.sizes, editor.G);
             editor.dirty = true;
         }
 
