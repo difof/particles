@@ -16,11 +16,21 @@
 void run() {
     LOG_INFO("Starting particles application");
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(1080, 800, "Particles");
+
+    // Initialize singletons first to load window state
+    SaveManager json_manager;
+    auto window_state = json_manager.load_window_state();
+
+    InitWindow(window_state.width, window_state.height, "Particles");
+
+    // Set window position if we have saved position
+    if (window_state.x != 0 || window_state.y != 0) {
+        SetWindowPosition(window_state.x, window_state.y);
+    }
 
     int monitor = GetCurrentMonitor();
-    int screenW = GetMonitorWidth(monitor);
-    int screenH = GetMonitorHeight(monitor) - 60;
+    int screenW = GetScreenWidth();
+    int screenH = GetScreenHeight();
     int panelW = 500;
     int texW = screenW;
 
@@ -51,8 +61,7 @@ void run() {
     SetTargetFPS(60);
     rlImGuiSetup(true);
 
-    // Initialize singletons
-    SaveManager json_manager;
+    // Initialize remaining singletons
     UndoManager undo_manager;
     std::string last_file = json_manager.get_last_opened_file();
 
@@ -78,8 +87,9 @@ void run() {
                 sim.push_command(mailbox::command::SeedWorld{data.seed});
                 loaded_project = true;
             }
-            // propagate current file path so Save overwrites
-            // TODO: Set current file path in menu bar through context
+            // Set current file path so Save overwrites instead of opening
+            // dialog
+            rman.get_menu_bar().set_current_filepath(last_file);
         } catch (const particles::IOError &e) {
             LOG_ERROR("Failed to load project: " + std::string(e.what()));
         }
@@ -275,6 +285,15 @@ void run() {
     }
 
     sim.end();
+
+    // Save window state before closing
+    SaveManager::WindowState current_state;
+    current_state.width = GetScreenWidth();
+    current_state.height = GetScreenHeight();
+    current_state.x = GetWindowPosition().x;
+    current_state.y = GetWindowPosition().y;
+    json_manager.save_window_state(current_state);
+
     rlImGuiShutdown();
     CloseWindow();
 }

@@ -59,6 +59,16 @@ class SaveManager {
     std::string get_last_opened_file() const;
     void set_last_opened_file(const std::string &filepath);
 
+    // Window state persistence
+    struct WindowState {
+        int width = 1080;
+        int height = 800;
+        int x = 0;
+        int y = 0;
+    };
+    void save_window_state(const WindowState &state);
+    WindowState load_window_state() const;
+
   private:
     // JSON serialization helpers (moved to public for testing)
 
@@ -77,6 +87,7 @@ class SaveManager {
     // Recent files storage
     static constexpr const char *RECENT_FILES_KEY = "recent_files";
     static constexpr const char *LAST_FILE_KEY = "last_file";
+    static constexpr const char *WINDOW_STATE_KEY = "window_state";
     static constexpr const char *CONFIG_FILE = "particles_config.json";
 
     std::string get_config_path() const;

@@ -374,7 +374,11 @@ json SaveManager::render_config_to_json(const Config &config) {
                 {"show_velocity_field", config.show_velocity_field},
                 {"vel_scale", config.vel_scale},
                 {"vel_thickness", config.vel_thickness},
-                {"show_grid_lines", config.show_grid_lines}};
+                {"show_grid_lines", config.show_grid_lines},
+                {"camera",
+                 {{"x", config.camera.x},
+                  {"y", config.camera.y},
+                  {"zoom_log", config.camera.zoom_log}}}};
 }
 
 Config SaveManager::json_to_render_config(const json &j) {
@@ -422,6 +426,17 @@ Config SaveManager::json_to_render_config(const json &j) {
         config.vel_thickness = j["vel_thickness"];
     if (j.contains("show_grid_lines"))
         config.show_grid_lines = j["show_grid_lines"];
+
+    // Load camera state
+    if (j.contains("camera")) {
+        const auto &camera = j["camera"];
+        if (camera.contains("x"))
+            config.camera.x = camera["x"];
+        if (camera.contains("y"))
+            config.camera.y = camera["y"];
+        if (camera.contains("zoom_log"))
+            config.camera.zoom_log = camera["zoom_log"];
+    }
 
     return config;
 }
@@ -478,22 +493,92 @@ std::string SaveManager::get_config_path() const {
 
 void SaveManager::save_config() {
     try {
+        // Load existing config to preserve window state
         json j;
+        std::string config_path = get_config_path();
+        std::ifstream file(config_path);
+        if (file.is_open()) {
+            file >> j;
+            file.close();
+        }
+
+        // Update only recent files and last file
         j[RECENT_FILES_KEY] = m_recent_files;
         j[LAST_FILE_KEY] = m_last_file;
+
+        std::filesystem::create_directories(
+            std::filesystem::path(config_path).parent_path());
+
+        std::ofstream out_file(config_path);
+        if (out_file.is_open()) {
+            out_file << j.dump(2);
+            out_file.close();
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Error saving config: " << e.what() << std::endl;
+    }
+}
+
+void SaveManager::save_window_state(const WindowState &state) {
+    try {
+        json j;
+        j["width"] = state.width;
+        j["height"] = state.height;
+        j["x"] = state.x;
+        j["y"] = state.y;
 
         std::string config_path = get_config_path();
         std::filesystem::create_directories(
             std::filesystem::path(config_path).parent_path());
 
-        std::ofstream file(config_path);
+        // Load existing config, update window state, save back
+        json existing_config;
+        std::ifstream file(config_path);
         if (file.is_open()) {
-            file << j.dump(2);
+            file >> existing_config;
             file.close();
         }
+
+        existing_config[WINDOW_STATE_KEY] = j;
+
+        std::ofstream out_file(config_path);
+        if (out_file.is_open()) {
+            out_file << existing_config.dump(2);
+            out_file.close();
+        }
     } catch (const std::exception &e) {
-        std::cerr << "Error saving config: " << e.what() << std::endl;
+        std::cerr << "Error saving window state: " << e.what() << std::endl;
     }
+}
+
+SaveManager::WindowState SaveManager::load_window_state() const {
+    WindowState state;
+    try {
+        std::string config_path = get_config_path();
+        std::ifstream file(config_path);
+        if (!file.is_open()) {
+            return state; // Return default state
+        }
+
+        json j;
+        file >> j;
+        file.close();
+
+        if (j.contains(WINDOW_STATE_KEY)) {
+            const auto &ws = j[WINDOW_STATE_KEY];
+            if (ws.contains("width"))
+                state.width = ws["width"];
+            if (ws.contains("height"))
+                state.height = ws["height"];
+            if (ws.contains("x"))
+                state.x = ws["x"];
+            if (ws.contains("y"))
+                state.y = ws["y"];
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Error loading window state: " << e.what() << std::endl;
+    }
+    return state;
 }
 
 void SaveManager::load_config() {

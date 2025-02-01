@@ -33,6 +33,9 @@ class RenderManager {
         m_inspector.resize();
     }
 
+    // Access to menu bar for setting current file path
+    MenuBarUI &get_menu_bar() { return m_menu_bar; }
+
     bool draw_frame(Simulation &sim, Config &rcfg) {
         auto view = sim.begin_read_draw();
         bool can_interpolate = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&

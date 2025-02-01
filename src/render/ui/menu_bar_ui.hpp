@@ -23,6 +23,11 @@ class MenuBarUI : public IRenderer {
         render_ui(ctx);
     }
 
+    // Set current file path (used when loading files outside of menu)
+    void set_current_filepath(const std::string &filepath) {
+        m_current_filepath = filepath;
+    }
+
   private:
     std::string m_current_filepath;
     FileDialog m_file_dialog;
