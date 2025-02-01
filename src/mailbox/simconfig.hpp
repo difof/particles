@@ -17,6 +17,7 @@ class SimulationConfig {
         float viscosity;
         float wall_repel;
         float wall_strength;
+        float gravity_x, gravity_y;
         int target_tps;
         int sim_threads;
 
@@ -33,6 +34,8 @@ class SimulationConfig {
             b.viscosity = 0.1f;
             b.wall_repel = 0.f;
             b.wall_strength = 0.f;
+            b.gravity_x = 0.f;
+            b.gravity_y = 0.f;
             b.target_tps = 0;
             b.sim_threads = 1;
             b.draw_report = {false};

@@ -321,6 +321,8 @@ json SaveManager::sim_config_to_json(
                 {"viscosity", config.viscosity},
                 {"wall_repel", config.wall_repel},
                 {"wall_strength", config.wall_strength},
+                {"gravity_x", config.gravity_x},
+                {"gravity_y", config.gravity_y},
                 {"target_tps", config.target_tps},
                 {"sim_threads", config.sim_threads},
                 {"draw_report", {{"grid_data", config.draw_report.grid_data}}}};
@@ -342,6 +344,10 @@ SaveManager::json_to_sim_config(const json &j) {
         config.wall_repel = j["wall_repel"];
     if (j.contains("wall_strength"))
         config.wall_strength = j["wall_strength"];
+    if (j.contains("gravity_x"))
+        config.gravity_x = j["gravity_x"];
+    if (j.contains("gravity_y"))
+        config.gravity_y = j["gravity_y"];
     if (j.contains("target_tps"))
         config.target_tps = j["target_tps"];
     if (j.contains("sim_threads"))

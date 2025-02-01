@@ -185,6 +185,66 @@ class SimConfigUI : public IRenderer {
             }
         }
 
+        ImGui::SeparatorText("Gravity");
+        {
+            float before = scfg.gravity_x;
+            if (ImGui::SliderFloat("Gravity X", &scfg.gravity_x, -1.0f, 1.0f,
+                                   "%.3f")) {
+                push_scfg("sim.gravity_x", "Gravity X", before, scfg.gravity_x,
+                          [&](const float &v) {
+                              auto cfg = sim.get_config();
+                              cfg.gravity_x = v;
+                              sim.update_config(cfg);
+                          });
+                mark(true);
+            }
+        }
+        {
+            float before = scfg.gravity_y;
+            if (ImGui::SliderFloat("Gravity Y", &scfg.gravity_y, -1.0f, 1.0f,
+                                   "%.3f")) {
+                push_scfg("sim.gravity_y", "Gravity Y", before, scfg.gravity_y,
+                          [&](const float &v) {
+                              auto cfg = sim.get_config();
+                              cfg.gravity_y = v;
+                              sim.update_config(cfg);
+                          });
+                mark(true);
+            }
+        }
+        if (ImGui::Button("Reset Gravity")) {
+            float before_x = scfg.gravity_x;
+            float before_y = scfg.gravity_y;
+            ImGuiID id = ImGui::GetItemID();
+            ctx.undo.beginInteraction(id);
+            ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<float>(
+                "sim.gravity_x", "Gravity X",
+                []() {
+                    return 0.0f;
+                },
+                [&](const float &v) {
+                    auto cfg = sim.get_config();
+                    cfg.gravity_x = v;
+                    sim.update_config(cfg);
+                },
+                before_x, 0.0f)));
+            ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<float>(
+                "sim.gravity_y", "Gravity Y",
+                []() {
+                    return 0.0f;
+                },
+                [&](const float &v) {
+                    auto cfg = sim.get_config();
+                    cfg.gravity_y = v;
+                    sim.update_config(cfg);
+                },
+                before_y, 0.0f)));
+            ctx.undo.endInteraction(id);
+            scfg.gravity_x = 0.0f;
+            scfg.gravity_y = 0.0f;
+            mark(true);
+        }
+
         ImGui::SeparatorText("Parallelism");
         unsigned hc = std::thread::hardware_concurrency();
         int max_threads = std::max(1, (int)hc - 2);

@@ -135,6 +135,8 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
     data.k_inverse_viscosity = 1.f - cfg.viscosity;
     data.k_wall_repel = cfg.wall_repel;
     data.k_wall_strength = cfg.wall_strength;
+    data.k_gravity_x = cfg.gravity_x;
+    data.k_gravity_y = cfg.gravity_y;
     data.width = cfg.bounds_width;
     data.height = cfg.bounds_height;
     data.fx = m_fx.data();
@@ -695,6 +697,10 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
                 sumy += (data.height - d - ay) * sW;
             }
         }
+
+        // Apply gravity
+        sumx += data.k_gravity_x;
+        sumy += data.k_gravity_y;
 
         data.fx[i] = sumx;
         data.fy[i] = sumy;
