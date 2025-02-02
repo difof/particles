@@ -31,7 +31,7 @@ class MetricsUI : public IRenderer {
         tps_buf[head] = (float)stats.effective_tps;
         head = (head + 1) % (int)fps_buf.size();
 
-        ImGui::Begin("metrics", &ctx.rcfg.show_metrics_ui);
+        ImGui::Begin("[1] metrics", &ctx.rcfg.show_metrics_ui);
 
         const float width = (float)ctx.wcfg.panel_width;
         const float height = (float)ctx.wcfg.screen_height * 0.30f;

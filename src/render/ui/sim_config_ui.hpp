@@ -45,7 +45,7 @@ class SimConfigUI : public IRenderer {
                 ctx.undo.endInteraction(id);
         };
 
-        ImGui::Begin("Simulation Configuration", &ctx.rcfg.show_sim_config);
+        ImGui::Begin("[4] Simulation Configuration", &ctx.rcfg.show_sim_config);
         ImGui::SetWindowSize(ImVec2{450, 500}, ImGuiCond_FirstUseEver);
 
         ImGui::SeparatorText("Simulation Parameters");

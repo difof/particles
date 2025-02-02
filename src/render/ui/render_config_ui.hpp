@@ -29,7 +29,7 @@ class RenderConfigUI : public IRenderer {
                 scfg_updated = true;
         };
 
-        ImGui::Begin("Render Configuration", &ctx.rcfg.show_render_config);
+        ImGui::Begin("[3] Render Configuration", &ctx.rcfg.show_render_config);
         ImGui::SetWindowSize(ImVec2{500, 600}, ImGuiCond_FirstUseEver);
 
         auto push_rcfg = [&](const char *key, const char *label, auto before,

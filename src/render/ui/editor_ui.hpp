@@ -34,7 +34,7 @@ class EditorUI : public IRenderer {
             return ImVec4(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f);
         };
 
-        ImGui::Begin("Particle & Rule Editor", &ctx.rcfg.show_editor);
+        ImGui::Begin("[2] Particle & Rule Editor", &ctx.rcfg.show_editor);
         ImGui::SetWindowSize(ImVec2{600, 700}, ImGuiCond_FirstUseEver);
 
         // Editor state for groups and rules

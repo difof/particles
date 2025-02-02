@@ -47,6 +47,29 @@ class MenuBarUI : public IRenderer {
 
         // Create main menu bar
         if (ImGui::BeginMainMenuBar()) {
+            // Current project indicator (click to open project)
+            {
+                const char *label_prefix = "Project: ";
+                std::string name;
+                if (m_current_filepath.empty()) {
+                    name = "<unsaved>";
+                } else {
+                    size_t pos = m_current_filepath.find_last_of('/');
+                    if (pos == std::string::npos ||
+                        pos + 1 >= m_current_filepath.size())
+                        name = m_current_filepath;
+                    else
+                        name = m_current_filepath.substr(pos + 1);
+                }
+                std::string btn = std::string(label_prefix) + name;
+                if (ImGui::SmallButton(btn.c_str())) {
+                    handle_open_project(ctx);
+                }
+                if (!m_current_filepath.empty() && ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", m_current_filepath.c_str());
+                }
+                ImGui::SameLine();
+            }
             // File menu
             if (ImGui::BeginMenu("File")) {
                 if (ImGui::MenuItem("New", "Ctrl+N")) {
