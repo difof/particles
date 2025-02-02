@@ -272,14 +272,32 @@ json SaveManager::seed_to_json(
         return json::object();
 
     json j;
-    j["sizes"] = seed->sizes;
-    j["colors"] = json::array();
-    for (const auto &color : seed->colors) {
-        j["colors"].push_back(color_to_json(color));
+
+    // Grouped structure with embedded per-group rules rows
+    const std::size_t group_count =
+        std::min({seed->sizes.size(), seed->colors.size(), seed->r2.size(),
+                  seed->enabled.size()});
+    j["groups"] = json::array();
+    for (std::size_t g = 0; g < group_count; ++g) {
+        json group;
+        group["size"] = seed->sizes[g];
+        group["color"] = color_to_json(seed->colors[g]);
+        group["r2"] = seed->r2[g];
+        group["enabled"] = seed->enabled[g];
+
+        // Embed rules row for this group (source g to all destinations)
+        const std::size_t row_start = g * group_count;
+        json rules_row = json::array();
+        for (std::size_t d = 0; d < group_count; ++d) {
+            const std::size_t idx = row_start + d;
+            rules_row.push_back((idx < seed->rules.size()) ? seed->rules[idx]
+                                                           : 0.0f);
+        }
+        group["rules"] = rules_row;
+
+        j["groups"].push_back(group);
     }
-    j["r2"] = seed->r2;
-    j["rules"] = seed->rules;
-    j["enabled"] = seed->enabled;
+
     return j;
 }
 
@@ -287,6 +305,44 @@ std::shared_ptr<mailbox::command::SeedSpec>
 SaveManager::json_to_seed(const json &j) {
     auto seed = std::make_shared<mailbox::command::SeedSpec>();
 
+    // New grouped format
+    if (j.contains("groups")) {
+        const auto &groups = j["groups"];
+        seed->sizes.clear();
+        seed->colors.clear();
+        seed->r2.clear();
+        seed->enabled.clear();
+        seed->rules.clear();
+
+        for (const auto &g : groups) {
+            if (g.contains("size"))
+                seed->sizes.push_back(g["size"].get<int>());
+            if (g.contains("color"))
+                seed->colors.push_back(json_to_color(g["color"]));
+            if (g.contains("r2"))
+                seed->r2.push_back(g["r2"].get<float>());
+            if (g.contains("enabled"))
+                seed->enabled.push_back(g["enabled"].get<bool>());
+        }
+
+        // Compose global rules from per-group embedded rows
+        const std::size_t G = groups.size();
+        seed->rules.resize(G * G, 0.0f);
+        for (std::size_t i = 0; i < G; ++i) {
+            const auto &gi = groups[i];
+            if (gi.contains("rules") && gi["rules"].is_array()) {
+                const auto &row = gi["rules"];
+                const std::size_t cols = std::min<std::size_t>(row.size(), G);
+                for (std::size_t jcol = 0; jcol < cols; ++jcol) {
+                    seed->rules[i * G + jcol] = row[jcol].get<float>();
+                }
+            }
+        }
+
+        return seed;
+    }
+
+    // Legacy flat arrays fallback
     if (j.contains("sizes")) {
         seed->sizes = j["sizes"].get<std::vector<int>>();
     }
