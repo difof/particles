@@ -1,9 +1,6 @@
-#ifndef __MAILBOX_HPP
-#define __MAILBOX_HPP
+#pragma once
 
-#include "command.hpp"
+#include "command/queue.hpp"
 #include "drawbuffer.hpp"
 #include "simconfig.hpp"
 #include "simstats.hpp"
-
-#endif

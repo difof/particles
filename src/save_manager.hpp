@@ -7,8 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "mailbox/command.hpp"
-#include "mailbox/simconfig.hpp"
+#include "mailbox/mailbox.hpp"
 #include "render/types/config.hpp"
 #include "simulation/world.hpp"
 #include "utility/exceptions.hpp"

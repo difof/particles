@@ -1,4 +1,4 @@
-#include "mailbox/command.hpp"
+#include "mailbox/mailbox.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
 #include "undo.hpp"

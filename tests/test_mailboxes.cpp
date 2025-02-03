@@ -1,9 +1,6 @@
 #include <catch_amalgamated.hpp>
 
-#include "mailbox/command.hpp"
-#include "mailbox/drawbuffer.hpp"
-#include "mailbox/simconfig.hpp"
-#include "mailbox/simstats.hpp"
+#include "mailbox/mailbox.hpp"
 
 using namespace mailbox;
 
@@ -71,7 +68,7 @@ TEST_CASE("DrawBuffer basic write/read", "[mailboxes]") {
 }
 
 TEST_CASE("Command queue push/drain", "[mailboxes]") {
-    mailbox::command::QueueV q;
+    mailbox::command::Queue q;
     q.push(mailbox::command::Pause{});
     q.push(mailbox::command::Resume{});
     auto cmds = q.drain();
