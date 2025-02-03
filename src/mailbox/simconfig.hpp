@@ -1,5 +1,4 @@
-#ifndef __MAILBOX_SIMCONFIG_HPP
-#define __MAILBOX_SIMCONFIG_HPP
+#pragma once
 
 #include <atomic>
 #include <cstdint>
@@ -8,62 +7,70 @@
 #include <vector>
 
 namespace mailbox {
-// UI publishes, sim acquires once per tick.
+
+/**
+ * @brief Thread-safe configuration mailbox for simulation parameters
+ *
+ * This class provides a lock-free double buffering system for simulation
+ * configuration data that allows concurrent reading and writing between UI
+ * and simulation threads. The UI thread publishes configuration updates
+ * while the simulation thread acquires the latest configuration once per tick.
+ */
 class SimulationConfig {
   public:
+    /**
+     * @brief Configuration snapshot containing all simulation parameters
+     *
+     * This struct holds a complete set of simulation configuration parameters
+     * that can be atomically published and acquired between threads.
+     */
     struct Snapshot {
-        float bounds_width, bounds_height;
+        float bounds_width;
+        float bounds_height;
         float time_scale;
         float viscosity;
         float wall_repel;
         float wall_strength;
-        float gravity_x, gravity_y;
+        float gravity_x;
+        float gravity_y;
         int target_tps;
         int sim_threads;
 
+        /**
+         * @brief Drawing and visualization report settings
+         */
         struct DrawReport {
             bool grid_data;
         } draw_report;
     };
 
   public:
-    SimulationConfig() {
-        for (auto &b : m_buffer) {
-            b.bounds_width = b.bounds_height = 0.f;
-            b.time_scale = 1.f;
-            b.viscosity = 0.1f;
-            b.wall_repel = 0.f;
-            b.wall_strength = 0.f;
-            b.gravity_x = 0.f;
-            b.gravity_y = 0.f;
-            b.target_tps = 0;
-            b.sim_threads = 1;
-            b.draw_report = {false};
-        }
-    }
-
-    ~SimulationConfig() = default;
+    /**
+     * @brief Default constructor that initializes all buffer values
+     */
+    SimulationConfig();
+    ~SimulationConfig();
     SimulationConfig(const SimulationConfig &) = delete;
     SimulationConfig(SimulationConfig &&) = delete;
     SimulationConfig &operator=(const SimulationConfig &) = delete;
     SimulationConfig &operator=(SimulationConfig &&) = delete;
 
-    void publish(const Snapshot &s) {
-        std::lock_guard lock(m_write_lock);
-        int back = 1 - m_front.load(std::memory_order_relaxed);
-        m_buffer[back] = s;
-        m_front.store(back, std::memory_order_release);
-    }
+    /**
+     * @brief Publish a new configuration snapshot
+     * @param s The configuration snapshot to publish
+     */
+    void publish(const Snapshot &s);
 
-    Snapshot acquire() const {
-        int f = m_front.load(std::memory_order_acquire);
-        return m_buffer[f];
-    }
+    /**
+     * @brief Acquire the current configuration snapshot
+     * @return The current configuration snapshot
+     */
+    Snapshot acquire() const;
 
   private:
     std::mutex m_write_lock;
     std::atomic<int> m_front{0};
     Snapshot m_buffer[2];
 };
+
 } // namespace mailbox
-#endif // MAILBOXES_HPP
