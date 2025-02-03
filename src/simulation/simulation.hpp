@@ -63,8 +63,8 @@ class Simulation {
     void update_config(mailbox::SimulationConfig::Snapshot &cfg);
     void push_command(const mailbox::command::Command &cmd);
     const std::vector<float> &read_current_draw();
-    mailbox::DrawBuffer::ReadView begin_read_draw();
-    void end_read_draw(const mailbox::DrawBuffer::ReadView &view);
+    mailbox::render::ReadView begin_read_draw();
+    void end_read_draw(const mailbox::render::ReadView &view);
     mailbox::SimulationStats::Snapshot get_stats() const;
     mailbox::SimulationConfig::Snapshot get_config() const;
     const World &get_world() const;
@@ -93,7 +93,7 @@ class Simulation {
     NeighborIndex m_idx;
     std::unique_ptr<SimulationThreadPool> m_pool;
     mailbox::command::Queue m_mail_cmd;
-    mailbox::DrawBuffer m_mail_draw;
+    mailbox::render::DrawBuffer m_mail_draw;
     mailbox::SimulationConfig m_mail_cfg;
     mailbox::SimulationStats m_mail_stats;
     std::thread m_thread;

@@ -10,7 +10,7 @@
 struct Context {
     Simulation &sim;
     Config &rcfg;
-    mailbox::DrawBuffer::ReadView &view;
+    mailbox::render::ReadView &view;
     const WindowConfig &wcfg;
     SaveManager &save;
     UndoManager &undo;
@@ -21,7 +21,7 @@ struct Context {
 
     bool should_exit = false;
 
-    Context(Simulation &sim, Config &rcfg, mailbox::DrawBuffer::ReadView &view,
+    Context(Simulation &sim, Config &rcfg, mailbox::render::ReadView &view,
             const WindowConfig &wcfg, bool can_interpolate, float interp_alpha,
             UndoManager &undo, SaveManager &save)
         : sim(sim), rcfg(rcfg), view(view), wcfg(wcfg), save(save), undo(undo),

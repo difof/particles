@@ -193,8 +193,8 @@ class ParticlesRenderer : public IRenderer {
         return c;
     }
 
-    static inline void cell_rect(const mailbox::DrawBuffer::GridFrame &g,
-                                 int cx, int cy, float &x, float &y, float &w,
+    static inline void cell_rect(const mailbox::render::GridFrame &g, int cx,
+                                 int cy, float &x, float &y, float &w,
                                  float &h) {
         x = cx * g.cell;
         y = cy * g.cell;
@@ -208,9 +208,8 @@ class ParticlesRenderer : public IRenderer {
             h = std::max(0.f, maxH - y);
     }
 
-    static void
-    draw_density_heat_offset(const mailbox::DrawBuffer::GridFrame &g,
-                             float alpha, float ox, float oy) {
+    static void draw_density_heat_offset(const mailbox::render::GridFrame &g,
+                                         float alpha, float ox, float oy) {
         if (g.cols <= 0 || g.rows <= 0)
             return;
         const int C = g.cols * g.rows;
@@ -236,10 +235,9 @@ class ParticlesRenderer : public IRenderer {
         }
     }
 
-    static void
-    draw_velocity_field_offset(const mailbox::DrawBuffer::GridFrame &g,
-                               float scale, float thickness, Color col,
-                               float ox, float oy) {
+    static void draw_velocity_field_offset(const mailbox::render::GridFrame &g,
+                                           float scale, float thickness,
+                                           Color col, float ox, float oy) {
         if (g.cols <= 0 || g.rows <= 0)
             return;
         for (int cy = 0; cy < g.rows; ++cy) {
@@ -438,9 +436,9 @@ class ParticlesRenderer : public IRenderer {
         }
     }
 
-    static void
-    draw_density_heat_camera(const mailbox::DrawBuffer::GridFrame &g,
-                             float alpha, float ox, float oy, float zoom) {
+    static void draw_density_heat_camera(const mailbox::render::GridFrame &g,
+                                         float alpha, float ox, float oy,
+                                         float zoom) {
         if (g.cols <= 0 || g.rows <= 0)
             return;
         const int C = g.cols * g.rows;
@@ -467,10 +465,10 @@ class ParticlesRenderer : public IRenderer {
         }
     }
 
-    static void
-    draw_velocity_field_camera(const mailbox::DrawBuffer::GridFrame &g,
-                               float scale, float thickness, Color col,
-                               float ox, float oy, float zoom) {
+    static void draw_velocity_field_camera(const mailbox::render::GridFrame &g,
+                                           float scale, float thickness,
+                                           Color col, float ox, float oy,
+                                           float zoom) {
         if (g.cols <= 0 || g.rows <= 0)
             return;
         for (int cy = 0; cy < g.rows; ++cy) {

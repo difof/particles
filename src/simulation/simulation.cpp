@@ -86,11 +86,11 @@ const std::vector<float> &Simulation::read_current_draw() {
     return m_mail_draw.read_current_only();
 }
 
-mailbox::DrawBuffer::ReadView Simulation::begin_read_draw() {
+mailbox::render::ReadView Simulation::begin_read_draw() {
     return m_mail_draw.begin_read();
 }
 
-void Simulation::end_read_draw(const mailbox::DrawBuffer::ReadView &view) {
+void Simulation::end_read_draw(const mailbox::render::ReadView &view) {
     m_mail_draw.end_read(view);
 }
 

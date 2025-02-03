@@ -43,7 +43,7 @@ TEST_CASE("SimulationStats publish/acquire", "[mailboxes]") {
 }
 
 TEST_CASE("DrawBuffer basic write/read", "[mailboxes]") {
-    DrawBuffer db;
+    mailbox::render::DrawBuffer db;
     auto &pos = db.begin_write_pos(8);
     auto &vel = db.begin_write_vel(8);
     auto &g = db.begin_write_grid(2, 2, 2, 4.f, 8.f, 8.f);
