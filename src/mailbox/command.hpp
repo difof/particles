@@ -167,7 +167,7 @@ using Command =
     std::variant<SeedWorld, ResetWorld, Quit, ApplyRules, AddGroup, RemoveGroup,
                  RemoveAllGroups, ResizeGroup, Pause, Resume, OneStep>;
 
-class QueueV {
+class Queue {
   public:
     void push(const Command &cmd) {
         std::lock_guard<std::mutex> lk(m_);

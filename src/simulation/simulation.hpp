@@ -92,7 +92,7 @@ class Simulation {
     World m_world;
     NeighborIndex m_idx;
     std::unique_ptr<SimulationThreadPool> m_pool;
-    mailbox::command::QueueV m_mail_cmd;
+    mailbox::command::Queue m_mail_cmd;
     mailbox::DrawBuffer m_mail_draw;
     mailbox::SimulationConfig m_mail_cfg;
     mailbox::SimulationStats m_mail_stats;
