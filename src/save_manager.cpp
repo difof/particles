@@ -137,6 +137,7 @@ void SaveManager::new_project(ProjectData &data) {
                          (Color){200, 122, 255, 255}};
     data.seed->r2 = {80.f * 80.f, 80.f * 80.f, 96.6f * 96.6f, 80.f * 80.f,
                      80.f * 80.f};
+    data.seed->enabled = {true, true, true, true, true}; // All groups enabled by default
     data.seed->rules = {
         // row 0
         +0.926f,
