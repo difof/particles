@@ -6,7 +6,7 @@
 #include <thread>
 
 TEST_CASE("Simulation initialization", "[simulation]") {
-    mailbox::SimulationConfig::Snapshot cfg;
+    mailbox::SimulationConfigSnapshot cfg;
     cfg.bounds_width = 1000.0f;
     cfg.bounds_height = 800.0f;
     cfg.target_tps = 60;
@@ -22,7 +22,7 @@ TEST_CASE("Simulation initialization", "[simulation]") {
 
 TEST_CASE("Simulation config validation", "[simulation]") {
     // Create a valid config first
-    mailbox::SimulationConfig::Snapshot valid_cfg;
+    mailbox::SimulationConfigSnapshot valid_cfg;
     valid_cfg.bounds_width = 1000.0f;
     valid_cfg.bounds_height = 800.0f;
     valid_cfg.target_tps = 60;
@@ -35,7 +35,7 @@ TEST_CASE("Simulation config validation", "[simulation]") {
     Simulation sim(valid_cfg);
 
     // Test invalid bounds
-    auto invalid_cfg = mailbox::SimulationConfig::Snapshot{};
+    auto invalid_cfg = mailbox::SimulationConfigSnapshot{};
     invalid_cfg.bounds_width = -100.0f;
     invalid_cfg.bounds_height = 800.0f;
 
@@ -61,7 +61,7 @@ TEST_CASE("Simulation config validation", "[simulation]") {
 }
 
 TEST_CASE("Simulation lifecycle", "[simulation]") {
-    mailbox::SimulationConfig::Snapshot cfg;
+    mailbox::SimulationConfigSnapshot cfg;
     cfg.bounds_width = 1000.0f;
     cfg.bounds_height = 800.0f;
     cfg.target_tps = 0; // No throttling for tests
@@ -101,7 +101,7 @@ TEST_CASE("Simulation lifecycle", "[simulation]") {
 }
 
 TEST_CASE("Simulation command processing", "[simulation]") {
-    mailbox::SimulationConfig::Snapshot cfg;
+    mailbox::SimulationConfigSnapshot cfg;
     cfg.bounds_width = 1000.0f;
     cfg.bounds_height = 800.0f;
     cfg.target_tps = 0;
@@ -125,7 +125,7 @@ TEST_CASE("Simulation command processing", "[simulation]") {
 }
 
 TEST_CASE("Simulation config updates", "[simulation]") {
-    mailbox::SimulationConfig::Snapshot cfg;
+    mailbox::SimulationConfigSnapshot cfg;
     cfg.bounds_width = 1000.0f;
     cfg.bounds_height = 800.0f;
     cfg.target_tps = 0;
@@ -151,7 +151,7 @@ TEST_CASE("Simulation config updates", "[simulation]") {
 }
 
 TEST_CASE("Simulation boundary conditions", "[simulation]") {
-    mailbox::SimulationConfig::Snapshot cfg;
+    mailbox::SimulationConfigSnapshot cfg;
     cfg.bounds_width = 100.0f;
     cfg.bounds_height = 100.0f;
     cfg.target_tps = 0;
@@ -173,7 +173,7 @@ TEST_CASE("Simulation boundary conditions", "[simulation]") {
 }
 
 TEST_CASE("Simulation zero particles", "[simulation]") {
-    mailbox::SimulationConfig::Snapshot cfg;
+    mailbox::SimulationConfigSnapshot cfg;
     cfg.bounds_width = 1000.0f;
     cfg.bounds_height = 800.0f;
     cfg.target_tps = 0;
@@ -192,7 +192,7 @@ TEST_CASE("Simulation zero particles", "[simulation]") {
 }
 
 TEST_CASE("Simulation stats", "[simulation]") {
-    mailbox::SimulationConfig::Snapshot cfg;
+    mailbox::SimulationConfigSnapshot cfg;
     cfg.bounds_width = 1000.0f;
     cfg.bounds_height = 800.0f;
     cfg.target_tps = 0;

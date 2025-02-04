@@ -4,9 +4,9 @@
 
 using namespace mailbox;
 
-TEST_CASE("SimulationConfig publish/acquire", "[mailboxes]") {
-    SimulationConfig cfg;
-    SimulationConfig::Snapshot s{};
+TEST_CASE("DataSnapshot SimulationConfigSnapshot publish/acquire", "[mailboxes]") {
+    DataSnapshot<SimulationConfigSnapshot> cfg;
+    SimulationConfigSnapshot s{};
     s.bounds_width = 100;
     s.bounds_height = 50;
     s.time_scale = 2.f;
@@ -21,9 +21,9 @@ TEST_CASE("SimulationConfig publish/acquire", "[mailboxes]") {
     REQUIRE(out.draw_report.grid_data == true);
 }
 
-TEST_CASE("SimulationStats publish/acquire", "[mailboxes]") {
-    SimulationStats stats;
-    SimulationStats::Snapshot s{};
+TEST_CASE("DataSnapshot SimulationStatsSnapshot publish/acquire", "[mailboxes]") {
+    DataSnapshot<SimulationStatsSnapshot> stats;
+    SimulationStatsSnapshot s{};
     s.effective_tps = 60;
     s.particles = 100;
     s.groups = 2;
@@ -75,4 +75,29 @@ TEST_CASE("Command queue push/drain", "[mailboxes]") {
     REQUIRE(cmds.size() == 2);
     REQUIRE(std::holds_alternative<mailbox::command::Pause>(cmds[0]));
     REQUIRE(std::holds_alternative<mailbox::command::Resume>(cmds[1]));
+}
+
+// Test case to verify compile-time type constraints
+// This test demonstrates that DataSnapshot only accepts valid snapshot types
+TEST_CASE("DataSnapshot type constraints", "[mailboxes]") {
+    // These should compile successfully
+    DataSnapshot<SimulationConfigSnapshot> config_snapshot;
+    DataSnapshot<SimulationStatsSnapshot> stats_snapshot;
+    
+    // Test that the snapshots work correctly
+    SimulationConfigSnapshot cfg{};
+    cfg.bounds_width = 100.0f;
+    config_snapshot.publish(cfg);
+    auto acquired_cfg = config_snapshot.acquire();
+    REQUIRE(acquired_cfg.bounds_width == Catch::Approx(100.0f));
+    
+    SimulationStatsSnapshot stats{};
+    stats.effective_tps = 60;
+    stats_snapshot.publish(stats);
+    auto acquired_stats = stats_snapshot.acquire();
+    REQUIRE(acquired_stats.effective_tps == 60);
+    
+    // Note: The following would cause a compile-time error if uncommented:
+    // DataSnapshot<int> invalid_snapshot;  // This should fail to compile
+    // DataSnapshot<std::string> invalid_snapshot2;  // This should fail to compile
 }
