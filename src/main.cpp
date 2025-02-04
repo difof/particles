@@ -44,7 +44,7 @@ void run() {
     rcfg.inner_scale_mul = 1.f;
     rcfg.inner_rgb_gain = .52f;
 
-    mailbox::SimulationConfig::Snapshot scfg = {};
+    mailbox::SimulationConfigSnapshot scfg = {};
     scfg.bounds_width = (float)wcfg.render_width;
     scfg.bounds_height = (float)wcfg.screen_height;
     scfg.target_tps = 0;

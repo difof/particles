@@ -19,7 +19,7 @@ class SaveManager {
   public:
     struct ProjectData {
         // Simulation config
-        mailbox::SimulationConfig::Snapshot sim_config;
+        mailbox::SimulationConfigSnapshot sim_config;
 
         // Render config
         Config render_config;
@@ -74,8 +74,8 @@ class SaveManager {
     json seed_to_json(const std::shared_ptr<mailbox::command::SeedSpec> &seed);
     std::shared_ptr<mailbox::command::SeedSpec> json_to_seed(const json &j);
 
-    json sim_config_to_json(const mailbox::SimulationConfig::Snapshot &config);
-    mailbox::SimulationConfig::Snapshot json_to_sim_config(const json &j);
+    json sim_config_to_json(const mailbox::SimulationConfigSnapshot &config);
+    mailbox::SimulationConfigSnapshot json_to_sim_config(const json &j);
 
     json render_config_to_json(const Config &config);
     Config json_to_render_config(const json &j);

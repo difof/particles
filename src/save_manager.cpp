@@ -371,7 +371,7 @@ SaveManager::json_to_seed(const json &j) {
 }
 
 json SaveManager::sim_config_to_json(
-    const mailbox::SimulationConfig::Snapshot &config) {
+    const mailbox::SimulationConfigSnapshot &config) {
     return json{{"bounds_width", config.bounds_width},
                 {"bounds_height", config.bounds_height},
                 {"time_scale", config.time_scale},
@@ -385,9 +385,9 @@ json SaveManager::sim_config_to_json(
                 {"draw_report", {{"grid_data", config.draw_report.grid_data}}}};
 }
 
-mailbox::SimulationConfig::Snapshot
+mailbox::SimulationConfigSnapshot
 SaveManager::json_to_sim_config(const json &j) {
-    mailbox::SimulationConfig::Snapshot config = {};
+    mailbox::SimulationConfigSnapshot config = {};
 
     if (j.contains("bounds_width"))
         config.bounds_width = j["bounds_width"];
