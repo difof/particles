@@ -22,7 +22,7 @@ class RenderConfigUI : public IRenderer {
     void render_ui(Context &ctx) {
         auto &sim = ctx.sim;
         auto &rcfg = ctx.rcfg;
-        mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
+        mailbox::SimulationConfigSnapshot scfg = sim.get_config();
         bool scfg_updated = false;
         auto mark = [&scfg_updated](bool s) {
             if (s)

@@ -35,7 +35,7 @@ class ParticlesRenderer : public IRenderer {
         ClearBackground(rcfg.background_color);
 
         // Center sim bounds inside render target without scaling
-        mailbox::SimulationConfig::Snapshot scfg = sim.get_config();
+        mailbox::SimulationConfigSnapshot scfg = sim.get_config();
         const float bounds_w = std::max(0.f, scfg.bounds_width);
         const float bounds_h = std::max(0.f, scfg.bounds_height);
         const float rt_w = (float)m_rt.texture.width;

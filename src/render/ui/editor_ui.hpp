@@ -27,7 +27,7 @@ class EditorUI : public IRenderer {
   private:
     void render_ui(Context &ctx) {
         auto &sim = ctx.sim;
-        mailbox::SimulationStats::Snapshot stats = sim.get_stats();
+        mailbox::SimulationStatsSnapshot stats = sim.get_stats();
         const World &world = sim.get_world();
 
         auto to_imvec4 = [](Color c) -> ImVec4 {
