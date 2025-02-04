@@ -12,10 +12,32 @@ inline long long now_ns() {
         .count();
 }
 
-Simulation::Simulation(mailbox::SimulationConfig::Snapshot cfg)
+Simulation::Simulation(mailbox::SimulationConfigSnapshot cfg)
     : m_world(), m_idx(), m_pool(std::make_unique<SimulationThreadPool>(1)),
       m_mail_cmd(), m_mail_draw(), m_mail_cfg(), m_mail_stats() {
     LOG_INFO("Initializing simulation");
+    
+    // Initialize DataSnapshot objects with default values
+    mailbox::SimulationConfigSnapshot default_config = {};
+    default_config.bounds_width = default_config.bounds_height = 0.f;
+    default_config.time_scale = 1.f;
+    default_config.viscosity = 0.1f;
+    default_config.wall_repel = 0.f;
+    default_config.wall_strength = 0.f;
+    default_config.gravity_x = 0.f;
+    default_config.gravity_y = 0.f;
+    default_config.target_tps = 0;
+    default_config.sim_threads = 1;
+    default_config.draw_report = {false};
+    
+    // Initialize both buffers
+    m_mail_cfg.publish(default_config);
+    m_mail_cfg.publish(default_config);
+    
+    mailbox::SimulationStatsSnapshot default_stats = {};
+    m_mail_stats.publish(default_stats);
+    m_mail_stats.publish(default_stats);
+    
     update_config(cfg);
 }
 
@@ -47,7 +69,7 @@ void Simulation::resume() { push_command(mailbox::command::Resume{}); }
 
 void Simulation::reset() { push_command(mailbox::command::ResetWorld{}); }
 
-void Simulation::update_config(mailbox::SimulationConfig::Snapshot &cfg) {
+void Simulation::update_config(mailbox::SimulationConfigSnapshot &cfg) {
     // Validate configuration
     if (cfg.bounds_width <= 0 || cfg.bounds_height <= 0) {
         throw particles::ConfigError(
@@ -94,18 +116,18 @@ void Simulation::end_read_draw(const mailbox::render::ReadView &view) {
     m_mail_draw.end_read(view);
 }
 
-mailbox::SimulationStats::Snapshot Simulation::get_stats() const {
+mailbox::SimulationStatsSnapshot Simulation::get_stats() const {
     return m_mail_stats.acquire();
 }
 
-mailbox::SimulationConfig::Snapshot Simulation::get_config() const {
+mailbox::SimulationConfigSnapshot Simulation::get_config() const {
     return m_mail_cfg.acquire();
 }
 
 const World &Simulation::get_world() const { return m_world; }
 
 void Simulation::force_stats_update() {
-    mailbox::SimulationStats::Snapshot st;
+    mailbox::SimulationStatsSnapshot st;
     st.effective_tps = m_t_last_published_tps;
     st.particles = m_world.get_particles_size();
     st.groups = m_world.get_groups_size();
@@ -116,7 +138,7 @@ void Simulation::force_stats_update() {
     m_mail_stats.publish(st);
 }
 
-void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
+void Simulation::step(mailbox::SimulationConfigSnapshot &cfg) {
     const int particles_count = m_world.get_particles_size();
     if (particles_count == 0)
         return;
@@ -168,7 +190,7 @@ void Simulation::step(mailbox::SimulationConfig::Snapshot &cfg) {
         particles_count);
 }
 
-int Simulation::ensure_pool(int t, mailbox::SimulationConfig::Snapshot &cfg) {
+int Simulation::ensure_pool(int t, mailbox::SimulationConfigSnapshot &cfg) {
     int desired = (cfg.sim_threads <= 0) ? compute_sim_threads()
                                          : std::max(1, cfg.sim_threads);
     if (!m_pool || desired != t) {
@@ -195,7 +217,7 @@ void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
             secs = 1;
         m_t_last_published_tps = m_t_window_steps / secs;
 
-        mailbox::SimulationStats::Snapshot st;
+        mailbox::SimulationStatsSnapshot st;
         st.effective_tps = m_t_last_published_tps;
         st.particles = m_world.get_particles_size();
         st.groups = m_world.get_groups_size();
@@ -268,7 +290,7 @@ void Simulation::loop_thread() {
     }
 }
 
-void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
+void Simulation::process_commands(mailbox::SimulationConfigSnapshot &cfg) {
     for (const auto &cmd : m_mail_cmd.drain()) {
         std::visit(
             [&](auto &&c) {
@@ -521,7 +543,7 @@ void Simulation::process_commands(mailbox::SimulationConfig::Snapshot &cfg) {
     }
 }
 
-void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
+void Simulation::publish_draw(mailbox::SimulationConfigSnapshot &cfg) {
     const int particles_count = m_world.get_particles_size();
 
     auto &pos = m_mail_draw.begin_write_pos(size_t(particles_count) * 2);
@@ -566,7 +588,7 @@ void Simulation::publish_draw(mailbox::SimulationConfig::Snapshot &cfg) {
 void Simulation::clear_world() { m_world.reset(false); }
 
 void Simulation::apply_seed(const mailbox::command::SeedSpec &seed,
-                            mailbox::SimulationConfig::Snapshot &cfg) {
+                            mailbox::SimulationConfigSnapshot &cfg) {
     m_world.reset(false);
 
     const int G = (int)seed.sizes.size();

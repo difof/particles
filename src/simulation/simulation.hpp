@@ -45,7 +45,7 @@ class Simulation {
     enum class RunState { NotStarted, Quit, Running, Paused, OneStep };
 
   public:
-    Simulation(mailbox::SimulationConfig::Snapshot cfg);
+    Simulation(mailbox::SimulationConfigSnapshot cfg);
     ~Simulation();
 
     Simulation(const Simulation &) = delete;
@@ -60,13 +60,13 @@ class Simulation {
     void resume();
     void reset();
 
-    void update_config(mailbox::SimulationConfig::Snapshot &cfg);
+    void update_config(mailbox::SimulationConfigSnapshot &cfg);
     void push_command(const mailbox::command::Command &cmd);
     const std::vector<float> &read_current_draw();
     mailbox::render::ReadView begin_read_draw();
     void end_read_draw(const mailbox::render::ReadView &view);
-    mailbox::SimulationStats::Snapshot get_stats() const;
-    mailbox::SimulationConfig::Snapshot get_config() const;
+    mailbox::SimulationStatsSnapshot get_stats() const;
+    mailbox::SimulationConfigSnapshot get_config() const;
     const World &get_world() const;
     inline RunState get_run_state() const noexcept { return m_t_run_state; }
     void force_stats_update();
@@ -74,12 +74,12 @@ class Simulation {
   private:
     void clear_world();
     void apply_seed(const mailbox::command::SeedSpec &seed,
-                    mailbox::SimulationConfig::Snapshot &cfg);
-    void step(mailbox::SimulationConfig::Snapshot &cfg);
+                    mailbox::SimulationConfigSnapshot &cfg);
+    void step(mailbox::SimulationConfigSnapshot &cfg);
     void loop_thread();
-    void process_commands(mailbox::SimulationConfig::Snapshot &cfg);
-    void publish_draw(mailbox::SimulationConfig::Snapshot &cfg);
-    int ensure_pool(int t, mailbox::SimulationConfig::Snapshot &cfg);
+    void process_commands(mailbox::SimulationConfigSnapshot &cfg);
+    void publish_draw(mailbox::SimulationConfigSnapshot &cfg);
+    int ensure_pool(int t, mailbox::SimulationConfigSnapshot &cfg);
     bool can_step() const noexcept;
     void measure_tps(int n_threads,
                      std::chrono::nanoseconds step_diff_ns) noexcept;
@@ -94,8 +94,8 @@ class Simulation {
     std::unique_ptr<SimulationThreadPool> m_pool;
     mailbox::command::Queue m_mail_cmd;
     mailbox::render::DrawBuffer m_mail_draw;
-    mailbox::SimulationConfig m_mail_cfg;
-    mailbox::SimulationStats m_mail_stats;
+    mailbox::DataSnapshot<mailbox::SimulationConfigSnapshot> m_mail_cfg;
+    mailbox::DataSnapshot<mailbox::SimulationStatsSnapshot> m_mail_stats;
     std::thread m_thread;
     // seed state
     std::shared_ptr<mailbox::command::SeedSpec> m_initial_seed;
