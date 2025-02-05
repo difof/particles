@@ -15,7 +15,6 @@ struct Context {
     SaveManager &save;
     UndoManager &undo;
 
-    // interpolation
     bool can_interpolate = false;
     float interp_alpha = 1.0f;
 

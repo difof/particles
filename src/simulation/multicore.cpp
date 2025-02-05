@@ -1,11 +1,13 @@
-#include "multicore.hpp"
 #include <stdexcept>
+
+#include "multicore.hpp"
 
 SimulationThreadPool::SimulationThreadPool(int threads) {
     LOG_DEBUG("Creating thread pool with " + std::to_string(threads) +
               " threads");
     start(threads);
 }
+
 SimulationThreadPool::~SimulationThreadPool() {
     LOG_DEBUG("Destroying thread pool");
     stop();
@@ -50,7 +52,7 @@ void SimulationThreadPool::start(int threads) {
 
 void SimulationThreadPool::stop() {
     if (m_workers.empty()) {
-        throw std::logic_error(
+        throw particles::SimulationError(
             "SimulationThreadPool::stop() called when not started");
     }
 
