@@ -16,8 +16,7 @@ Simulation::Simulation(mailbox::SimulationConfigSnapshot cfg)
     : m_world(), m_idx(), m_pool(std::make_unique<SimulationThreadPool>(1)),
       m_mail_cmd(), m_mail_draw(), m_mail_cfg(), m_mail_stats() {
     LOG_INFO("Initializing simulation");
-    
-    // Initialize DataSnapshot objects with default values
+
     mailbox::SimulationConfigSnapshot default_config = {};
     default_config.bounds_width = default_config.bounds_height = 0.f;
     default_config.time_scale = 1.f;
@@ -29,15 +28,14 @@ Simulation::Simulation(mailbox::SimulationConfigSnapshot cfg)
     default_config.target_tps = 0;
     default_config.sim_threads = 1;
     default_config.draw_report = {false};
-    
-    // Initialize both buffers
+
     m_mail_cfg.publish(default_config);
     m_mail_cfg.publish(default_config);
-    
+
     mailbox::SimulationStatsSnapshot default_stats = {};
     m_mail_stats.publish(default_stats);
     m_mail_stats.publish(default_stats);
-    
+
     update_config(cfg);
 }
 
@@ -59,8 +57,9 @@ void Simulation::end() {
     }
 
     push_command(mailbox::command::Quit{});
-    if (m_thread.joinable())
+    if (m_thread.joinable()) {
         m_thread.join();
+    }
 }
 
 void Simulation::pause() { push_command(mailbox::command::Pause{}); }
@@ -70,7 +69,6 @@ void Simulation::resume() { push_command(mailbox::command::Resume{}); }
 void Simulation::reset() { push_command(mailbox::command::ResetWorld{}); }
 
 void Simulation::update_config(mailbox::SimulationConfigSnapshot &cfg) {
-    // Validate configuration
     if (cfg.bounds_width <= 0 || cfg.bounds_height <= 0) {
         throw particles::ConfigError(
             "Invalid bounds: " + std::to_string(cfg.bounds_width) + "x" +
@@ -126,7 +124,7 @@ mailbox::SimulationConfigSnapshot Simulation::get_config() const {
 
 const World &Simulation::get_world() const { return m_world; }
 
-void Simulation::force_stats_update() {
+void Simulation::force_stats_publish() {
     mailbox::SimulationStatsSnapshot st;
     st.effective_tps = m_t_last_published_tps;
     st.particles = m_world.get_particles_size();
@@ -140,13 +138,16 @@ void Simulation::force_stats_update() {
 
 void Simulation::step(mailbox::SimulationConfigSnapshot &cfg) {
     const int particles_count = m_world.get_particles_size();
-    if (particles_count == 0)
+    if (particles_count == 0) {
         return;
+    }
 
-    if ((int)m_fx.size() != particles_count)
+    if ((int)m_fx.size() != particles_count) {
         m_fx.resize(particles_count);
-    if ((int)m_fy.size() != particles_count)
+    }
+    if ((int)m_fy.size() != particles_count) {
         m_fy.resize(particles_count);
+    }
     std::fill_n(m_fx.data(), particles_count, 0.f);
     std::fill_n(m_fy.data(), particles_count, 0.f);
 
@@ -207,8 +208,7 @@ inline bool Simulation::can_step() const noexcept {
 }
 
 void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
-    static long long num_steps = 0;
-    num_steps++;
+    m_total_steps++;
 
     auto now = steady_clock::now();
     if (now - m_t_window_start >= 1s) {
@@ -225,7 +225,7 @@ void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
         st.last_step_ns = step_diff_ns.count();
         st.published_ns = now_ns();
         if (can_step()) {
-            st.num_steps = num_steps;
+            st.num_steps = m_total_steps;
         }
         m_mail_stats.publish(st);
 
@@ -234,12 +234,12 @@ void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
     }
 }
 
-void Simulation::wait_on_tps(int tps) noexcept {
-    if (tps <= 0) {
+void Simulation::wait_on_tps(int target_tps) noexcept {
+    if (target_tps <= 0) {
         return;
     }
 
-    const auto target_frame_time = nanoseconds(1'000'000'000LL / tps);
+    const auto target_frame_time = nanoseconds(1'000'000'000LL / target_tps);
     const auto now = steady_clock::now();
     const auto elapsed = now - m_t_last_step_time;
 
@@ -251,7 +251,7 @@ void Simulation::wait_on_tps(int tps) noexcept {
 }
 
 void Simulation::loop_thread() {
-    auto cfg = get_config();
+    auto current_config = get_config();
     // no auto seeding; wait for a seed command or reset
     m_world.reset(false);
     m_mail_draw.bootstrap_same_as_current(0, now_ns());
@@ -260,33 +260,35 @@ void Simulation::loop_thread() {
     m_t_window_start = m_t_last_step_time;
     m_t_window_steps = 0;
     m_t_last_published_tps = 0;
-    int last_threads = -9999;
+    m_total_steps = 0;
+    int current_thread_count = -9999;
 
     while (m_t_run_state != RunState::Quit) {
-        last_threads = ensure_pool(last_threads, cfg);
+        current_thread_count =
+            ensure_pool(current_thread_count, current_config);
 
-        process_commands(cfg);
+        process_commands(current_config);
 
         if (m_t_run_state == RunState::Quit) {
             break;
         }
 
-        auto step_begin_ns = steady_clock::now();
+        auto step_begin_time = steady_clock::now();
         if (can_step()) {
-            step(cfg);
+            step(current_config);
         }
-        auto step_end_ns = steady_clock::now();
+        auto step_end_time = steady_clock::now();
         m_t_window_steps++;
 
-        publish_draw(cfg);
-        measure_tps(last_threads, (step_end_ns - step_begin_ns));
-        wait_on_tps(cfg.target_tps);
+        publish_draw(current_config);
+        measure_tps(current_thread_count, (step_end_time - step_begin_time));
+        wait_on_tps(current_config.target_tps);
 
         if (m_t_run_state == RunState::OneStep) {
             m_t_run_state = RunState::Paused;
         }
 
-        cfg = get_config();
+        current_config = get_config();
     }
 }
 
@@ -296,247 +298,38 @@ void Simulation::process_commands(mailbox::SimulationConfigSnapshot &cfg) {
             [&](auto &&c) {
                 using T = std::decay_t<decltype(c)>;
                 if constexpr (std::is_same_v<T, mailbox::command::SeedWorld>) {
-                    if (c.seed) {
-                        m_initial_seed = c.seed;
-                        m_current_seed = c.seed;
-                        apply_seed(*c.seed, cfg);
-                        m_t_window_steps = 0;
-                        m_t_window_start = steady_clock::now();
-                    }
+                    handle_seed_world(c, cfg);
                 } else if constexpr (std::is_same_v<
                                          T, mailbox::command::OneStep>) {
-                    m_t_run_state = RunState::OneStep;
+                    handle_one_step();
                 } else if constexpr (std::is_same_v<T,
                                                     mailbox::command::Pause>) {
-                    m_t_run_state = RunState::Paused;
+                    handle_pause();
                 } else if constexpr (std::is_same_v<T,
                                                     mailbox::command::Resume>) {
-                    m_t_run_state = RunState::Running;
+                    handle_resume();
                 } else if constexpr (std::is_same_v<
                                          T, mailbox::command::ResetWorld>) {
-                    if (m_initial_seed) {
-                        apply_seed(*m_initial_seed, cfg);
-                    } else {
-                        clear_world();
-                    }
-                    m_t_window_steps = 0;
-                    m_t_window_start = steady_clock::now();
+                    handle_reset_world(cfg);
                 } else if constexpr (std::is_same_v<
                                          T, mailbox::command::ApplyRules>) {
-                    if (c.patch) {
-                        const int groups_count = m_world.get_groups_size();
-                        const mailbox::command::RulePatch &p = *c.patch;
-                        auto apply_colors_if_any = [&](int Gnow) {
-                            if (!p.colors.empty() &&
-                                (int)p.colors.size() == Gnow) {
-                                for (int i = 0; i < Gnow; ++i)
-                                    m_world.set_group_color(i, p.colors[i]);
-                            }
-                        };
-                        auto apply_enabled_if_any = [&](int Gnow) {
-                            if (!p.enabled.empty() &&
-                                (int)p.enabled.size() == Gnow) {
-                                for (int i = 0; i < Gnow; ++i)
-                                    m_world.set_group_enabled(i, p.enabled[i]);
-                            }
-                        };
-                        if (p.groups == groups_count && p.hot) {
-                            for (int g = 0; g < groups_count; ++g)
-                                m_world.set_r2(g, p.r2[g]);
-                            for (int i = 0; i < groups_count; ++i) {
-                                const float *row =
-                                    p.rules.data() + i * groups_count;
-                                for (int j = 0; j < groups_count; ++j)
-                                    m_world.set_rule(i, j, row[j]);
-                            }
-                            apply_colors_if_any(groups_count);
-                            apply_enabled_if_any(groups_count);
-                        } else {
-                            const int Gnow = m_world.get_groups_size();
-                            auto new_seed =
-                                std::make_shared<mailbox::command::SeedSpec>();
-                            new_seed->sizes.resize(Gnow);
-                            new_seed->colors.resize(Gnow);
-                            new_seed->r2.resize(Gnow);
-                            new_seed->rules.resize(Gnow * Gnow);
-                            for (int g = 0; g < Gnow; ++g) {
-                                const int start = m_world.get_group_start(g);
-                                const int end = m_world.get_group_end(g);
-                                new_seed->sizes[g] = end - start;
-                                if (!p.colors.empty() &&
-                                    (int)p.colors.size() == Gnow)
-                                    new_seed->colors[g] = p.colors[g];
-                                else
-                                    new_seed->colors[g] =
-                                        m_world.get_group_color(g);
-                                if (!p.r2.empty() && (int)p.r2.size() == Gnow)
-                                    new_seed->r2[g] = p.r2[g];
-                                else
-                                    new_seed->r2[g] = m_world.r2_of(g);
-                            }
-                            if (!p.rules.empty() &&
-                                (int)p.rules.size() == Gnow * Gnow) {
-                                for (int i = 0; i < Gnow; ++i) {
-                                    const float *row =
-                                        p.rules.data() + i * Gnow;
-                                    for (int j = 0; j < Gnow; ++j)
-                                        new_seed->rules[i * Gnow + j] = row[j];
-                                }
-                            } else {
-                                for (int i = 0; i < Gnow; ++i) {
-                                    const auto rowv = m_world.rules_of(i);
-                                    for (int j = 0; j < Gnow; ++j)
-                                        new_seed->rules[i * Gnow + j] =
-                                            rowv.get(j);
-                                }
-                            }
-                            m_current_seed = new_seed;
-                            m_initial_seed = new_seed;
-                            apply_colors_if_any(Gnow);
-                            apply_enabled_if_any(Gnow);
-                            apply_seed(*m_current_seed, cfg);
-                            m_t_window_steps = 0;
-                            m_t_window_start = steady_clock::now();
-                        }
-                    }
+                    handle_apply_rules(c, cfg);
                 } else if constexpr (std::is_same_v<
                                          T, mailbox::command::AddGroup>) {
-                    const auto &ag = c;
-                    const int old_G = m_world.get_groups_size();
-                    m_world.add_group(ag.size, ag.color);
-                    m_world.finalize_groups();
-
-                    // Only initialize rule tables if this is the first group
-                    if (old_G == 0) {
-                        m_world.init_rule_tables(m_world.get_groups_size());
-                    } else {
-                        // Preserve existing rules when adding to existing
-                        // groups
-                        m_world.preserve_rules_on_add_group();
-                    }
-
-                    int gn = m_world.get_groups_size() - 1;
-                    m_world.set_r2(gn, ag.r2);
-                    {
-                        std::mt19937 rng{std::random_device{}()};
-                        std::uniform_real_distribution<float> rx(
-                            0.f, cfg.bounds_width);
-                        std::uniform_real_distribution<float> ry(
-                            0.f, cfg.bounds_height);
-                        const int start = m_world.get_group_start(gn);
-                        const int end = m_world.get_group_end(gn);
-                        for (int i = start; i < end; ++i) {
-                            m_world.set_px(i, rx(rng));
-                            m_world.set_py(i, ry(rng));
-                            m_world.set_vx(i, 0.f);
-                            m_world.set_vy(i, 0.f);
-                        }
-                    }
+                    handle_add_group(c, cfg);
                 } else if constexpr (std::is_same_v<
                                          T, mailbox::command::RemoveGroup>) {
-                    int gi = c.group_index;
-                    const int G = m_world.get_groups_size();
-                    if (gi >= 0 && gi < G) {
-                        // Backup data BEFORE removing the group
-                        std::vector<float> old_rules;
-                        std::vector<float> old_radii2;
-                        std::vector<bool> old_enabled;
-                        if (G > 1) {
-                            // Backup current state
-                            for (int i = 0; i < G; ++i) {
-                                old_radii2.push_back(m_world.r2_of(i));
-                                old_enabled.push_back(
-                                    m_world.is_group_enabled(i));
-                                for (int j = 0; j < G; ++j) {
-                                    old_rules.push_back(m_world.rule_val(i, j));
-                                }
-                            }
-                        }
-
-                        m_world.remove_group(gi);
-                        m_world.finalize_groups();
-
-                        // Restore rules if we had multiple groups
-                        if (G > 1) {
-                            m_world.init_rule_tables(m_world.get_groups_size());
-
-                            // Restore old rules, skipping the removed group
-                            for (int i = 0; i < G; ++i) {
-                                if (i == gi)
-                                    continue; // Skip the removed group
-
-                                int new_i =
-                                    (i > gi)
-                                        ? i - 1
-                                        : i; // Adjust index for removed group
-
-                                for (int j = 0; j < G; ++j) {
-                                    if (j == gi)
-                                        continue; // Skip the removed group
-
-                                    int new_j = (j > gi)
-                                                    ? j - 1
-                                                    : j; // Adjust index for
-                                                         // removed group
-                                    m_world.set_rule(new_i, new_j,
-                                                     old_rules[i * G + j]);
-                                }
-                                m_world.set_r2(new_i, old_radii2[i]);
-                                m_world.set_group_enabled(new_i,
-                                                          old_enabled[i]);
-                            }
-                        } else {
-                            m_world.init_rule_tables(m_world.get_groups_size());
-                        }
-
-                        // Don't reseed - just clear the current seed since it's
-                        // no longer valid
-                        m_current_seed = nullptr;
-                        m_t_window_steps = 0;
-                        m_t_window_start = steady_clock::now();
-                    }
+                    handle_remove_group(c);
                 } else if constexpr (std::is_same_v<
                                          T,
                                          mailbox::command::RemoveAllGroups>) {
-                    m_world.reset(true);
-                    m_world.init_rule_tables(0);
-                    m_current_seed = nullptr;
-                    m_t_window_steps = 0;
-                    m_t_window_start = steady_clock::now();
+                    handle_remove_all_groups();
                 } else if constexpr (std::is_same_v<
                                          T, mailbox::command::ResizeGroup>) {
-                    int gi = c.group_index;
-                    int new_size = c.new_size;
-                    const int G = m_world.get_groups_size();
-                    if (gi >= 0 && gi < G && new_size >= 0) {
-                        const int current_size = m_world.get_group_size(gi);
-                        const int start = m_world.get_group_start(gi);
-
-                        m_world.resize_group(gi, new_size);
-
-                        // Initialize new particles if we added any
-                        if (new_size > current_size) {
-                            std::mt19937 rng{std::random_device{}()};
-                            std::uniform_real_distribution<float> rx(
-                                0.f, cfg.bounds_width);
-                            std::uniform_real_distribution<float> ry(
-                                0.f, cfg.bounds_height);
-
-                            for (int i = start + current_size;
-                                 i < start + new_size; ++i) {
-                                m_world.set_px(i, rx(rng));
-                                m_world.set_py(i, ry(rng));
-                                m_world.set_vx(i, 0.f);
-                                m_world.set_vy(i, 0.f);
-                            }
-                        }
-
-                        m_t_window_steps = 0;
-                        m_t_window_start = steady_clock::now();
-                    }
+                    handle_resize_group(c, cfg);
                 } else if constexpr (std::is_same_v<T,
                                                     mailbox::command::Quit>) {
-                    m_t_run_state = RunState::Quit;
+                    handle_quit();
                 }
             },
             cmd);
@@ -640,134 +433,397 @@ void Simulation::apply_seed(const mailbox::command::SeedSpec &seed,
 
 inline void Simulation::kernel_force(int start, int end, KernelData &data) {
     for (int i = start; i < end; ++i) {
-        const float ax = m_world.get_px(i);
-        const float ay = m_world.get_py(i);
-        const int gi = m_world.group_of(i);
-        const float r2 = m_world.r2_of(gi);
+        const float particle_x = m_world.get_px(i);
+        const float particle_y = m_world.get_py(i);
+        const int group_index = m_world.group_of(i);
+        const float interaction_radius_squared = m_world.r2_of(group_index);
 
-        // Skip disabled groups
-        if (!m_world.is_group_enabled(gi)) {
+        // skip disabled groups
+        if (!m_world.is_group_enabled(group_index)) {
             data.fx[i] = 0.f;
             data.fy[i] = 0.f;
             continue;
         }
 
-        if (r2 <= 0.f) {
+        if (interaction_radius_squared <= 0.f) {
             data.fx[i] = 0.f;
             data.fy[i] = 0.f;
-
             continue;
         }
 
-        float sumx = 0.f, sumy = 0.f;
-        int cx = std::min(int(ax * data.inverse_cell), m_idx.grid.cols() - 1);
-        int cy = std::min(int(ay * data.inverse_cell), m_idx.grid.rows() - 1);
+        float force_x = 0.f, force_y = 0.f;
+        int cell_x = std::min(int(particle_x * data.inverse_cell),
+                              m_idx.grid.cols() - 1);
+        int cell_y = std::min(int(particle_y * data.inverse_cell),
+                              m_idx.grid.rows() - 1);
 
-        const auto rowv = m_world.rules_of(gi);
+        const auto interaction_rules = m_world.rules_of(group_index);
 
         for (int k = 0; k < 9; ++k) {
-            const int nci = m_idx.grid.cell_index(cx + grid_offsets[k][0],
-                                                  cy + grid_offsets[k][1]);
+            const int neighbor_cell_index = m_idx.grid.cell_index(
+                cell_x + grid_offsets[k][0], cell_y + grid_offsets[k][1]);
 
-            if (nci < 0) {
+            if (neighbor_cell_index < 0) {
                 continue;
             }
 
-            const int start = m_idx.grid.cell_start_at(nci);
-            const int count = m_idx.grid.cell_count_at(nci);
-            const auto &idx = m_idx.grid.indices();
-            const int end = start + count;
-            for (int pos = start; pos < end; ++pos) {
-                const int j = idx[pos];
+            const int cell_start =
+                m_idx.grid.cell_start_at(neighbor_cell_index);
+            const int cell_count =
+                m_idx.grid.cell_count_at(neighbor_cell_index);
+            const auto &particle_indices = m_idx.grid.indices();
+            const int cell_end = cell_start + cell_count;
+            for (int pos = cell_start; pos < cell_end; ++pos) {
+                const int j = particle_indices[pos];
                 if (j == i) {
                     continue;
                 }
-                const float bx = m_world.get_px(j);
-                const float by = m_world.get_py(j);
-                const float dx = ax - bx;
-                const float dy = ay - by;
-                const float d2 = dx * dx + dy * dy;
-                if (d2 > 0.f && d2 < r2) {
-                    const int gj = m_world.group_of(j);
-                    // Skip if target particle's group is disabled
-                    if (!m_world.is_group_enabled(gj)) {
+                const float other_particle_x = m_world.get_px(j);
+                const float other_particle_y = m_world.get_py(j);
+                const float dx = particle_x - other_particle_x;
+                const float dy = particle_y - other_particle_y;
+                const float distance_squared = dx * dx + dy * dy;
+                if (distance_squared > 0.f &&
+                    distance_squared < interaction_radius_squared) {
+                    const int other_group_index = m_world.group_of(j);
+                    // skip if target particle's group is disabled
+                    if (!m_world.is_group_enabled(other_group_index)) {
                         continue;
                     }
-                    const float g = rowv.get(gj);
-                    const float invd = rsqrt_fast(std::max(d2, EPS));
-                    const float F = g * invd;
-                    sumx += F * dx;
-                    sumy += F * dy;
+                    const float interaction_strength =
+                        interaction_rules.get(other_group_index);
+                    const float inv_distance =
+                        rsqrt_fast(std::max(distance_squared, EPS));
+                    const float force_magnitude =
+                        interaction_strength * inv_distance;
+                    force_x += force_magnitude * dx;
+                    force_y += force_magnitude * dy;
                 }
             }
         }
 
         if (data.k_wall_repel > 0.f) {
-            const float d = data.k_wall_repel;
-            const float sW = data.k_wall_strength;
+            const float wall_repel_distance = data.k_wall_repel;
+            const float wall_strength = data.k_wall_strength;
 
-            if (ax < d) {
-                sumx += (d - ax) * sW;
+            if (particle_x < wall_repel_distance) {
+                force_x += (wall_repel_distance - particle_x) * wall_strength;
             }
-            if (ax > data.width - d) {
-                sumx += (data.width - d - ax) * sW;
+            if (particle_x > data.width - wall_repel_distance) {
+                force_x += (data.width - wall_repel_distance - particle_x) *
+                           wall_strength;
             }
-            if (ay < d) {
-                sumy += (d - ay) * sW;
+            if (particle_y < wall_repel_distance) {
+                force_y += (wall_repel_distance - particle_y) * wall_strength;
             }
-            if (ay > data.height - d) {
-                sumy += (data.height - d - ay) * sW;
+            if (particle_y > data.height - wall_repel_distance) {
+                force_y += (data.height - wall_repel_distance - particle_y) *
+                           wall_strength;
             }
         }
 
-        // Apply gravity
-        sumx += data.k_gravity_x;
-        sumy += data.k_gravity_y;
+        // apply gravity
+        force_x += data.k_gravity_x;
+        force_y += data.k_gravity_y;
 
-        data.fx[i] = sumx;
-        data.fy[i] = sumy;
+        data.fx[i] = force_x;
+        data.fy[i] = force_y;
     }
 }
 
 inline void Simulation::kernel_vel(int start, int end, KernelData &data) {
     for (int i = start; i < end; ++i) {
-        const float vx = m_world.get_vx(i) * data.k_inverse_viscosity +
-                         data.fx[i] * data.k_time_scale;
-        const float vy = m_world.get_vy(i) * data.k_inverse_viscosity +
-                         data.fy[i] * data.k_time_scale;
+        const float new_velocity_x =
+            m_world.get_vx(i) * data.k_inverse_viscosity +
+            data.fx[i] * data.k_time_scale;
+        const float new_velocity_y =
+            m_world.get_vy(i) * data.k_inverse_viscosity +
+            data.fy[i] * data.k_time_scale;
 
-        m_world.set_vx(i, vx);
-        m_world.set_vy(i, vy);
+        m_world.set_vx(i, new_velocity_x);
+        m_world.set_vy(i, new_velocity_y);
     }
 }
 
 inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
     for (int i = start; i < end; ++i) {
-        float x = m_world.get_px(i) + m_world.get_vx(i);
-        float y = m_world.get_py(i) + m_world.get_vy(i);
-        float vx = m_world.get_vx(i);
-        float vy = m_world.get_vy(i);
+        float new_x = m_world.get_px(i) + m_world.get_vx(i);
+        float new_y = m_world.get_py(i) + m_world.get_vy(i);
+        float new_velocity_x = m_world.get_vx(i);
+        float new_velocity_y = m_world.get_vy(i);
 
-        if (x < 0.f) {
-            x = -x;
-            vx = -vx;
+        if (new_x < 0.f) {
+            new_x = -new_x;
+            new_velocity_x = -new_velocity_x;
         }
-        if (x >= data.width) {
-            x = 2.f * data.width - x;
-            vx = -vx;
+        if (new_x >= data.width) {
+            new_x = 2.f * data.width - new_x;
+            new_velocity_x = -new_velocity_x;
         }
-        if (y < 0.f) {
-            y = -y;
-            vy = -vy;
+        if (new_y < 0.f) {
+            new_y = -new_y;
+            new_velocity_y = -new_velocity_y;
         }
-        if (y >= data.height) {
-            y = 2.f * data.height - y;
-            vy = -vy;
+        if (new_y >= data.height) {
+            new_y = 2.f * data.height - new_y;
+            new_velocity_y = -new_velocity_y;
         }
 
-        m_world.set_px(i, x);
-        m_world.set_py(i, y);
-        m_world.set_vx(i, vx);
-        m_world.set_vy(i, vy);
+        m_world.set_px(i, new_x);
+        m_world.set_py(i, new_y);
+        m_world.set_vx(i, new_velocity_x);
+        m_world.set_vy(i, new_velocity_y);
     }
 }
+
+// Command handler implementations
+void Simulation::handle_seed_world(const mailbox::command::SeedWorld &cmd,
+                                   mailbox::SimulationConfigSnapshot &cfg) {
+    if (cmd.seed) {
+        m_initial_seed = *cmd.seed;
+        m_current_seed = *cmd.seed;
+        apply_seed(*cmd.seed, cfg);
+        m_t_window_steps = 0;
+        m_t_window_start = steady_clock::now();
+        m_total_steps = 0;
+    }
+}
+
+void Simulation::handle_one_step() { m_t_run_state = RunState::OneStep; }
+
+void Simulation::handle_pause() { m_t_run_state = RunState::Paused; }
+
+void Simulation::handle_resume() { m_t_run_state = RunState::Running; }
+
+void Simulation::handle_reset_world(mailbox::SimulationConfigSnapshot &cfg) {
+    if (m_initial_seed.has_value()) {
+        apply_seed(m_initial_seed.value(), cfg);
+    } else {
+        clear_world();
+    }
+    m_t_window_steps = 0;
+    m_t_window_start = steady_clock::now();
+    m_total_steps = 0;
+}
+
+void Simulation::handle_apply_rules(const mailbox::command::ApplyRules &cmd,
+                                    mailbox::SimulationConfigSnapshot &cfg) {
+    if (!cmd.patch) {
+        return;
+    }
+
+    const int groups_count = m_world.get_groups_size();
+    const mailbox::command::RulePatch &p = *cmd.patch;
+
+    auto apply_colors_if_any = [&](int group_count) {
+        if (!p.colors.empty() && (int)p.colors.size() == group_count) {
+            for (int i = 0; i < group_count; ++i) {
+                m_world.set_group_color(i, p.colors[i]);
+            }
+        }
+    };
+
+    auto apply_enabled_if_any = [&](int group_count) {
+        if (!p.enabled.empty() && (int)p.enabled.size() == group_count) {
+            for (int i = 0; i < group_count; ++i) {
+                m_world.set_group_enabled(i, p.enabled[i]);
+            }
+        }
+    };
+
+    if (p.groups == groups_count && p.hot) {
+        for (int g = 0; g < groups_count; ++g) {
+            m_world.set_r2(g, p.r2[g]);
+        }
+        for (int i = 0; i < groups_count; ++i) {
+            const float *row = p.rules.data() + i * groups_count;
+            for (int j = 0; j < groups_count; ++j) {
+                m_world.set_rule(i, j, row[j]);
+            }
+        }
+        apply_colors_if_any(groups_count);
+        apply_enabled_if_any(groups_count);
+    } else {
+        const int Gnow = m_world.get_groups_size();
+        mailbox::command::SeedSpec new_seed;
+        new_seed.sizes.resize(Gnow);
+        new_seed.colors.resize(Gnow);
+        new_seed.r2.resize(Gnow);
+        new_seed.rules.resize(Gnow * Gnow);
+
+        for (int g = 0; g < Gnow; ++g) {
+            const int start = m_world.get_group_start(g);
+            const int end = m_world.get_group_end(g);
+            new_seed.sizes[g] = end - start;
+            if (!p.colors.empty() && (int)p.colors.size() == Gnow) {
+                new_seed.colors[g] = p.colors[g];
+            } else {
+                new_seed.colors[g] = m_world.get_group_color(g);
+            }
+            if (!p.r2.empty() && (int)p.r2.size() == Gnow) {
+                new_seed.r2[g] = p.r2[g];
+            } else {
+                new_seed.r2[g] = m_world.r2_of(g);
+            }
+        }
+
+        if (!p.rules.empty() && (int)p.rules.size() == Gnow * Gnow) {
+            for (int i = 0; i < Gnow; ++i) {
+                const float *row = p.rules.data() + i * Gnow;
+                for (int j = 0; j < Gnow; ++j) {
+                    new_seed.rules[i * Gnow + j] = row[j];
+                }
+            }
+        } else {
+            for (int i = 0; i < Gnow; ++i) {
+                const auto rowv = m_world.rules_of(i);
+                for (int j = 0; j < Gnow; ++j) {
+                    new_seed.rules[i * Gnow + j] = rowv.get(j);
+                }
+            }
+        }
+
+        m_current_seed = new_seed;
+        m_initial_seed = new_seed;
+        apply_colors_if_any(Gnow);
+        apply_enabled_if_any(Gnow);
+        apply_seed(m_current_seed.value(), cfg);
+        m_t_window_steps = 0;
+        m_t_window_start = steady_clock::now();
+        m_total_steps = 0;
+    }
+}
+
+void Simulation::handle_add_group(const mailbox::command::AddGroup &cmd,
+                                  mailbox::SimulationConfigSnapshot &cfg) {
+    const int old_group_count = m_world.get_groups_size();
+    m_world.add_group(cmd.size, cmd.color);
+    m_world.finalize_groups();
+
+    // only initialize rule tables if this is the first group
+    if (old_group_count == 0) {
+        m_world.init_rule_tables(m_world.get_groups_size());
+    } else {
+        // preserve existing rules when adding to existing groups
+        m_world.preserve_rules_on_add_group();
+    }
+
+    int new_group_index = m_world.get_groups_size() - 1;
+    m_world.set_r2(new_group_index, cmd.r2);
+
+    std::mt19937 rng{std::random_device{}()};
+    std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
+    std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
+    const int start = m_world.get_group_start(new_group_index);
+    const int end = m_world.get_group_end(new_group_index);
+    for (int i = start; i < end; ++i) {
+        m_world.set_px(i, rx(rng));
+        m_world.set_py(i, ry(rng));
+        m_world.set_vx(i, 0.f);
+        m_world.set_vy(i, 0.f);
+    }
+}
+
+void Simulation::handle_remove_group(const mailbox::command::RemoveGroup &cmd) {
+    int group_index = cmd.group_index;
+    const int total_groups = m_world.get_groups_size();
+    if (group_index >= 0 && group_index < total_groups) {
+        // backup data before removing the group
+        std::vector<float> old_rules;
+        std::vector<float> old_radii2;
+        std::vector<bool> old_enabled;
+        if (total_groups > 1) {
+            // backup current state
+            for (int i = 0; i < total_groups; ++i) {
+                old_radii2.push_back(m_world.r2_of(i));
+                old_enabled.push_back(m_world.is_group_enabled(i));
+                for (int j = 0; j < total_groups; ++j) {
+                    old_rules.push_back(m_world.rule_val(i, j));
+                }
+            }
+        }
+
+        m_world.remove_group(group_index);
+        m_world.finalize_groups();
+
+        // restore rules if we had multiple groups
+        if (total_groups > 1) {
+            m_world.init_rule_tables(m_world.get_groups_size());
+
+            // restore old rules, skipping the removed group
+            for (int i = 0; i < total_groups; ++i) {
+                if (i == group_index) {
+                    continue; // skip the removed group
+                }
+
+                int new_i = (i > group_index)
+                                ? i - 1
+                                : i; // adjust index for removed group
+
+                for (int j = 0; j < total_groups; ++j) {
+                    if (j == group_index) {
+                        continue; // skip the removed group
+                    }
+
+                    int new_j = (j > group_index)
+                                    ? j - 1
+                                    : j; // adjust index for removed group
+                    m_world.set_rule(new_i, new_j,
+                                     old_rules[i * total_groups + j]);
+                }
+                m_world.set_r2(new_i, old_radii2[i]);
+                m_world.set_group_enabled(new_i, old_enabled[i]);
+            }
+        } else {
+            m_world.init_rule_tables(m_world.get_groups_size());
+        }
+
+        // don't reseed - just clear the current seed since it's no longer valid
+        m_current_seed = std::nullopt;
+        m_t_window_steps = 0;
+        m_t_window_start = steady_clock::now();
+        m_total_steps = 0;
+    }
+}
+
+void Simulation::handle_remove_all_groups() {
+    m_world.reset(true);
+    m_world.init_rule_tables(0);
+    m_current_seed = std::nullopt;
+    m_t_window_steps = 0;
+    m_t_window_start = steady_clock::now();
+    m_total_steps = 0;
+}
+
+void Simulation::handle_resize_group(const mailbox::command::ResizeGroup &cmd,
+                                     mailbox::SimulationConfigSnapshot &cfg) {
+    int group_index = cmd.group_index;
+    int new_size = cmd.new_size;
+    const int total_groups = m_world.get_groups_size();
+    if (group_index >= 0 && group_index < total_groups && new_size >= 0) {
+        const int current_size = m_world.get_group_size(group_index);
+        const int start = m_world.get_group_start(group_index);
+
+        m_world.resize_group(group_index, new_size);
+
+        // initialize new particles if we added any
+        if (new_size > current_size) {
+            std::mt19937 rng{std::random_device{}()};
+            std::uniform_real_distribution<float> rx(0.f, cfg.bounds_width);
+            std::uniform_real_distribution<float> ry(0.f, cfg.bounds_height);
+
+            for (int i = start + current_size; i < start + new_size; ++i) {
+                m_world.set_px(i, rx(rng));
+                m_world.set_py(i, ry(rng));
+                m_world.set_vx(i, 0.f);
+                m_world.set_vy(i, 0.f);
+            }
+        }
+
+        m_t_window_steps = 0;
+        m_t_window_start = steady_clock::now();
+        m_total_steps = 0;
+    }
+}
+
+void Simulation::handle_quit() { m_t_run_state = RunState::Quit; }

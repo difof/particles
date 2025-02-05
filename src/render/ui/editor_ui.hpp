@@ -123,17 +123,17 @@ class EditorUI : public IRenderer {
             undo_action->set_apply_func([&sim, random_color]() {
                 sim.push_command(
                     mailbox::command::AddGroup{100, random_color, 4096.f});
-                sim.force_stats_update();
+                sim.force_stats_publish();
             });
             undo_action->set_unapply_func([&sim, backup_state]() {
                 sim.push_command(mailbox::command::SeedWorld{backup_state});
-                sim.force_stats_update();
+                sim.force_stats_publish();
             });
 
             ctx.undo.push(std::move(undo_action));
             sim.push_command(
                 mailbox::command::AddGroup{100, random_color, 4096.f});
-            sim.force_stats_update();
+            sim.force_stats_publish();
         }
         ImGui::SameLine();
         if (ImGui::Button("Remove All Groups")) {
@@ -163,16 +163,16 @@ class EditorUI : public IRenderer {
                 std::make_unique<ClearAllGroupsAction>(backup_state);
             undo_action->set_apply_func([&sim]() {
                 sim.push_command(mailbox::command::RemoveAllGroups{});
-                sim.force_stats_update();
+                sim.force_stats_publish();
             });
             undo_action->set_unapply_func([&sim, backup_state]() {
                 sim.push_command(mailbox::command::SeedWorld{backup_state});
-                sim.force_stats_update();
+                sim.force_stats_publish();
             });
 
             ctx.undo.push(std::move(undo_action));
             sim.push_command(mailbox::command::RemoveAllGroups{});
-            sim.force_stats_update();
+            sim.force_stats_publish();
         }
 
         ImGui::Separator();
@@ -215,16 +215,16 @@ class EditorUI : public IRenderer {
                     std::make_unique<RemoveGroupAction>(g, backup_state);
                 undo_action->set_apply_func([&sim, g]() {
                     sim.push_command(mailbox::command::RemoveGroup{g});
-                    sim.force_stats_update();
+                    sim.force_stats_publish();
                 });
                 undo_action->set_unapply_func([&sim, backup_state]() {
                     sim.push_command(mailbox::command::SeedWorld{backup_state});
-                    sim.force_stats_update();
+                    sim.force_stats_publish();
                 });
 
                 ctx.undo.push(std::move(undo_action));
                 sim.push_command(mailbox::command::RemoveGroup{g});
-                sim.force_stats_update();
+                sim.force_stats_publish();
             }
             ImGui::SameLine();
             int new_size = editor.sizes[g];
@@ -262,18 +262,18 @@ class EditorUI : public IRenderer {
                     undo_action->set_apply_func([&sim, g, new_size]() {
                         sim.push_command(
                             mailbox::command::ResizeGroup{g, new_size});
-                        sim.force_stats_update();
+                        sim.force_stats_publish();
                     });
                     undo_action->set_unapply_func([&sim, backup_state]() {
                         sim.push_command(
                             mailbox::command::SeedWorld{backup_state});
-                        sim.force_stats_update();
+                        sim.force_stats_publish();
                     });
 
                     ctx.undo.push(std::move(undo_action));
                     sim.push_command(
                         mailbox::command::ResizeGroup{g, new_size});
-                    sim.force_stats_update();
+                    sim.force_stats_publish();
                 }
             }
             ImGui::EndGroup();
