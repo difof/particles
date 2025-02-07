@@ -132,7 +132,7 @@ void Simulation::force_stats_publish() {
     st.sim_threads = 1;  // Default value for forced update
     st.last_step_ns = 0; // Not applicable for forced update
     st.published_ns = now_ns();
-    st.num_steps = 0; // Not applicable for forced update
+    st.num_steps = m_total_steps; // Publish actual step count
     m_mail_stats.publish(st);
 }
 
@@ -208,8 +208,6 @@ inline bool Simulation::can_step() const noexcept {
 }
 
 void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
-    m_total_steps++;
-
     auto now = steady_clock::now();
     if (now - m_t_window_start >= 1s) {
         int secs = (int)duration_cast<seconds>(now - m_t_window_start).count();
@@ -224,14 +222,26 @@ void Simulation::measure_tps(int n_threads, nanoseconds step_diff_ns) noexcept {
         st.sim_threads = n_threads;
         st.last_step_ns = step_diff_ns.count();
         st.published_ns = now_ns();
-        if (can_step()) {
-            st.num_steps = m_total_steps;
-        }
+        // Always publish the step count, regardless of run state
+        st.num_steps = m_total_steps;
         m_mail_stats.publish(st);
 
         m_t_window_steps = 0;
         m_t_window_start = now;
     }
+}
+
+void Simulation::publish_stats_immediately(int n_threads,
+                                           nanoseconds step_diff_ns) noexcept {
+    mailbox::SimulationStatsSnapshot st;
+    st.effective_tps = m_t_last_published_tps;
+    st.particles = m_world.get_particles_size();
+    st.groups = m_world.get_groups_size();
+    st.sim_threads = n_threads;
+    st.last_step_ns = step_diff_ns.count();
+    st.published_ns = now_ns();
+    st.num_steps = m_total_steps;
+    m_mail_stats.publish(st);
 }
 
 void Simulation::wait_on_tps(int target_tps) noexcept {
@@ -276,12 +286,18 @@ void Simulation::loop_thread() {
         auto step_begin_time = steady_clock::now();
         if (can_step()) {
             step(current_config);
+            m_t_window_steps++;
+            m_total_steps++;
         }
         auto step_end_time = steady_clock::now();
-        m_t_window_steps++;
 
         publish_draw(current_config);
         measure_tps(current_thread_count, (step_end_time - step_begin_time));
+
+        // Publish stats more frequently for better responsiveness
+        publish_stats_immediately(current_thread_count,
+                                  (step_end_time - step_begin_time));
+
         wait_on_tps(current_config.target_tps);
 
         if (m_t_run_state == RunState::OneStep) {
@@ -586,6 +602,10 @@ void Simulation::handle_seed_world(const mailbox::command::SeedWorld &cmd,
         m_t_window_steps = 0;
         m_t_window_start = steady_clock::now();
         m_total_steps = 0;
+
+        // Publish stats immediately after seeding to reflect the reset step
+        // count
+        publish_stats_immediately(1, std::chrono::nanoseconds(0));
     }
 }
 
@@ -604,6 +624,9 @@ void Simulation::handle_reset_world(mailbox::SimulationConfigSnapshot &cfg) {
     m_t_window_steps = 0;
     m_t_window_start = steady_clock::now();
     m_total_steps = 0;
+
+    // Publish stats immediately after reset to reflect the reset step count
+    publish_stats_immediately(1, std::chrono::nanoseconds(0));
 }
 
 void Simulation::handle_apply_rules(const mailbox::command::ApplyRules &cmd,

@@ -237,6 +237,15 @@ class Simulation {
     void wait_on_tps(int target_tps) noexcept;
 
     /**
+     * @brief Publishes stats immediately for better responsiveness
+     * @param n_threads Number of threads used
+     * @param step_diff_ns Time taken for the step in nanoseconds
+     */
+    void
+    publish_stats_immediately(int n_threads,
+                              std::chrono::nanoseconds step_diff_ns) noexcept;
+
+    /**
      * @brief Kernel function for force calculation between particles
      * @param start Start particle index
      * @param end End particle index (exclusive)
