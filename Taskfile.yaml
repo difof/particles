@@ -123,9 +123,10 @@ tasks:
   test:
     desc: Build and run a unit test. Use `task test -- test_uniformgrid`
     cmds:
-      - task: build:test
+      - task: run-binary
         vars:
-          PROJECT: "{{index .CLI_ARGS 0}}"
+          CONFIG: debug
+          PROJECT: "{{index .CLI_ARGS_LIST 0}}"
 
   clean:
     desc: Clean builds
