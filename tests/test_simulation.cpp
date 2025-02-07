@@ -751,3 +751,176 @@ TEST_CASE("Simulation draw report configuration", "[simulation]") {
 
     sim.end();
 }
+
+TEST_CASE("Simulation step count behavior during pause/resume",
+          "[simulation]") {
+    mailbox::SimulationConfigSnapshot cfg;
+    cfg.bounds_width = 1000.0f;
+    cfg.bounds_height = 800.0f;
+    cfg.target_tps = 0;
+    cfg.time_scale = 1.0f;
+    cfg.viscosity = 0.1f;
+    cfg.sim_threads = 1;
+
+    Simulation sim(cfg);
+    sim.begin();
+
+    // Wait for simulation to start and be running
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    REQUIRE(sim.get_run_state() == Simulation::RunState::Running);
+
+    // Add some particles for meaningful simulation
+    mailbox::command::AddGroup add_cmd;
+    add_cmd.size = 50;
+    add_cmd.color = RED;
+    sim.push_command(add_cmd);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Let simulation run for a bit to accumulate steps
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Get initial step count
+    auto initial_stats = sim.get_stats();
+    long long initial_steps = initial_stats.num_steps;
+    REQUIRE(initial_steps > 0); // Should have some steps by now
+
+    // Pause simulation
+    sim.pause();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    REQUIRE(sim.get_run_state() == Simulation::RunState::Paused);
+
+    // Check that step count doesn't increase significantly while paused
+    // Allow for a small race condition (1-2 steps) due to timing
+    auto paused_stats = sim.get_stats();
+    REQUIRE(paused_stats.num_steps <= initial_steps + 2);
+
+    // Resume simulation
+    sim.resume();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    REQUIRE(sim.get_run_state() == Simulation::RunState::Running);
+
+    // Let it run for a bit more
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Check that step count continues to increase after resume
+    auto resumed_stats = sim.get_stats();
+    REQUIRE(resumed_stats.num_steps > initial_steps);
+
+    sim.end();
+}
+
+TEST_CASE("Simulation step count behavior during reset", "[simulation]") {
+    mailbox::SimulationConfigSnapshot cfg;
+    cfg.bounds_width = 1000.0f;
+    cfg.bounds_height = 800.0f;
+    cfg.target_tps = 0;
+    cfg.time_scale = 1.0f;
+    cfg.viscosity = 0.1f;
+    cfg.sim_threads = 1;
+
+    Simulation sim(cfg);
+    sim.begin();
+
+    // Wait for simulation to start and be running
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    REQUIRE(sim.get_run_state() == Simulation::RunState::Running);
+
+    // Add some particles for meaningful simulation
+    mailbox::command::AddGroup add_cmd;
+    add_cmd.size = 50;
+    add_cmd.color = RED;
+    sim.push_command(add_cmd);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Let simulation run for a bit to accumulate steps
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Get step count before reset
+    auto stats_before_reset = sim.get_stats();
+    long long steps_before_reset = stats_before_reset.num_steps;
+    REQUIRE(steps_before_reset > 0); // Should have some steps by now
+
+    // Reset simulation
+    sim.reset();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Check that step count is reset to near 0 (allowing for steps during the
+    // delay)
+    auto stats_after_reset = sim.get_stats();
+    REQUIRE(stats_after_reset.num_steps < steps_before_reset);
+
+    // Let it run for a bit more to ensure it continues counting
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Check that step count starts increasing again after reset
+    auto stats_after_running = sim.get_stats();
+    REQUIRE(stats_after_running.num_steps > 0);
+
+    sim.end();
+}
+
+TEST_CASE("Simulation step count behavior with manual stepping",
+          "[simulation]") {
+    mailbox::SimulationConfigSnapshot cfg;
+    cfg.bounds_width = 1000.0f;
+    cfg.bounds_height = 800.0f;
+    cfg.target_tps = 0;
+    cfg.time_scale = 1.0f;
+    cfg.viscosity = 0.1f;
+    cfg.sim_threads = 1;
+
+    Simulation sim(cfg);
+    sim.begin();
+
+    // Wait for simulation to start and be running
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    REQUIRE(sim.get_run_state() == Simulation::RunState::Running);
+
+    // Add some particles for meaningful simulation
+    mailbox::command::AddGroup add_cmd;
+    add_cmd.size = 50;
+    add_cmd.color = RED;
+    sim.push_command(add_cmd);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Let simulation run for a bit to accumulate steps
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Get initial step count
+    auto initial_stats = sim.get_stats();
+    long long initial_steps = initial_stats.num_steps;
+    REQUIRE(initial_steps > 0);
+
+    // Pause and do manual stepping
+    sim.pause();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    REQUIRE(sim.get_run_state() == Simulation::RunState::Paused);
+
+    // Perform several manual steps
+    for (int i = 0; i < 5; ++i) {
+        mailbox::command::OneStep one_step_cmd;
+        sim.push_command(one_step_cmd);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    // Check that step count increased with manual steps
+    auto stats_after_manual = sim.get_stats();
+    REQUIRE(stats_after_manual.num_steps > initial_steps);
+
+    // Resume and let it run
+    sim.resume();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    REQUIRE(sim.get_run_state() == Simulation::RunState::Running);
+
+    // Let it run for a bit more
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Check that step count continues to increase after resume
+    auto final_stats = sim.get_stats();
+    REQUIRE(final_stats.num_steps > stats_after_manual.num_steps);
+
+    sim.end();
+}
