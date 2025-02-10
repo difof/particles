@@ -163,18 +163,18 @@ class UniformGrid {
      * @param width     World width in the same units as your item positions (>=
      * 1).
      * @param height    World height (>= 1).
-     * @param cellSize  Size of one cell (>= 1). Smaller → more cells, fewer
+     * @param cell_size  Size of one cell (>= 1). Smaller → more cells, fewer
      * items per cell.
      * @param count     Number of items (N). Sets the size of @ref m_next.
      *
      * @details
-     * Computes @ref m_cols and @ref m_rows as ceil(width/cellSize) and
-     * ceil(height/cellSize), allocates @ref m_head with rows*cols initialized
+     * Computes @ref m_cols and @ref m_rows as ceil(width/cell_size) and
+     * ceil(height/cell_size), allocates @ref m_head with rows*cols initialized
      * to -1 and @ref m_next with N initialized to -1. Must be called before
      * @ref build whenever N or bounds change.
      */
-    inline void resize(float width, float height, float cellSize, int count) {
-        m_cell = std::max(1.0f, cellSize);
+    inline void resize(float width, float height, float cell_size, int count) {
+        m_cell = std::max(1.0f, cell_size);
         m_width = std::max(1.0f, width);
         m_height = std::max(1.0f, height);
 
@@ -182,12 +182,12 @@ class UniformGrid {
         m_cols = std::max(1, (int)std::ceil(m_width / m_cell));
         m_rows = std::max(1, (int)std::ceil(m_height / m_cell));
 
-        const int C = m_cols * m_rows;
-        m_head.assign(C, -1);
+        const int c = m_cols * m_rows;
+        m_head.assign(c, -1);
         m_next.assign(count, -1);
         // CSR buffers
-        m_cellStart.assign(C, 0);
-        m_cellCount.assign(C, 0);
+        m_cellStart.assign(c, 0);
+        m_cellCount.assign(c, 0);
         m_indices.assign(count, -1);
     }
 
@@ -198,15 +198,15 @@ class UniformGrid {
      * @tparam GetY Callable int->float that returns y of item i
      * @param count  Number of items (N). Must match the size passed to @ref
      * resize.
-     * @param getx   X accessor
-     * @param gety   Y accessor
+     * @param get_x   X accessor
+     * @param get_y   Y accessor
      * @param width  Unused here (kept for API symmetry; bounds come from @ref
      * resize).
      * @param height Unused here.
      *
      * @details
      * For each item i:
-     *  1) x = getx(i), y = gety(i); if non-finite → set to (0,0)
+     *  1) x = get_x(i), y = get_y(i); if non-finite → set to (0,0)
      *  2) Map to cell coords: cx=floor(x/cell), cy=floor(y/cell), then clamp to
      * the grid 3) Push-front into the cell’s list: m_next[i] = m_head[ci];
      *       m_head[ci] = i;
@@ -215,14 +215,16 @@ class UniformGrid {
      * starting at @ref m_head.
      */
     template <FloatGetter GetX, FloatGetter GetY>
-    inline void build(int count, GetX getx, GetY gety, float /*width*/,
-                      float /*height*/) {
+    void build(int count, GetX get_x, GetY get_y, float /*width*/,
+               float /*height*/) {
         // Clear/resize structures
         std::fill(m_head.begin(), m_head.end(), -1);
-        if ((int)m_next.size() != count)
+        if ((int)m_next.size() != count) {
             m_next.assign(count, -1);
-        if ((int)m_indices.size() != count)
+        }
+        if ((int)m_indices.size() != count) {
             m_indices.assign(count, -1);
+        }
         std::fill(m_cellCount.begin(), m_cellCount.end(), 0);
 
 #ifndef NDEBUG
@@ -238,11 +240,12 @@ class UniformGrid {
 
         // First pass: compute per-item cell, count items per cell, and build
         // head/next lists
-        if ((int)m_itemCell.size() != count)
-            m_itemCell.assign(count, 0);
+        if ((int)m_item_cell.size() != count) {
+            m_item_cell.assign(count, 0);
+        }
         for (int i = 0; i < count; ++i) {
-            float x = getx(i);
-            float y = gety(i);
+            float x = get_x(i);
+            float y = get_y(i);
 
             if (!std::isfinite(x) || !std::isfinite(y)) {
                 x = 0.0f;
@@ -254,7 +257,7 @@ class UniformGrid {
             cx = std::clamp(cx, 0, max_cx);
             cy = std::clamp(cy, 0, max_cy);
             const int ci = cy * m_cols + cx;
-            m_itemCell[i] = ci;
+            m_item_cell[i] = ci;
             // linked list
             m_next[i] = m_head[ci];
             m_head[ci] = i;
@@ -271,13 +274,15 @@ class UniformGrid {
         }
 
         // Fill indices using a scratch cursor per cell
-        if ((int)m_cursor.size() != (int)m_cellStart.size())
+        if ((int)m_cursor.size() != (int)m_cellStart.size()) {
             m_cursor.assign(m_cellStart.size(), 0);
+        }
         // initialize cursor to starts
-        for (size_t ci = 0; ci < m_cellStart.size(); ++ci)
+        for (size_t ci = 0; ci < m_cellStart.size(); ++ci) {
             m_cursor[ci] = m_cellStart[ci];
+        }
         for (int i = 0; i < count; ++i) {
-            const int ci = m_itemCell[i];
+            const int ci = m_item_cell[i];
             const int pos = m_cursor[ci]++;
             m_indices[pos] = i;
         }
@@ -285,11 +290,11 @@ class UniformGrid {
 
   private:
     // Grid configuration
-    float m_cell = 64.f;   ///< Cell size (world units)
-    float m_width = 64.f;  ///< World width (world units)
-    float m_height = 64.f; ///< World height (world units)
-    int m_cols = 1;        ///< Number of columns (ceil(width/cell))
-    int m_rows = 1;        ///< Number of rows    (ceil(height/cell))
+    float m_cell = 64.f;   // Cell size (world units)
+    float m_width = 64.f;  // World width (world units)
+    float m_height = 64.f; // World height (world units)
+    int m_cols = 1;        // Number of columns (ceil(width/cell))
+    int m_rows = 1;        // Number of rows    (ceil(height/cell))
 
     /**
      * @brief Per-cell list heads (size rows*cols).
@@ -311,8 +316,8 @@ class UniformGrid {
     std::vector<int> m_indices;   // size N, contiguous ranges per cell
 
     // transient buffers reused across builds
-    std::vector<int> m_itemCell; // size N
-    std::vector<int> m_cursor;   // size rows*cols
+    std::vector<int> m_item_cell; // size N
+    std::vector<int> m_cursor;    // size rows*cols
 };
 
 #endif
