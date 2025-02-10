@@ -1,5 +1,4 @@
-#ifndef __UNIFORM_GRID_HPP
-#define __UNIFORM_GRID_HPP
+#pragma once
 
 #include <algorithm>
 #include <cassert>
@@ -319,5 +318,3 @@ class UniformGrid {
     std::vector<int> m_item_cell; // size N
     std::vector<int> m_cursor;    // size rows*cols
 };
-
-#endif
