@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "save_manager.hpp"
+#include "utility/default_seed.hpp"
 #include "utility/logger.hpp"
 
 #ifndef _WIN32
@@ -128,49 +129,8 @@ void SaveManager::new_project(ProjectData &data) {
     data.render_config.inner_scale_mul = 1.f;
     data.render_config.inner_rgb_gain = .52f;
 
-    // Default seed (from main.cpp)
-    data.seed = std::make_shared<mailbox::command::SeedSpec>();
-    const int groups = 5;
-    data.seed->sizes = std::vector<int>(groups, 1500);
-    data.seed->colors = {(Color){0, 228, 114, 255}, (Color){238, 70, 82, 255},
-                         (Color){227, 172, 72, 255}, (Color){0, 121, 241, 255},
-                         (Color){200, 122, 255, 255}};
-    data.seed->r2 = {80.f * 80.f, 80.f * 80.f, 96.6f * 96.6f, 80.f * 80.f,
-                     80.f * 80.f};
-    data.seed->enabled = {true, true, true, true,
-                          true}; // All groups enabled by default
-    data.seed->rules = {
-        // row 0
-        +0.926f,
-        -0.834f,
-        +0.281f,
-        -0.06427308f,
-        +0.51738745f,
-        // row 1
-        -0.46170965f,
-        +0.49142435f,
-        +0.2760726f,
-        +0.6413487f,
-        -0.7276546f,
-        // row 2
-        -0.78747644f,
-        +0.23373386f,
-        -0.024112331f,
-        -0.74875921f,
-        +0.22836663f,
-        // row 3
-        +0.56558144f,
-        +0.94846946f,
-        -0.36052886f,
-        +0.44114092f,
-        -0.31766385f,
-        // row 4
-        std::sin(1.0f),
-        std::cos(2.0f),
-        +1.0f,
-        -1.0f,
-        +3.14f,
-    };
+    // Default seed using centralized utility
+    data.seed = particles::utility::create_default_seed();
 
     // Default window config
     data.window_config = {1080, 800, 500, 1080};
