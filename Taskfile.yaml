@@ -1,6 +1,7 @@
 version: "3.44"
 
 vars:
+  COMPILE_THREADS: 8
   TESTS:
     - test_uniformgrid
     - test_world
@@ -39,7 +40,7 @@ tasks:
       - build/bin/{{.CONFIG}}/{{.PROJECT}}
     deps:
       - premake
-    cmd: make -C build config={{.CONFIG}} -j4 {{.PROJECT}}
+    cmd: make -C build config={{.CONFIG}} -j{{.COMPILE_THREADS}} {{.PROJECT}}
 
   run-binary:
     internal: true
