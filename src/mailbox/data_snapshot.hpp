@@ -7,6 +7,8 @@
 
 #include <raylib.h>
 
+#include "../world_base.hpp"
+
 namespace mailbox {
 
 /**
@@ -48,51 +50,26 @@ struct SimulationStatsSnapshot {
 };
 
 /**
- * @brief Provides read-only access to interaction rules for a specific
- * source group in WorldSnapshot.
- */
-struct WorldSnapshotRuleRowView {
-    const float *row; // Pointer to the rule row data
-    int size;         // Size of the rule row
-
-    /**
-     * @brief Get the interaction rule value for a specific destination
-     * group.
-     * @param j Destination group index
-     * @return Rule value, or 0.0f if out of bounds
-     */
-    inline float get(int j) const noexcept {
-        if (!row || j < 0 || j >= size)
-            return 0.f;
-        return row[j];
-    }
-};
-
-/**
  * @brief World snapshot containing all read-only world data
  */
-struct WorldSnapshot {
+struct WorldSnapshot : public particles::WorldBase {
+  public:
     int group_count;
-    int particles_count;              // Total number of particles
-    std::vector<int> group_ranges;    // 2*G: [start, end] for each group
-    std::vector<Color> group_colors;  // G colors
-    std::vector<float> group_radii2;  // G interaction radii squared
-    std::vector<bool> group_enabled;  // G enabled states
-    std::vector<float> rules;         // G×G interaction rules matrix
-    std::vector<int> particle_groups; // N: group index for each particle
+    int particles_count; // Total number of particles
 
-    // Safe accessors matching World interface
-    int get_groups_size() const noexcept;
-    int get_particles_size() const noexcept;
-    int get_group_start(int group_index) const noexcept;
-    int get_group_end(int group_index) const noexcept;
-    int get_group_size(int group_index) const noexcept;
-    Color get_group_color(int group_index) const noexcept;
-    float r2_of(int group_index) const noexcept;
-    bool is_group_enabled(int group_index) const noexcept;
-    float rule_val(int source_group, int destination_group) const;
-    WorldSnapshotRuleRowView rules_of(int source_group) const noexcept;
-    int group_of(int particle_index) const noexcept;
+    /**
+     * @brief Gets the total number of groups
+     * @return Number of groups
+     */
+    inline int get_groups_size() const noexcept override { return group_count; }
+
+    /**
+     * @brief Gets the total number of particles
+     * @return Total number of particles
+     */
+    inline int get_particles_size() const noexcept override {
+        return particles_count;
+    }
 };
 
 /**

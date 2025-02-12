@@ -8,6 +8,7 @@
 
 #include "../utility/exceptions.hpp"
 #include "../utility/logger.hpp"
+#include "../world_base.hpp"
 
 /**
  * @brief Manages particle groups, their properties, and interaction rules in
@@ -18,31 +19,7 @@
  * particle data. Each group has its own interaction radius and rules for
  * interacting with other groups.
  */
-class World {
-  public:
-    /**
-     * @brief Provides read-only access to interaction rules for a specific
-     * source group.
-     *
-     * This struct provides a safe way to access rule values without direct
-     * array access, with bounds checking to prevent out-of-range access.
-     */
-    struct RuleRowView {
-        const float *row; // Pointer to the rule row data
-        int size;         // Size of the rule row
-
-        /**
-         * @brief Get the interaction rule value for a specific destination
-         * group.
-         * @param j Destination group index
-         * @return Rule value, or 0.0f if out of bounds
-         */
-        inline float get(int j) const noexcept {
-            if (!row || j < 0 || j >= size)
-                return 0.f;
-            return row[j];
-        }
-    };
+class World : public particles::WorldBase {
 
   public:
     World() = default;
@@ -90,28 +67,6 @@ class World {
     void reset(bool shrink = false);
 
     /**
-     * @brief Gets the interaction rule value between two groups.
-     * @param source_group Source group index
-     * @param destination_group Destination group index
-     * @return Rule value, or 0.0f if indices are invalid
-     */
-    float rule_val(int source_group, int destination_group) const;
-
-    /**
-     * @brief Gets a view of interaction rules for a specific source group.
-     * @param source_group Source group index
-     * @return RuleRowView providing safe access to rule values
-     */
-    inline RuleRowView rules_of(int source_group) const noexcept {
-        const int G = get_groups_size();
-        if ((size_t)source_group >= m_g_radii2.size())
-            return {nullptr, G};
-        if (m_g_rules.size() < (size_t)G * (size_t)G)
-            return {nullptr, G};
-        return {&m_g_rules[source_group * G], G};
-    }
-
-    /**
      * @brief Removes a group and all its particles from the world.
      * @param group_index Index of the group to remove
      */
@@ -137,42 +92,15 @@ class World {
      * @brief Gets the total number of groups in the world.
      * @return Number of groups
      */
-    inline int get_groups_size() const noexcept {
-        return (int)m_g_ranges.size() / 2;
-    }
-
-    /**
-     * @brief Gets the starting particle index for a group.
-     * @param group_index Group index
-     * @return Starting particle index
-     */
-    inline int get_group_start(int group_index) const noexcept {
-        return m_g_ranges[group_index * 2 + 0];
-    }
-
-    /**
-     * @brief Gets the ending particle index for a group.
-     * @param group_index Group index
-     * @return Ending particle index
-     */
-    inline int get_group_end(int group_index) const noexcept {
-        return m_g_ranges[group_index * 2 + 1];
-    }
-
-    /**
-     * @brief Gets the number of particles in a group.
-     * @param group_index Group index
-     * @return Number of particles in the group
-     */
-    inline int get_group_size(int group_index) const noexcept {
-        return get_group_end(group_index) - get_group_start(group_index);
+    inline int get_groups_size() const noexcept override {
+        return (int)m_group_ranges.size() / 2;
     }
 
     /**
      * @brief Gets the total number of particles in the world.
      * @return Total number of particles
      */
-    inline int get_particles_size() const noexcept {
+    inline int get_particles_size() const noexcept override {
         return (int)m_particles.size() / 4;
     }
 
@@ -182,17 +110,8 @@ class World {
      * @param color New color for the group
      */
     inline void set_group_color(int group_index, Color color) {
-        if ((size_t)group_index < m_g_colors.size())
-            m_g_colors[group_index] = color;
-    }
-
-    /**
-     * @brief Gets the color of a group.
-     * @param group_index Group index
-     * @return Color of the group
-     */
-    inline Color get_group_color(int group_index) const noexcept {
-        return m_g_colors[group_index];
+        if ((size_t)group_index < m_group_colors.size())
+            m_group_colors[group_index] = color;
     }
 
     /**
@@ -275,7 +194,7 @@ class World {
      */
     inline void set_rule(int source_group, int destination_group,
                          float rule_value) {
-        m_g_rules[source_group * get_groups_size() + destination_group] =
+        m_rules[source_group * get_groups_size() + destination_group] =
             rule_value;
     }
 
@@ -285,38 +204,7 @@ class World {
      * @param radius_squared Interaction radius squared
      */
     inline void set_r2(int group_index, float radius_squared) {
-        m_g_radii2[group_index] = radius_squared;
-    }
-
-    /**
-     * @brief Gets the group index for a particle.
-     * @param particle_index Particle index
-     * @return Group index
-     */
-    inline int group_of(int particle_index) const noexcept {
-        return m_p_group[particle_index];
-    }
-
-    /**
-     * @brief Gets the interaction radius squared for a group.
-     * @param group_index Group index
-     * @return Interaction radius squared, or 0.0f if invalid
-     */
-    inline float r2_of(int group_index) const noexcept {
-        if ((size_t)group_index >= m_g_radii2.size())
-            return 0.f;
-        return m_g_radii2[group_index];
-    }
-
-    /**
-     * @brief Checks if a group is enabled.
-     * @param group_index Group index
-     * @return True if group is enabled, false otherwise
-     */
-    inline bool is_group_enabled(int group_index) const noexcept {
-        if ((size_t)group_index >= m_g_enabled.size())
-            return true; // default to enabled
-        return m_g_enabled[group_index];
+        m_group_radii2[group_index] = radius_squared;
     }
 
     /**
@@ -325,69 +213,11 @@ class World {
      * @param enabled Whether the group should be enabled
      */
     inline void set_group_enabled(int group_index, bool enabled) {
-        if ((size_t)group_index < m_g_enabled.size())
-            m_g_enabled[group_index] = enabled;
-    }
-
-    /**
-     * @brief Gets the group ranges vector for snapshot creation
-     * @return Const reference to group ranges
-     */
-    inline const std::vector<int> &get_group_ranges() const noexcept {
-        return m_g_ranges;
-    }
-
-    /**
-     * @brief Gets the group colors vector for snapshot creation
-     * @return Const reference to group colors
-     */
-    inline const std::vector<Color> &get_group_colors() const noexcept {
-        return m_g_colors;
-    }
-
-    /**
-     * @brief Gets the group radii squared vector for snapshot creation
-     * @return Const reference to group radii squared
-     */
-    inline const std::vector<float> &get_group_radii2() const noexcept {
-        return m_g_radii2;
-    }
-
-    /**
-     * @brief Gets the group enabled states vector for snapshot creation
-     * @return Const reference to group enabled states
-     */
-    inline const std::vector<bool> &get_group_enabled() const noexcept {
-        return m_g_enabled;
-    }
-
-    /**
-     * @brief Gets the rules matrix for snapshot creation
-     * @return Const reference to rules matrix
-     */
-    inline const std::vector<float> &get_rules() const noexcept {
-        return m_g_rules;
-    }
-
-    /**
-     * @brief Gets the particle groups vector for snapshot creation
-     * @return Const reference to particle groups
-     */
-    inline const std::vector<int> &get_particle_groups() const noexcept {
-        return m_p_group;
+        if ((size_t)group_index < m_group_enabled.size())
+            m_group_enabled[group_index] = enabled;
     }
 
   private:
     std::vector<float> m_particles; // Particle data: each particle has 4
                                     // floats (px, py, vx, vy)
-    std::vector<int> m_p_group;     // Group index for each particle (size N)
-    std::vector<int>
-        m_g_ranges; // Group ranges: each group has 2 items (start, end)
-    std::vector<float>
-        m_g_rules; // Interaction rules matrix (size G*G: rules[src*G + dst])
-    std::vector<float>
-        m_g_radii2; // Interaction radius squared for each group (size G)
-    std::vector<Color> m_g_colors; // Color for each group
-    std::vector<bool>
-        m_g_enabled; // Enable/disable state for each group (size G)
 };
