@@ -137,7 +137,8 @@ void SaveManager::new_project(ProjectData &data) {
                          (Color){200, 122, 255, 255}};
     data.seed->r2 = {80.f * 80.f, 80.f * 80.f, 96.6f * 96.6f, 80.f * 80.f,
                      80.f * 80.f};
-    data.seed->enabled = {true, true, true, true, true}; // All groups enabled by default
+    data.seed->enabled = {true, true, true, true,
+                          true}; // All groups enabled by default
     data.seed->rules = {
         // row 0
         +0.926f,
@@ -177,11 +178,11 @@ void SaveManager::new_project(ProjectData &data) {
     LOG_INFO("New project created successfully");
 }
 
-std::shared_ptr<mailbox::command::SeedSpec>
-SaveManager::extract_current_seed(const World &world) {
+std::shared_ptr<mailbox::command::SeedSpec> SaveManager::extract_current_seed(
+    const mailbox::WorldSnapshot &world_snapshot) {
     auto seed = std::make_shared<mailbox::command::SeedSpec>();
 
-    const int G = world.get_groups_size();
+    const int G = world_snapshot.get_groups_size();
     if (G == 0) {
         return nullptr; // No groups to extract
     }
@@ -189,33 +190,33 @@ SaveManager::extract_current_seed(const World &world) {
     // Extract group sizes
     seed->sizes.clear();
     for (int g = 0; g < G; ++g) {
-        seed->sizes.push_back(world.get_group_size(g));
+        seed->sizes.push_back(world_snapshot.get_group_size(g));
     }
 
     // Extract group colors
     seed->colors.clear();
     for (int g = 0; g < G; ++g) {
-        seed->colors.push_back(world.get_group_color(g));
+        seed->colors.push_back(world_snapshot.get_group_color(g));
     }
 
     // Extract radii squared
     seed->r2.clear();
     for (int g = 0; g < G; ++g) {
-        seed->r2.push_back(world.r2_of(g));
+        seed->r2.push_back(world_snapshot.r2_of(g));
     }
 
     // Extract rules matrix (G*G)
     seed->rules.clear();
     for (int gsrc = 0; gsrc < G; ++gsrc) {
         for (int gdst = 0; gdst < G; ++gdst) {
-            seed->rules.push_back(world.rule_val(gsrc, gdst));
+            seed->rules.push_back(world_snapshot.rule_val(gsrc, gdst));
         }
     }
 
     // Extract enabled state
     seed->enabled.clear();
     for (int g = 0; g < G; ++g) {
-        seed->enabled.push_back(world.is_group_enabled(g));
+        seed->enabled.push_back(world_snapshot.is_group_enabled(g));
     }
 
     return seed;

@@ -14,7 +14,8 @@ inline long long now_ns() {
 
 Simulation::Simulation(mailbox::SimulationConfigSnapshot cfg)
     : m_world(), m_idx(), m_pool(std::make_unique<SimulationThreadPool>(1)),
-      m_mail_cmd(), m_mail_draw(), m_mail_cfg(), m_mail_stats() {
+      m_mail_cmd(), m_mail_draw(), m_mail_cfg(), m_mail_stats(),
+      m_mail_world() {
     LOG_INFO("Initializing simulation");
 
     mailbox::SimulationConfigSnapshot default_config = {};
@@ -121,8 +122,6 @@ mailbox::SimulationStatsSnapshot Simulation::get_stats() const {
 mailbox::SimulationConfigSnapshot Simulation::get_config() const {
     return m_mail_cfg.acquire();
 }
-
-const World &Simulation::get_world() const { return m_world; }
 
 void Simulation::force_stats_publish() {
     mailbox::SimulationStatsSnapshot st;
@@ -292,6 +291,7 @@ void Simulation::loop_thread() {
         auto step_end_time = steady_clock::now();
 
         publish_draw(current_config);
+        publish_world_snapshot();
         measure_tps(current_thread_count, (step_end_time - step_begin_time));
 
         // Publish stats more frequently for better responsiveness
@@ -850,3 +850,20 @@ void Simulation::handle_resize_group(const mailbox::command::ResizeGroup &cmd,
 }
 
 void Simulation::handle_quit() { m_t_run_state = RunState::Quit; }
+
+void Simulation::publish_world_snapshot() {
+    mailbox::WorldSnapshot snapshot;
+    snapshot.group_count = m_world.get_groups_size();
+    snapshot.particles_count = m_world.get_particles_size();
+    snapshot.group_ranges = m_world.get_group_ranges();       // Direct copy
+    snapshot.group_colors = m_world.get_group_colors();       // Direct copy
+    snapshot.group_radii2 = m_world.get_group_radii2();       // Direct copy
+    snapshot.group_enabled = m_world.get_group_enabled();     // Direct copy
+    snapshot.rules = m_world.get_rules();                     // Direct copy
+    snapshot.particle_groups = m_world.get_particle_groups(); // Direct copy
+    m_mail_world.publish(snapshot);
+}
+
+mailbox::WorldSnapshot Simulation::get_world_snapshot() const {
+    return m_mail_world.acquire();
+}

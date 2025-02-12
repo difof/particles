@@ -329,6 +329,54 @@ class World {
             m_g_enabled[group_index] = enabled;
     }
 
+    /**
+     * @brief Gets the group ranges vector for snapshot creation
+     * @return Const reference to group ranges
+     */
+    inline const std::vector<int> &get_group_ranges() const noexcept {
+        return m_g_ranges;
+    }
+
+    /**
+     * @brief Gets the group colors vector for snapshot creation
+     * @return Const reference to group colors
+     */
+    inline const std::vector<Color> &get_group_colors() const noexcept {
+        return m_g_colors;
+    }
+
+    /**
+     * @brief Gets the group radii squared vector for snapshot creation
+     * @return Const reference to group radii squared
+     */
+    inline const std::vector<float> &get_group_radii2() const noexcept {
+        return m_g_radii2;
+    }
+
+    /**
+     * @brief Gets the group enabled states vector for snapshot creation
+     * @return Const reference to group enabled states
+     */
+    inline const std::vector<bool> &get_group_enabled() const noexcept {
+        return m_g_enabled;
+    }
+
+    /**
+     * @brief Gets the rules matrix for snapshot creation
+     * @return Const reference to rules matrix
+     */
+    inline const std::vector<float> &get_rules() const noexcept {
+        return m_g_rules;
+    }
+
+    /**
+     * @brief Gets the particle groups vector for snapshot creation
+     * @return Const reference to particle groups
+     */
+    inline const std::vector<int> &get_particle_groups() const noexcept {
+        return m_p_group;
+    }
+
   private:
     std::vector<float> m_particles; // Particle data: each particle has 4
                                     // floats (px, py, vx, vy)

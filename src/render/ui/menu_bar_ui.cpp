@@ -52,7 +52,7 @@ void MenuBarUI::handle_save_project(Context &ctx) {
     data.render_config = ctx.rcfg;
 
     // Extract current seed from world
-    data.seed = ctx.save.extract_current_seed(ctx.sim.get_world());
+    data.seed = ctx.save.extract_current_seed(ctx.world_snapshot);
 
     try {
         ctx.save.save_project(m_current_filepath, data);

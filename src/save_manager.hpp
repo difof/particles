@@ -7,9 +7,9 @@
 #include <string>
 #include <vector>
 
+#include "mailbox/data_snapshot.hpp"
 #include "mailbox/mailbox.hpp"
 #include "render/types/config.hpp"
-#include "simulation/world.hpp"
 #include "utility/exceptions.hpp"
 #include "utility/logger.hpp"
 
@@ -43,7 +43,7 @@ class SaveManager {
 
     // Extract current world state
     std::shared_ptr<mailbox::command::SeedSpec>
-    extract_current_seed(const World &world);
+    extract_current_seed(const mailbox::WorldSnapshot &world_snapshot);
 
     // JSON serialization helpers (public for testing)
     json color_to_json(const Color &color);

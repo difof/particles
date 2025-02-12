@@ -60,7 +60,7 @@ class ParticlesRenderer : public IRenderer {
                              (int)std::max(0.f, bounds_h));
         }
 
-        const int group_size = sim.get_world().get_groups_size();
+        const int group_size = ctx.world_snapshot.get_groups_size();
         const float core_size = rcfg.core_size;
 
         Texture2D glow{};
@@ -85,13 +85,13 @@ class ParticlesRenderer : public IRenderer {
             };
             if (rcfg.glow_enabled) {
                 draw_particles_with_glow_camera(
-                    sim.get_world(), group_size, posAt, glow, core_size,
+                    ctx.world_snapshot, group_size, posAt, glow, core_size,
                     outer_scale, rcfg.outer_rgb_gain, inner_scale,
                     rcfg.inner_rgb_gain, ox_cam, oy_cam, bounds_w, bounds_h,
                     zoom);
             } else {
-                draw_particles_simple_camera(sim.get_world(), group_size, posAt,
-                                             core_size, ox_cam, oy_cam,
+                draw_particles_simple_camera(ctx.world_snapshot, group_size,
+                                             posAt, core_size, ox_cam, oy_cam,
                                              bounds_w, bounds_h, zoom);
             }
         } else {
@@ -104,13 +104,13 @@ class ParticlesRenderer : public IRenderer {
             };
             if (rcfg.glow_enabled) {
                 draw_particles_with_glow_camera(
-                    sim.get_world(), group_size, posAt, glow, core_size,
+                    ctx.world_snapshot, group_size, posAt, glow, core_size,
                     outer_scale, rcfg.outer_rgb_gain, inner_scale,
                     rcfg.inner_rgb_gain, ox_cam, oy_cam, bounds_w, bounds_h,
                     zoom);
             } else {
-                draw_particles_simple_camera(sim.get_world(), group_size, posAt,
-                                             core_size, ox_cam, oy_cam,
+                draw_particles_simple_camera(ctx.world_snapshot, group_size,
+                                             posAt, core_size, ox_cam, oy_cam,
                                              bounds_w, bounds_h, zoom);
             }
         }
@@ -270,19 +270,21 @@ class ParticlesRenderer : public IRenderer {
 
     template <typename PosFn>
     static void draw_particles_with_glow_offset(
-        const World &world, int groupsCount, PosFn posAt, Texture2D glow,
-        float coreSize, float outerScale, float outerRGBGain, float innerScale,
-        float innerRGBGain, float ox, float oy, float bw, float bh) {
+        const mailbox::WorldSnapshot &world_snapshot, int groupsCount,
+        PosFn posAt, Texture2D glow, float coreSize, float outerScale,
+        float outerRGBGain, float innerScale, float innerRGBGain, float ox,
+        float oy, float bw, float bh) {
         const Rectangle src = {0, 0, (float)glow.width, (float)glow.height};
         const Vector2 org = {0, 0};
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color tint = TintRGB(world.get_group_color(g), outerRGBGain);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color tint =
+                TintRGB(world_snapshot.get_group_color(g), outerRGBGain);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
@@ -296,11 +298,12 @@ class ParticlesRenderer : public IRenderer {
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color tint = TintRGB(world.get_group_color(g), innerRGBGain);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color tint =
+                TintRGB(world_snapshot.get_group_color(g), innerRGBGain);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
@@ -313,11 +316,11 @@ class ParticlesRenderer : public IRenderer {
         EndBlendMode();
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color col = world.get_group_color(g);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color col = world_snapshot.get_group_color(g);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
@@ -328,17 +331,17 @@ class ParticlesRenderer : public IRenderer {
     }
 
     template <typename PosFn>
-    static void draw_particles_simple_offset(const World &world,
-                                             int groupsCount, PosFn posAt,
-                                             float coreSize, float ox, float oy,
-                                             float bw, float bh) {
+    static void
+    draw_particles_simple_offset(const mailbox::WorldSnapshot &world_snapshot,
+                                 int groupsCount, PosFn posAt, float coreSize,
+                                 float ox, float oy, float bw, float bh) {
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color col = world.get_group_color(g);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color col = world_snapshot.get_group_color(g);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
@@ -351,20 +354,21 @@ class ParticlesRenderer : public IRenderer {
     // Camera-aware drawing functions
     template <typename PosFn>
     static void draw_particles_with_glow_camera(
-        const World &world, int groupsCount, PosFn posAt, Texture2D glow,
-        float coreSize, float outerScale, float outerRGBGain, float innerScale,
-        float innerRGBGain, float ox, float oy, float bw, float bh,
-        float zoom) {
+        const mailbox::WorldSnapshot &world_snapshot, int groupsCount,
+        PosFn posAt, Texture2D glow, float coreSize, float outerScale,
+        float outerRGBGain, float innerScale, float innerRGBGain, float ox,
+        float oy, float bw, float bh, float zoom) {
         const Rectangle src = {0, 0, (float)glow.width, (float)glow.height};
         const Vector2 org = {0, 0};
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color tint = TintRGB(world.get_group_color(g), outerRGBGain);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color tint =
+                TintRGB(world_snapshot.get_group_color(g), outerRGBGain);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
@@ -380,11 +384,12 @@ class ParticlesRenderer : public IRenderer {
         BeginBlendMode(BLEND_ALPHA);
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color tint = TintRGB(world.get_group_color(g), innerRGBGain);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color tint =
+                TintRGB(world_snapshot.get_group_color(g), innerRGBGain);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
@@ -399,11 +404,11 @@ class ParticlesRenderer : public IRenderer {
         EndBlendMode();
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color col = world.get_group_color(g);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color col = world_snapshot.get_group_color(g);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)
@@ -415,17 +420,18 @@ class ParticlesRenderer : public IRenderer {
     }
 
     template <typename PosFn>
-    static void draw_particles_simple_camera(const World &world,
-                                             int groupsCount, PosFn posAt,
-                                             float coreSize, float ox, float oy,
-                                             float bw, float bh, float zoom) {
+    static void
+    draw_particles_simple_camera(const mailbox::WorldSnapshot &world_snapshot,
+                                 int groupsCount, PosFn posAt, float coreSize,
+                                 float ox, float oy, float bw, float bh,
+                                 float zoom) {
         for (int g = 0; g < groupsCount; ++g) {
             // Skip disabled groups
-            if (!world.is_group_enabled(g))
+            if (!world_snapshot.is_group_enabled(g))
                 continue;
-            const int start = world.get_group_start(g);
-            const int end = world.get_group_end(g);
-            const Color col = world.get_group_color(g);
+            const int start = world_snapshot.get_group_start(g);
+            const int end = world_snapshot.get_group_end(g);
+            const Color col = world_snapshot.get_group_color(g);
             for (int i = start; i < end; ++i) {
                 Vector2 p = posAt(i);
                 if (p.x < 0 || p.y < 0 || p.x >= bw - 1 || p.y >= bh - 1)

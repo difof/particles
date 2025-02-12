@@ -10,6 +10,7 @@
 #include <thread>
 #include <vector>
 
+#include "../mailbox/data_snapshot.hpp"
 #include "../mailbox/mailbox.hpp"
 #include "../utility/exceptions.hpp"
 #include "../utility/logger.hpp"
@@ -153,10 +154,10 @@ class Simulation {
     mailbox::SimulationConfigSnapshot get_config() const;
 
     /**
-     * @brief Gets reference to the simulation world
-     * @return Const reference to the world object
+     * @brief Gets current world snapshot
+     * @return Current world snapshot
      */
-    const World &get_world() const;
+    mailbox::WorldSnapshot get_world_snapshot() const;
 
     /**
      * @brief Gets current simulation run state
@@ -206,6 +207,11 @@ class Simulation {
      * @param cfg Current simulation configuration
      */
     void publish_draw(mailbox::SimulationConfigSnapshot &cfg);
+
+    /**
+     * @brief Publishes current world snapshot
+     */
+    void publish_world_snapshot();
 
     /**
      * @brief Ensures thread pool has correct number of threads
@@ -354,6 +360,8 @@ class Simulation {
     mailbox::DataSnapshot<mailbox::SimulationConfigSnapshot> m_mail_cfg;
     /** @brief Statistics data snapshot for thread-safe access */
     mailbox::DataSnapshot<mailbox::SimulationStatsSnapshot> m_mail_stats;
+    /** @brief World data snapshot for thread-safe access */
+    mailbox::DataSnapshot<mailbox::WorldSnapshot> m_mail_world;
     /** @brief Main simulation thread */
     std::thread m_thread;
     /** @brief Initial seed used to create the simulation */

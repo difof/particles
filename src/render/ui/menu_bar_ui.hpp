@@ -189,7 +189,7 @@ class MenuBarUI : public IRenderer {
                         data.sim_config = ctx.sim.get_config();
                         data.render_config = ctx.rcfg;
                         data.seed =
-                            ctx.save.extract_current_seed(ctx.sim.get_world());
+                            ctx.save.extract_current_seed(ctx.world_snapshot);
                         try {
                             ctx.save.save_project(path, data);
                             m_current_filepath = path;

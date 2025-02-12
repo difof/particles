@@ -5,8 +5,6 @@
 #include <raylib.h>
 #include <string>
 
-#include "../save_manager.hpp"
-#include "../undo.hpp"
 #include "../window_config.hpp"
 #include "particles_renderer.hpp"
 #include "types/context.hpp"
@@ -20,10 +18,7 @@
 // Manages render textures and frame orchestration.
 class RenderManager {
   public:
-    RenderManager(const WindowConfig &wcfg, SaveManager &json_manager,
-                  UndoManager &undo_manager)
-        : m_wcfg(wcfg), m_particles(wcfg), m_json_manager(json_manager),
-          m_undo_manager(undo_manager) {}
+    RenderManager(const WindowConfig &wcfg) : m_wcfg(wcfg), m_particles(wcfg) {}
 
     ~RenderManager() {}
 
@@ -36,8 +31,11 @@ class RenderManager {
     // Access to menu bar for setting current file path
     MenuBarUI &get_menu_bar() { return m_menu_bar; }
 
-    bool draw_frame(Simulation &sim, Config &rcfg) {
+    bool draw_frame(Simulation &sim, Config &rcfg, SaveManager &save_manager,
+                    UndoManager &undo_manager) {
         auto view = sim.begin_read_draw();
+        auto world_snapshot = sim.get_world_snapshot();
+
         bool can_interpolate = rcfg.interpolate && view.t0 > 0 && view.t1 > 0 &&
                                view.t1 > view.t0 && view.prev && view.curr &&
                                view.prev->size() == view.curr->size() &&
@@ -60,8 +58,8 @@ class RenderManager {
         }
 
         Context ctx{
-            sim,   rcfg,           view,          m_wcfg, can_interpolate,
-            alpha, m_undo_manager, m_json_manager};
+            sim,   rcfg,           view,         m_wcfg,      can_interpolate,
+            alpha, world_snapshot, save_manager, undo_manager};
 
         m_particles.render(ctx);
         m_inspector.render(ctx);
@@ -115,6 +113,4 @@ class RenderManager {
     RenderConfigUI m_render_config;
     SimConfigUI m_sim_config;
     MetricsUI m_metrics;
-    SaveManager &m_json_manager;
-    UndoManager &m_undo_manager;
 };

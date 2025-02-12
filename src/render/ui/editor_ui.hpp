@@ -28,7 +28,7 @@ class EditorUI : public IRenderer {
     void render_ui(Context &ctx) {
         auto &sim = ctx.sim;
         mailbox::SimulationStatsSnapshot stats = sim.get_stats();
-        const World &world = sim.get_world();
+        const auto &world = ctx.world_snapshot;
 
         auto to_imvec4 = [](Color c) -> ImVec4 {
             return ImVec4(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f);
@@ -228,8 +228,7 @@ class EditorUI : public IRenderer {
             }
             ImGui::SameLine();
             int new_size = editor.sizes[g];
-            if (ImGui::InputInt("Size", &new_size, 1, 10,
-                                ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (ImGui::InputInt("Size", &new_size, 1, 10)) {
                 new_size = std::max(0, new_size);
                 if (new_size != editor.sizes[g]) {
                     int old_size = editor.sizes[g];

@@ -65,10 +65,9 @@ void run() {
     UndoManager undo_manager;
     std::string last_file = json_manager.get_last_opened_file();
 
-    // Create render manager with dependencies
+    // Create render manager
     RenderManager rman({wcfg.screen_width, wcfg.screen_height, wcfg.panel_width,
-                        wcfg.render_width},
-                       json_manager, undo_manager);
+                        wcfg.render_width});
 
     sim.begin();
 
@@ -161,7 +160,10 @@ void run() {
             rman.resize(wcfg);
         }
 
-        if (rman.draw_frame(sim, rcfg))
+        // Get world snapshot for save/undo operations
+        auto world_snapshot = sim.get_world_snapshot();
+
+        if (rman.draw_frame(sim, rcfg, json_manager, undo_manager))
             break;
 
         // Global Undo/Redo shortcuts: Ctrl/Cmd+Z, Ctrl/Cmd+Y, Shift+Ctrl/Cmd+Z
