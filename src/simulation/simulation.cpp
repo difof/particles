@@ -855,12 +855,12 @@ void Simulation::publish_world_snapshot() {
     mailbox::WorldSnapshot snapshot;
     snapshot.group_count = m_world.get_groups_size();
     snapshot.particles_count = m_world.get_particles_size();
-    snapshot.m_group_ranges = m_world.get_group_ranges();       // Direct copy
-    snapshot.m_group_colors = m_world.get_group_colors();       // Direct copy
-    snapshot.m_group_radii2 = m_world.get_group_radii2();       // Direct copy
-    snapshot.m_group_enabled = m_world.get_group_enabled();     // Direct copy
-    snapshot.m_rules = m_world.get_rules();                     // Direct copy
-    snapshot.m_particle_groups = m_world.get_particle_groups(); // Direct copy
+    snapshot.set_group_ranges(m_world.get_group_ranges());       // Copy data
+    snapshot.set_group_colors(m_world.get_group_colors());       // Copy data
+    snapshot.set_group_radii2(m_world.get_group_radii2());       // Copy data
+    snapshot.set_group_enabled(m_world.get_group_enabled());     // Copy data
+    snapshot.set_rules(m_world.get_rules());                     // Copy data
+    snapshot.set_particle_groups(m_world.get_particle_groups()); // Copy data
     m_mail_world.publish(snapshot);
 }
 

@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "mailbox/data_snapshot.hpp"
 #include "mailbox/mailbox.hpp"
 #include "render/types/config.hpp"
 #include "utility/exceptions.hpp"

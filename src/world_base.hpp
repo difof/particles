@@ -215,7 +215,55 @@ class WorldBase {
         return m_particle_groups;
     }
 
-  public:
+    /**
+     * @brief Sets the group ranges vector for snapshot creation
+     * @param ranges The group ranges to set
+     */
+    inline void set_group_ranges(const std::vector<int> &ranges) noexcept {
+        m_group_ranges = ranges;
+    }
+
+    /**
+     * @brief Sets the group colors vector for snapshot creation
+     * @param colors The group colors to set
+     */
+    inline void set_group_colors(const std::vector<Color> &colors) noexcept {
+        m_group_colors = colors;
+    }
+
+    /**
+     * @brief Sets the group radii squared vector for snapshot creation
+     * @param radii2 The group radii squared to set
+     */
+    inline void set_group_radii2(const std::vector<float> &radii2) noexcept {
+        m_group_radii2 = radii2;
+    }
+
+    /**
+     * @brief Sets the group enabled states vector for snapshot creation
+     * @param enabled The group enabled states to set
+     */
+    inline void set_group_enabled(const std::vector<bool> &enabled) noexcept {
+        m_group_enabled = enabled;
+    }
+
+    /**
+     * @brief Sets the rules matrix for snapshot creation
+     * @param rules The rules matrix to set
+     */
+    inline void set_rules(const std::vector<float> &rules) noexcept {
+        m_rules = rules;
+    }
+
+    /**
+     * @brief Sets the particle groups vector for snapshot creation
+     * @param groups The particle groups to set
+     */
+    inline void set_particle_groups(const std::vector<int> &groups) noexcept {
+        m_particle_groups = groups;
+    }
+
+  protected:
     std::vector<int>
         m_group_ranges; // Group ranges: each group has 2 items (start, end)
     std::vector<Color> m_group_colors; // Color for each group
