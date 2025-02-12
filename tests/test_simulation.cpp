@@ -299,10 +299,10 @@ TEST_CASE("Simulation seed world command", "[simulation]") {
     // Wait for command to be processed
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Check that particles were added by checking the world directly
-    const World &world = sim.get_world();
-    REQUIRE(world.get_particles_size() == 150);
-    REQUIRE(world.get_groups_size() == 2);
+    // Check that particles were added by checking the world snapshot
+    const auto world_snapshot = sim.get_world_snapshot();
+    REQUIRE(world_snapshot.get_particles_size() == 150);
+    REQUIRE(world_snapshot.get_groups_size() == 2);
 
     // Test clearing world with RemoveAllGroups command
     mailbox::command::RemoveAllGroups remove_all_cmd;
@@ -310,9 +310,10 @@ TEST_CASE("Simulation seed world command", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Check that world was cleared
-    REQUIRE(world.get_particles_size() == 0);
-    REQUIRE(world.get_groups_size() == 0);
+    // Get fresh snapshot after command processing
+    const auto fresh_snapshot = sim.get_world_snapshot();
+    REQUIRE(fresh_snapshot.get_particles_size() == 0);
+    REQUIRE(fresh_snapshot.get_groups_size() == 0);
 
     sim.end();
 }
@@ -342,10 +343,10 @@ TEST_CASE("Simulation group management commands", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Check that particles were added by checking the world directly
-    const World &world = sim.get_world();
-    REQUIRE(world.get_particles_size() == 50);
-    REQUIRE(world.get_groups_size() == 1);
+    // Check that particles were added by checking the world snapshot
+    const auto world_snapshot = sim.get_world_snapshot();
+    REQUIRE(world_snapshot.get_particles_size() == 50);
+    REQUIRE(world_snapshot.get_groups_size() == 1);
 
     // Test ResizeGroup
     mailbox::command::ResizeGroup resize_cmd;
@@ -355,8 +356,10 @@ TEST_CASE("Simulation group management commands", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    REQUIRE(world.get_particles_size() == 75);
-    REQUIRE(world.get_groups_size() == 1);
+    // Get fresh snapshot after resize command
+    const auto fresh_snapshot = sim.get_world_snapshot();
+    REQUIRE(fresh_snapshot.get_particles_size() == 75);
+    REQUIRE(fresh_snapshot.get_groups_size() == 1);
 
     // Test RemoveGroup
     mailbox::command::RemoveGroup remove_cmd;
@@ -365,8 +368,10 @@ TEST_CASE("Simulation group management commands", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    REQUIRE(world.get_particles_size() == 0);
-    REQUIRE(world.get_groups_size() == 0);
+    // Get fresh snapshot after remove command
+    const auto fresh_snapshot2 = sim.get_world_snapshot();
+    REQUIRE(fresh_snapshot2.get_particles_size() == 0);
+    REQUIRE(fresh_snapshot2.get_groups_size() == 0);
 
     sim.end();
 }
@@ -400,10 +405,10 @@ TEST_CASE("Simulation remove all groups command", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Check that particles were added by checking the world directly
-    const World &world = sim.get_world();
-    REQUIRE(world.get_particles_size() == 70);
-    REQUIRE(world.get_groups_size() == 2);
+    // Check that particles were added by checking the world snapshot
+    const auto world_snapshot = sim.get_world_snapshot();
+    REQUIRE(world_snapshot.get_particles_size() == 70);
+    REQUIRE(world_snapshot.get_groups_size() == 2);
 
     // Test RemoveAllGroups
     mailbox::command::RemoveAllGroups remove_all_cmd;
@@ -411,8 +416,10 @@ TEST_CASE("Simulation remove all groups command", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    REQUIRE(world.get_particles_size() == 0);
-    REQUIRE(world.get_groups_size() == 0);
+    // Get fresh snapshot after remove all command
+    const auto fresh_snapshot = sim.get_world_snapshot();
+    REQUIRE(fresh_snapshot.get_particles_size() == 0);
+    REQUIRE(fresh_snapshot.get_groups_size() == 0);
 
     sim.end();
 }
@@ -457,9 +464,9 @@ TEST_CASE("Simulation apply rules command", "[simulation]") {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Should still have same particle count
-    const World &world = sim.get_world();
-    REQUIRE(world.get_particles_size() == 50);
-    REQUIRE(world.get_groups_size() == 1);
+    const auto world_snapshot = sim.get_world_snapshot();
+    REQUIRE(world_snapshot.get_particles_size() == 50);
+    REQUIRE(world_snapshot.get_groups_size() == 1);
 
     sim.end();
 }
@@ -567,10 +574,10 @@ TEST_CASE("Simulation thread pool management", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
-    // Check that particles were added by checking the world directly
-    const World &world = sim.get_world();
-    REQUIRE(world.get_particles_size() == 200);
-    REQUIRE(world.get_groups_size() == 1);
+    // Check that particles were added by checking the world snapshot
+    const auto world_snapshot = sim.get_world_snapshot();
+    REQUIRE(world_snapshot.get_particles_size() == 200);
+    REQUIRE(world_snapshot.get_groups_size() == 1);
 
     // Test changing thread count
     cfg.sim_threads = 4;
@@ -645,10 +652,10 @@ TEST_CASE("Simulation world access", "[simulation]") {
     Simulation sim(cfg);
     sim.begin();
 
-    // Test get_world() method
-    const World &world = sim.get_world();
-    REQUIRE(world.get_particles_size() >= 0);
-    REQUIRE(world.get_groups_size() >= 0);
+    // Test get_world_snapshot() method
+    const auto world_snapshot = sim.get_world_snapshot();
+    REQUIRE(world_snapshot.get_particles_size() >= 0);
+    REQUIRE(world_snapshot.get_groups_size() >= 0);
 
     // Add particles and verify world state
     mailbox::command::AddGroup add_cmd;
@@ -658,8 +665,10 @@ TEST_CASE("Simulation world access", "[simulation]") {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    REQUIRE(world.get_particles_size() == 75);
-    REQUIRE(world.get_groups_size() == 1);
+    // Get fresh snapshot after add command
+    const auto fresh_snapshot = sim.get_world_snapshot();
+    REQUIRE(fresh_snapshot.get_particles_size() == 75);
+    REQUIRE(fresh_snapshot.get_groups_size() == 1);
 
     sim.end();
 }
