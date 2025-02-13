@@ -4,7 +4,7 @@
         {
             "label": "build-debug",
             "type": "shell",
-            "command": "task build-debug",
+            "command": "task build:debug",
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -19,7 +19,7 @@
         {
             "label": "build-release",
             "type": "shell",
-            "command": "task build-release",
+            "command": "task build:release",
             "group": {
                 "kind": "build",
                 "isDefault": true
