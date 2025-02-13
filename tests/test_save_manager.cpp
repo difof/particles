@@ -149,12 +149,12 @@ TEST_CASE("SaveManager - World seed extraction", "[json_manager]") {
         mailbox::WorldSnapshot snapshot;
         snapshot.group_count = world.get_groups_size();
         snapshot.particles_count = world.get_particles_size();
-        snapshot.m_group_ranges = world.get_group_ranges();
-        snapshot.m_group_colors = world.get_group_colors();
-        snapshot.m_group_radii2 = world.get_group_radii2();
-        snapshot.m_group_enabled = world.get_group_enabled();
-        snapshot.m_rules = world.get_rules();
-        snapshot.m_particle_groups = world.get_particle_groups();
+        snapshot.set_group_ranges(world.get_group_ranges());
+        snapshot.set_group_colors(world.get_group_colors());
+        snapshot.set_group_radii2(world.get_group_radii2());
+        snapshot.set_group_enabled(world.get_group_enabled());
+        snapshot.set_rules(world.get_rules());
+        snapshot.set_particle_groups(world.get_particle_groups());
 
         auto seed = manager.extract_current_seed(snapshot);
         REQUIRE(seed == nullptr); // No groups in empty world
@@ -184,12 +184,12 @@ TEST_CASE("SaveManager - World seed extraction", "[json_manager]") {
         mailbox::WorldSnapshot snapshot;
         snapshot.group_count = world.get_groups_size();
         snapshot.particles_count = world.get_particles_size();
-        snapshot.m_group_ranges = world.get_group_ranges();
-        snapshot.m_group_colors = world.get_group_colors();
-        snapshot.m_group_radii2 = world.get_group_radii2();
-        snapshot.m_group_enabled = world.get_group_enabled();
-        snapshot.m_rules = world.get_rules();
-        snapshot.m_particle_groups = world.get_particle_groups();
+        snapshot.set_group_ranges(world.get_group_ranges());
+        snapshot.set_group_colors(world.get_group_colors());
+        snapshot.set_group_radii2(world.get_group_radii2());
+        snapshot.set_group_enabled(world.get_group_enabled());
+        snapshot.set_rules(world.get_rules());
+        snapshot.set_particle_groups(world.get_particle_groups());
 
         // Extract seed
         auto seed = manager.extract_current_seed(snapshot);
