@@ -1,5 +1,4 @@
-#ifndef __MATH_HPP
-#define __MATH_HPP
+#pragma once
 
 // Cross-platform SIMD support detection
 #if defined(USE_X86_SSE) && defined(ARCH_X64) &&                               \
@@ -38,15 +37,11 @@ inline float rsqrt_fast(float x) {
     return vget_lane_f32(y, 0);
 #else
     // Scalar fallback: Quake-style bit hack + one NR step
-    // Good speedup on -O3; accurate enough for forces
     float xhalf = 0.5f * x;
-    int i = *(int *)&x; // type-pun (OK on most compilers; or use std::bit_cast
-                        // in C++20)
+    int i = *(int *)&x;
     i = 0x5f3759df - (i >> 1);
     float y = *(float *)&i;
-    y = y * (1.5f - xhalf * y * y); // one NR step
+    y = y * (1.5f - xhalf * y * y);
     return y;
 #endif
 }
-
-#endif
