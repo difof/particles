@@ -48,7 +48,10 @@ int World::add_group(int particle_count, Color color) {
     int start_index = get_particles_size();
 
     m_group_ranges.push_back(start_index);
-    m_particles.resize(m_particles.size() + particle_count * 4, 0.);
+    m_px.resize(m_px.size() + particle_count, 0.f);
+    m_py.resize(m_py.size() + particle_count, 0.f);
+    m_vx.resize(m_vx.size() + particle_count, 0.f);
+    m_vy.resize(m_vy.size() + particle_count, 0.f);
     m_group_ranges.push_back(get_particles_size());
     m_group_colors.push_back(color);
 
@@ -56,7 +59,10 @@ int World::add_group(int particle_count, Color color) {
 }
 
 void World::reset(bool shrink) {
-    m_particles.clear();
+    m_px.clear();
+    m_py.clear();
+    m_vx.clear();
+    m_vy.clear();
     m_group_ranges.clear();
     m_group_colors.clear();
     m_particle_groups.clear();
@@ -65,7 +71,10 @@ void World::reset(bool shrink) {
     m_group_enabled.clear();
 
     if (shrink) {
-        std::vector<float>().swap(m_particles);
+        std::vector<float>().swap(m_px);
+        std::vector<float>().swap(m_py);
+        std::vector<float>().swap(m_vx);
+        std::vector<float>().swap(m_vy);
         std::vector<int>().swap(m_group_ranges);
         std::vector<Color>().swap(m_group_colors);
         std::vector<int>().swap(m_particle_groups);
@@ -85,12 +94,12 @@ void World::remove_group(int group_index) {
     const int end_index = get_group_end(group_index);
     const int particle_count = end_index - start_index;
 
-    // 1) erase particles of the group (4 floats per particle)
+    // 1) erase particles of the group
     if (particle_count > 0) {
-        const size_t float_start = size_t(start_index) * 4;
-        const size_t float_end = size_t(end_index) * 4;
-        m_particles.erase(m_particles.begin() + float_start,
-                          m_particles.begin() + float_end);
+        m_px.erase(m_px.begin() + start_index, m_px.begin() + end_index);
+        m_py.erase(m_py.begin() + start_index, m_py.begin() + end_index);
+        m_vx.erase(m_vx.begin() + start_index, m_vx.begin() + end_index);
+        m_vy.erase(m_vy.begin() + start_index, m_vy.begin() + end_index);
     }
 
     // 2) drop color
@@ -152,7 +161,10 @@ void World::resize_group(int group_index, int new_size) {
     if (new_size > current_size) {
         // Add particles
         const int add_count = new_size - current_size;
-        m_particles.resize(m_particles.size() + add_count * 4, 0.);
+        m_px.resize(m_px.size() + add_count, 0.f);
+        m_py.resize(m_py.size() + add_count, 0.f);
+        m_vx.resize(m_vx.size() + add_count, 0.f);
+        m_vy.resize(m_vy.size() + add_count, 0.f);
 
         // Update group ranges for subsequent groups
         for (int group_i = group_index + 1; group_i < group_count; ++group_i) {
@@ -167,10 +179,14 @@ void World::resize_group(int group_index, int new_size) {
         const int end_index = get_group_end(group_index);
 
         // Remove particles from the end of the group
-        const size_t float_start = size_t(end_index - remove_count) * 4;
-        const size_t float_end = size_t(end_index) * 4;
-        m_particles.erase(m_particles.begin() + float_start,
-                          m_particles.begin() + float_end);
+        m_px.erase(m_px.begin() + end_index - remove_count,
+                   m_px.begin() + end_index);
+        m_py.erase(m_py.begin() + end_index - remove_count,
+                   m_py.begin() + end_index);
+        m_vx.erase(m_vx.begin() + end_index - remove_count,
+                   m_vx.begin() + end_index);
+        m_vy.erase(m_vy.begin() + end_index - remove_count,
+                   m_vy.begin() + end_index);
 
         // Update group ranges for subsequent groups
         for (int group_i = group_index + 1; group_i < group_count; ++group_i) {

@@ -101,7 +101,7 @@ class World : public particles::WorldBase {
      * @return Total number of particles
      */
     inline int get_particles_size() const noexcept override {
-        return (int)m_particles.size() / 4;
+        return (int)m_px.size();
     }
 
     /**
@@ -120,7 +120,7 @@ class World : public particles::WorldBase {
      * @return X position
      */
     inline float get_px(int particle_index) const noexcept {
-        return m_particles[particle_index * 4 + 0];
+        return m_px[particle_index];
     }
 
     /**
@@ -129,7 +129,7 @@ class World : public particles::WorldBase {
      * @return Y position
      */
     inline float get_py(int particle_index) const noexcept {
-        return m_particles[particle_index * 4 + 1];
+        return m_py[particle_index];
     }
 
     /**
@@ -138,7 +138,7 @@ class World : public particles::WorldBase {
      * @return X velocity
      */
     inline float get_vx(int particle_index) const noexcept {
-        return m_particles[particle_index * 4 + 2];
+        return m_vx[particle_index];
     }
 
     /**
@@ -147,7 +147,7 @@ class World : public particles::WorldBase {
      * @return Y velocity
      */
     inline float get_vy(int particle_index) const noexcept {
-        return m_particles[particle_index * 4 + 3];
+        return m_vy[particle_index];
     }
 
     /**
@@ -156,7 +156,7 @@ class World : public particles::WorldBase {
      * @param value New x position
      */
     inline void set_px(int particle_index, float value) noexcept {
-        m_particles[particle_index * 4 + 0] = value;
+        m_px[particle_index] = value;
     }
 
     /**
@@ -165,7 +165,7 @@ class World : public particles::WorldBase {
      * @param value New y position
      */
     inline void set_py(int particle_index, float value) noexcept {
-        m_particles[particle_index * 4 + 1] = value;
+        m_py[particle_index] = value;
     }
 
     /**
@@ -174,7 +174,7 @@ class World : public particles::WorldBase {
      * @param value New x velocity
      */
     inline void set_vx(int particle_index, float value) noexcept {
-        m_particles[particle_index * 4 + 2] = value;
+        m_vx[particle_index] = value;
     }
 
     /**
@@ -183,8 +183,60 @@ class World : public particles::WorldBase {
      * @param value New y velocity
      */
     inline void set_vy(int particle_index, float value) noexcept {
-        m_particles[particle_index * 4 + 3] = value;
+        m_vy[particle_index] = value;
     }
+
+    /**
+     * @brief Gets direct access to X positions array for SoA operations.
+     * @return Pointer to X positions array
+     */
+    inline const float *get_px_array() const noexcept { return m_px.data(); }
+
+    /**
+     * @brief Gets direct access to Y positions array for SoA operations.
+     * @return Pointer to Y positions array
+     */
+    inline const float *get_py_array() const noexcept { return m_py.data(); }
+
+    /**
+     * @brief Gets direct access to X velocities array for SoA operations.
+     * @return Pointer to X velocities array
+     */
+    inline const float *get_vx_array() const noexcept { return m_vx.data(); }
+
+    /**
+     * @brief Gets direct access to Y velocities array for SoA operations.
+     * @return Pointer to Y velocities array
+     */
+    inline const float *get_vy_array() const noexcept { return m_vy.data(); }
+
+    /**
+     * @brief Gets direct access to X positions array for SoA operations
+     * (mutable).
+     * @return Pointer to X positions array
+     */
+    inline float *get_px_array_mut() noexcept { return m_px.data(); }
+
+    /**
+     * @brief Gets direct access to Y positions array for SoA operations
+     * (mutable).
+     * @return Pointer to Y positions array
+     */
+    inline float *get_py_array_mut() noexcept { return m_py.data(); }
+
+    /**
+     * @brief Gets direct access to X velocities array for SoA operations
+     * (mutable).
+     * @return Pointer to X velocities array
+     */
+    inline float *get_vx_array_mut() noexcept { return m_vx.data(); }
+
+    /**
+     * @brief Gets direct access to Y velocities array for SoA operations
+     * (mutable).
+     * @return Pointer to Y velocities array
+     */
+    inline float *get_vy_array_mut() noexcept { return m_vy.data(); }
 
     /**
      * @brief Sets the interaction rule between two groups.
@@ -218,6 +270,8 @@ class World : public particles::WorldBase {
     }
 
   private:
-    std::vector<float> m_particles; // Particle data: each particle has 4
-                                    // floats (px, py, vx, vy)
+    std::vector<float> m_px; // Particle X positions
+    std::vector<float> m_py; // Particle Y positions
+    std::vector<float> m_vx; // Particle X velocities
+    std::vector<float> m_vy; // Particle Y velocities
 };

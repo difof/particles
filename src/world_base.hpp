@@ -33,8 +33,7 @@ struct RuleRowView {
  * @brief Base class containing shared group-related data and read-only accessor
  * methods
  *
- * This class provides all shared functionality between World and WorldSnapshot,
- * eliminating code duplication while maintaining clean OOP design.
+ * This class provides all shared functionality between World and WorldSnapshot.
  */
 class WorldBase {
   public:

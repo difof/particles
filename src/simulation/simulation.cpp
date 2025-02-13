@@ -361,12 +361,18 @@ void Simulation::publish_draw(mailbox::SimulationConfigSnapshot &cfg) {
         m_idx.grid.cols(), m_idx.grid.rows(), particles_count,
         m_idx.grid.cell_size(), m_idx.grid.width(), m_idx.grid.height());
 
+    // Use SoA bulk operations for better performance
+    const float *const px_array = m_world.get_px_array();
+    const float *const py_array = m_world.get_py_array();
+    const float *const vx_array = m_world.get_vx_array();
+    const float *const vy_array = m_world.get_vy_array();
+
     for (int i = 0; i < particles_count; ++i) {
         const size_t b = size_t(i) * 2;
-        pos[b + 0] = m_world.get_px(i);
-        pos[b + 1] = m_world.get_py(i);
-        vel[b + 0] = m_world.get_vx(i);
-        vel[b + 1] = m_world.get_vy(i);
+        pos[b + 0] = px_array[i];
+        pos[b + 1] = py_array[i];
+        vel[b + 0] = vx_array[i];
+        vel[b + 1] = vy_array[i];
     }
 
     if (cfg.draw_report.grid_data) {
@@ -448,9 +454,13 @@ void Simulation::apply_seed(const mailbox::command::SeedSpec &seed,
 }
 
 inline void Simulation::kernel_force(int start, int end, KernelData &data) {
+    // Get SoA arrays for better cache locality and potential vectorization
+    const float *const px_array = m_world.get_px_array();
+    const float *const py_array = m_world.get_py_array();
+
     for (int i = start; i < end; ++i) {
-        const float particle_x = m_world.get_px(i);
-        const float particle_y = m_world.get_py(i);
+        const float particle_x = px_array[i];
+        const float particle_y = py_array[i];
         const int group_index = m_world.group_of(i);
         const float interaction_radius_squared = m_world.r2_of(group_index);
 
@@ -494,8 +504,8 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
                 if (j == i) {
                     continue;
                 }
-                const float other_particle_x = m_world.get_px(j);
-                const float other_particle_y = m_world.get_py(j);
+                const float other_particle_x = px_array[j];
+                const float other_particle_y = py_array[j];
                 const float dx = particle_x - other_particle_x;
                 const float dy = particle_y - other_particle_y;
                 const float distance_squared = dx * dx + dy * dy;
@@ -548,25 +558,37 @@ inline void Simulation::kernel_force(int start, int end, KernelData &data) {
 }
 
 inline void Simulation::kernel_vel(int start, int end, KernelData &data) {
-    for (int i = start; i < end; ++i) {
-        const float new_velocity_x =
-            m_world.get_vx(i) * data.k_inverse_viscosity +
-            data.fx[i] * data.k_time_scale;
-        const float new_velocity_y =
-            m_world.get_vy(i) * data.k_inverse_viscosity +
-            data.fy[i] * data.k_time_scale;
+    // Get SoA arrays for better cache locality and potential vectorization
+    float *const vx_array = m_world.get_vx_array_mut();
+    float *const vy_array = m_world.get_vy_array_mut();
 
-        m_world.set_vx(i, new_velocity_x);
-        m_world.set_vy(i, new_velocity_y);
+    for (int i = start; i < end; ++i) {
+        const float new_velocity_x = vx_array[i] * data.k_inverse_viscosity +
+                                     data.fx[i] * data.k_time_scale;
+        const float new_velocity_y = vy_array[i] * data.k_inverse_viscosity +
+                                     data.fy[i] * data.k_time_scale;
+
+        vx_array[i] = new_velocity_x;
+        vy_array[i] = new_velocity_y;
     }
 }
 
 inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
+    // Get SoA arrays for better cache locality and potential vectorization
+    const float *const px_array = m_world.get_px_array();
+    const float *const py_array = m_world.get_py_array();
+    const float *const vx_array = m_world.get_vx_array();
+    const float *const vy_array = m_world.get_vy_array();
+    float *const px_array_mut = m_world.get_px_array_mut();
+    float *const py_array_mut = m_world.get_py_array_mut();
+    float *const vx_array_mut = m_world.get_vx_array_mut();
+    float *const vy_array_mut = m_world.get_vy_array_mut();
+
     for (int i = start; i < end; ++i) {
-        float new_x = m_world.get_px(i) + m_world.get_vx(i);
-        float new_y = m_world.get_py(i) + m_world.get_vy(i);
-        float new_velocity_x = m_world.get_vx(i);
-        float new_velocity_y = m_world.get_vy(i);
+        float new_x = px_array[i] + vx_array[i];
+        float new_y = py_array[i] + vy_array[i];
+        float new_velocity_x = vx_array[i];
+        float new_velocity_y = vy_array[i];
 
         if (new_x < 0.f) {
             new_x = -new_x;
@@ -585,10 +607,10 @@ inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
             new_velocity_y = -new_velocity_y;
         }
 
-        m_world.set_px(i, new_x);
-        m_world.set_py(i, new_y);
-        m_world.set_vx(i, new_velocity_x);
-        m_world.set_vy(i, new_velocity_y);
+        px_array_mut[i] = new_x;
+        py_array_mut[i] = new_y;
+        vx_array_mut[i] = new_velocity_x;
+        vy_array_mut[i] = new_velocity_y;
     }
 }
 
