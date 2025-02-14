@@ -8,7 +8,7 @@
 #include "save_manager.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
-#include "undo.hpp"
+#include "undo/undo_manager.hpp"
 #include "utility/default_seed.hpp"
 #include "utility/exceptions.hpp"
 #include "utility/logger.hpp"

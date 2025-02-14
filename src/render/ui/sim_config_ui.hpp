@@ -3,7 +3,8 @@
 #include <imgui.h>
 #include <raylib.h>
 
-#include "../../undo.hpp"
+#include "../../undo/undo_manager.hpp"
+#include "../../undo/value_action.hpp"
 #include "../../window_config.hpp"
 #include "../renderer.hpp"
 

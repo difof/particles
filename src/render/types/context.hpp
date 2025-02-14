@@ -3,7 +3,7 @@
 #include "../../mailbox/data_snapshot.hpp"
 #include "../../save_manager.hpp"
 #include "../../simulation/simulation.hpp"
-#include "../../undo.hpp"
+#include "../../undo/undo_manager.hpp"
 #include "../../window_config.hpp"
 #include "config.hpp"
 

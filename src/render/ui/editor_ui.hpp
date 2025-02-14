@@ -8,7 +8,12 @@
 #include <string>
 #include <vector>
 
-#include "../../undo.hpp"
+#include "../../undo/add_group_action.hpp"
+#include "../../undo/clear_all_groups_action.hpp"
+#include "../../undo/remove_group_action.hpp"
+#include "../../undo/resize_group_action.hpp"
+#include "../../undo/undo_manager.hpp"
+#include "../../undo/value_action.hpp"
 #include "../../window_config.hpp"
 #include "../renderer.hpp"
 #include "smart_randomizer.hpp"
