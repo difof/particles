@@ -18,24 +18,26 @@ void run() {
     LOG_INFO("Starting particles application");
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
-    // Initialize singletons first to load window state
     SaveManager json_manager;
     auto window_state = json_manager.load_window_state();
 
-    InitWindow(window_state.width, window_state.height, "Particles");
+    UndoManager undo_manager;
+    std::string last_file = json_manager.get_last_opened_file();
 
-    // Set window position if we have saved position
-    if (window_state.x != 0 || window_state.y != 0) {
-        SetWindowPosition(window_state.x, window_state.y);
-    }
+    InitWindow(window_state.width, window_state.height, "Particles");
 
     int monitor = GetCurrentMonitor();
     int screenW = GetScreenWidth();
     int screenH = GetScreenHeight();
-    int panelW = 500;
+
+    if (window_state.width != 0 || window_state.height != 0) {
+        screenW = window_state.width;
+        screenH = window_state.height;
+    }
+
     int texW = screenW;
 
-    WindowConfig wcfg = {screenW, screenH, panelW, texW};
+    WindowConfig wcfg = {screenW, screenH, 0, texW};
     Config rcfg;
     rcfg.interpolate = true;
     rcfg.core_size = 1.5f;
@@ -56,17 +58,18 @@ void run() {
     scfg.sim_threads = -1;
     Simulation sim(scfg);
 
+    if (window_state.x != 0 || window_state.y != 0) {
+        SetWindowPosition(window_state.x, window_state.y);
+    } else {
+        SetWindowPosition(0, 0);
+    }
+
     SetWindowSize(wcfg.screen_width, wcfg.screen_height);
-    SetWindowPosition(0, 0);
-    SetWindowMonitor(1);
     SetTargetFPS(60);
     rlImGuiSetup(true);
 
-    // Initialize remaining singletons
-    UndoManager undo_manager;
-    std::string last_file = json_manager.get_last_opened_file();
+    ImGui::GetIO().IniFilename = nullptr;
 
-    // Create render manager
     RenderManager rman({wcfg.screen_width, wcfg.screen_height, wcfg.panel_width,
                         wcfg.render_width});
 
@@ -78,54 +81,43 @@ void run() {
         SaveManager::ProjectData data;
         try {
             json_manager.load_project(last_file, data);
-            // Apply loaded project settings
             sim.update_config(data.sim_config);
             rcfg = data.render_config;
 
-            // Send loaded seed to simulation
             if (data.seed) {
                 sim.push_command(mailbox::command::SeedWorld{data.seed});
                 loaded_project = true;
             }
-            // Set current file path so Save overwrites instead of opening
-            // dialog
             rman.get_menu_bar().set_current_filepath(last_file);
         } catch (const particles::IOError &e) {
             LOG_ERROR("Failed to load project: " + std::string(e.what()));
         }
     }
 
-    // If no project was loaded, use default seed
     if (!loaded_project) {
-        // send initial seed from main
         auto seed = particles::utility::create_default_seed();
         sim.push_command(mailbox::command::SeedWorld{seed});
     }
 
     while (!WindowShouldClose()) {
-        // Handle window resize
         if (IsWindowResized()) {
             int newWidth = GetScreenWidth();
             int newHeight = GetScreenHeight();
             LOG_INFO("Window resized to " + std::to_string(newWidth) + "x" +
                      std::to_string(newHeight));
 
-            // Update window config
             wcfg.screen_width = newWidth;
             wcfg.screen_height = newHeight;
             wcfg.render_width = newWidth;
 
-            // Resize render manager components
             rman.resize(wcfg);
         }
 
-        // Get world snapshot for save/undo operations
-        auto world_snapshot = sim.get_world_snapshot();
+        // auto world_snapshot = sim.get_world_snapshot();
 
         if (rman.draw_frame(sim, rcfg, json_manager, undo_manager))
             break;
 
-        // Global Undo/Redo shortcuts: Ctrl/Cmd+Z, Ctrl/Cmd+Y, Shift+Ctrl/Cmd+Z
         bool ctrl_cmd = IsKeyDown(KEY_LEFT_CONTROL) ||
                         IsKeyDown(KEY_RIGHT_CONTROL) ||
                         IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
@@ -141,12 +133,9 @@ void run() {
             undo_manager.redo();
         }
 
-        // Check if ImGui is capturing input (moved up to be available for all
-        // shortcuts)
         bool imgui_mouse_captured = false;
         bool imgui_keyboard_captured = false;
         if (rcfg.show_ui) {
-            // Check ImGui IO state to see if input is captured
             ImGuiIO &io = ImGui::GetIO();
             imgui_mouse_captured = io.WantCaptureMouse;
             imgui_keyboard_captured = io.WantCaptureKeyboard;
@@ -170,7 +159,7 @@ void run() {
                 sim.push_command(mailbox::command::Resume{});
             }
         }
-        // Window toggle shortcuts (only when ImGui is not capturing keyboard)
+
         if (!imgui_keyboard_captured) {
             if (IsKeyPressed(KEY_ONE)) {
                 rcfg.show_metrics_ui = !rcfg.show_metrics_ui;
@@ -186,15 +175,11 @@ void run() {
             }
         }
 
-        // Camera controls (keyboard and mouse)
         const float pan_speed = 10.0f;
         const float zoom_step = 0.1f;
         const float min_zoom_log = -3.0f; // 0.125x zoom
         const float max_zoom_log = 3.0f;  // 8x zoom
 
-        // ImGui input capture already checked above
-
-        // Keyboard panning (only when ImGui is not capturing keyboard)
         if (!imgui_keyboard_captured) {
             if (IsKeyDown(KEY_LEFT)) {
                 rcfg.camera.x -= pan_speed;
@@ -210,7 +195,6 @@ void run() {
             }
         }
 
-        // Mouse panning (left click and drag) - only when not over ImGui
         if (!ctrl_cmd && !imgui_mouse_captured &&
             IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 delta = GetMouseDelta();
@@ -219,7 +203,6 @@ void run() {
             rcfg.camera.y -= delta.y / zoom;
         }
 
-        // Keyboard zoom (only when ImGui is not capturing keyboard)
         if (!imgui_keyboard_captured) {
             if (IsKeyPressed(KEY_MINUS)) {
                 rcfg.camera.zoom_log =
@@ -233,7 +216,6 @@ void run() {
             }
         }
 
-        // Mouse wheel zoom (center-based) - only when not over ImGui
         if (!imgui_mouse_captured) {
             float wheel = GetMouseWheelMove();
             if (wheel != 0) {
@@ -247,7 +229,6 @@ void run() {
 
     sim.end();
 
-    // Save window state before closing
     SaveManager::WindowState current_state;
     current_state.width = GetScreenWidth();
     current_state.height = GetScreenHeight();
