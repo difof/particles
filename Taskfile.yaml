@@ -27,7 +27,10 @@ tasks:
   build-binary:
     internal: true
     requires:
-      vars: [CONFIG, PROJECT]
+      vars:
+        - CONFIG
+        - PROJECT
+        - COMPILE_THREADS
     sources:
       - src/**/*.hpp
       - src/**/*.cpp
@@ -45,7 +48,9 @@ tasks:
   run-binary:
     internal: true
     requires:
-      vars: [CONFIG, PROJECT]
+      vars:
+        - CONFIG
+        - PROJECT
     deps:
       - task: build-binary
         vars:
@@ -71,24 +76,6 @@ tasks:
           CONFIG: release
           PROJECT: particles
 
-  run:debug:
-    desc: Run project
-    cmds:
-      - task: run-binary
-        vars:
-          CONFIG: debug
-          PROJECT: particles
-
-  run:release:
-    desc: Run project
-    aliases:
-      - run
-    cmds:
-      - task: run-binary
-        vars:
-          CONFIG: release
-          PROJECT: particles
-
   build:test:
     desc: Build a unit test
     requires:
@@ -108,6 +95,24 @@ tasks:
         vars:
           CONFIG: debug
           PROJECT: "{{.ITEM}}"
+
+  run:debug:
+    desc: Run project
+    cmds:
+      - task: run-binary
+        vars:
+          CONFIG: debug
+          PROJECT: particles
+
+  run:release:
+    desc: Run project
+    aliases:
+      - run
+    cmds:
+      - task: run-binary
+        vars:
+          CONFIG: release
+          PROJECT: particles
 
   test:all:
     desc: Build and run all unit tests
