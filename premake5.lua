@@ -58,9 +58,11 @@ local function applyOSAndArchDefines()
         buildoptions { "/W3" }
 
     filter "system:macosx"
+        links { "m", "dl", "pthread" }
         defines { "PLATFORM_MACOS" }
 
     filter "system:linux"
+        links { "m", "dl", "pthread" }
         defines { "PLATFORM_LINUX" }
 
     filter "architecture:x64"
@@ -116,8 +118,6 @@ local function projectBase()
         "extlib/nlohmann-json/single_include"
     }
 
-    links { "m", "dl", "pthread" }
-
     applyOSAndArchDefines()
 end
 
@@ -129,17 +129,17 @@ local function unitTest(name, extraIncludes, extraFiles)
             "extlib/catch2/extras/catch_amalgamated.cpp",
             "tests/"..name..".cpp" 
         }
+
+        includedirs { 
+            "src",
+            "extlib/catch2/extras"
+        }
         
         if extraFiles then
             for _, file in ipairs(extraFiles) do
                 files { file }
             end
         end
-
-        includedirs { 
-            "src",
-            "extlib/catch2/extras"
-        }
         
         if extraIncludes then
             for _, include in ipairs(extraIncludes) do
@@ -147,8 +147,6 @@ local function unitTest(name, extraIncludes, extraFiles)
             end
         end
         
-        links { "m", "dl", "pthread" }
-
         applyOSAndArchDefines()
 
         defines { "DEBUG" }
@@ -199,9 +197,9 @@ project "particles"
         buildoptions { "-O3", "-ffast-math", "-fno-math-errno", "-fno-trapping-math" }
         applyOutDir("release")
 
-unitTest "test_uniformgrid"
+unitTest("test_uniformgrid")
 unitTest("test_world", { "extlib/raylib/src" }, { "src/simulation/world.cpp" })
 unitTest("test_multicore", { "extlib/raylib/src" }, { "src/simulation/multicore.cpp" })
 unitTest("test_mailboxes", { "extlib/raylib/src" }, { "src/mailbox/render/drawbuffer.cpp" })
 unitTest("test_save_manager", { "extlib/raylib/src", "extlib/nlohmann-json/single_include" }, { "src/save_manager.cpp", "src/simulation/world.cpp" })
-unitTest("test_simulation", { "extlib/raylib/src" }, { "src/simulation/simulation.cpp", "src/simulation/world.cpp", "src/simulation/multicore.cpp", "src/mailbox/render/drawbuffer.cpp", "src/mailbox/data_snapshot.cpp" })
+unitTest("test_simulation", { "extlib/raylib/src" }, { "src/simulation/simulation.cpp", "src/simulation/world.cpp", "src/simulation/multicore.cpp", "src/mailbox/render/drawbuffer.cpp" })
