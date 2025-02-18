@@ -241,40 +241,84 @@ TEST_CASE("SaveManager - Error handling", "[json_manager]") {
     }
 }
 
-TEST_CASE("SaveManager - Color serialization", "[json_manager]") {
+TEST_CASE("SaveManager - Window state persistence", "[json_manager]") {
     SaveManager manager;
 
-    SECTION("Color round-trip") {
-        Color original = {128, 64, 192, 255};
+    SECTION("Save and load window state") {
+        SaveManager::WindowState original_state;
+        original_state.width = 1920;
+        original_state.height = 1080;
+        original_state.x = 100;
+        original_state.y = 200;
 
-        // Convert to JSON and back
-        auto json_color = manager.color_to_json(original);
-        Color converted = manager.json_to_color(json_color);
+        // Save window state
+        REQUIRE_NOTHROW(manager.save_window_state(original_state));
 
-        REQUIRE(converted.r == original.r);
-        REQUIRE(converted.g == original.g);
-        REQUIRE(converted.b == original.b);
-        REQUIRE(converted.a == original.a);
+        // Load window state
+        SaveManager::WindowState loaded_state = manager.load_window_state();
+
+        REQUIRE(loaded_state.width == 1920);
+        REQUIRE(loaded_state.height == 1080);
+        REQUIRE(loaded_state.x == 100);
+        REQUIRE(loaded_state.y == 200);
+    }
+}
+
+TEST_CASE("SaveManager - Configuration persistence", "[json_manager]") {
+    SaveManager manager;
+
+    SECTION("Recent files persistence across instances") {
+        const std::string test_file1 = "test_persistence1.json";
+        const std::string test_file2 = "test_persistence2.json";
+
+        // Create and save test projects
+        SaveManager::ProjectData data;
+        REQUIRE_NOTHROW(manager.new_project(data));
+        REQUIRE_NOTHROW(manager.save_project(test_file1, data));
+        REQUIRE_NOTHROW(manager.save_project(test_file2, data));
+
+        // Create new manager instance (simulates app restart)
+        SaveManager new_manager;
+        auto recent_files = new_manager.get_recent_files();
+
+        // Should have the recent files from previous session
+        REQUIRE(recent_files.size() >= 2);
+        REQUIRE(recent_files[0] == test_file2); // Most recent first
+        REQUIRE(recent_files[1] == test_file1);
+
+        // Clean up
+        std::filesystem::remove(test_file1);
+        std::filesystem::remove(test_file2);
     }
 
-    SECTION("Edge case colors") {
-        Color black = {0, 0, 0, 0};
-        Color white = {255, 255, 255, 255};
+    SECTION("Last opened file persistence") {
+        const std::string test_file = "test_last_file_persistence.json";
 
-        auto json_black = manager.color_to_json(black);
-        auto json_white = manager.color_to_json(white);
+        // Set last file
+        manager.set_last_opened_file(test_file);
 
-        Color converted_black = manager.json_to_color(json_black);
-        Color converted_white = manager.json_to_color(json_white);
+        // Create new manager instance
+        SaveManager new_manager;
+        REQUIRE(new_manager.get_last_opened_file() == test_file);
+    }
+}
 
-        REQUIRE(converted_black.r == 0);
-        REQUIRE(converted_black.g == 0);
-        REQUIRE(converted_black.b == 0);
-        REQUIRE(converted_black.a == 0);
+TEST_CASE("SaveManager - JSON parsing edge cases", "[json_manager]") {
+    SaveManager manager;
 
-        REQUIRE(converted_white.r == 255);
-        REQUIRE(converted_white.g == 255);
-        REQUIRE(converted_white.b == 255);
-        REQUIRE(converted_white.a == 255);
+    SECTION("Handle malformed JSON gracefully") {
+        const std::string test_file = "test_malformed.json";
+
+        // Create file with malformed JSON
+        std::ofstream file(test_file);
+        file << "{ \"simulation\": { \"bounds_width\": 800.0f, }"; // Trailing
+                                                                   // comma
+        file.close();
+
+        SaveManager::ProjectData data;
+        REQUIRE_THROWS_AS(manager.load_project(test_file, data),
+                          particles::IOError);
+
+        std::filesystem::remove(test_file);
     }
 }
