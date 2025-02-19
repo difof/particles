@@ -57,3 +57,4 @@ class ValueAction : public IAction {
     T m_before;
     T m_after;
 };
+

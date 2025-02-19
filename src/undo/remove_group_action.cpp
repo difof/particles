@@ -14,3 +14,4 @@ RemoveGroupAction::RemoveGroupAction(
 void RemoveGroupAction::apply() { m_apply_func(); }
 
 void RemoveGroupAction::unapply() { m_unapply_func(); }
+

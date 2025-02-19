@@ -45,3 +45,4 @@ class AddGroupAction : public IAction {
     std::function<void()> m_apply_func;
     std::function<void()> m_unapply_func;
 };
+

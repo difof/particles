@@ -46,3 +46,4 @@ struct IAction {
         return false;
     }
 };
+

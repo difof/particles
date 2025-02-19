@@ -13,3 +13,4 @@ AddGroupAction::AddGroupAction(int size, Color color, float r2, int group_index)
 void AddGroupAction::apply() { m_apply_func(); }
 
 void AddGroupAction::unapply() { m_unapply_func(); }
+
