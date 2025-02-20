@@ -9,6 +9,7 @@ vars:
     - test_mailboxes
     - test_save_manager
     - test_simulation
+    - test_undo_manager
 
 tasks:
   premake:

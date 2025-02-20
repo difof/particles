@@ -203,3 +203,4 @@ unitTest("test_multicore", { "extlib/raylib/src" }, { "src/simulation/multicore.
 unitTest("test_mailboxes", { "extlib/raylib/src" }, { "src/mailbox/render/drawbuffer.cpp" })
 unitTest("test_save_manager", { "extlib/raylib/src", "extlib/nlohmann-json/single_include" }, { "src/save_manager.cpp", "src/simulation/world.cpp" })
 unitTest("test_simulation", { "extlib/raylib/src" }, { "src/simulation/simulation.cpp", "src/simulation/world.cpp", "src/simulation/multicore.cpp", "src/mailbox/render/drawbuffer.cpp" })
+unitTest("test_undo_manager", { "extlib/imgui", "extlib/rlimgui", "extlib/raylib/src" }, { "src/undo/add_group_action.cpp", "src/undo/remove_group_action.cpp", "src/undo/resize_group_action.cpp", "src/undo/clear_all_groups_action.cpp" })
