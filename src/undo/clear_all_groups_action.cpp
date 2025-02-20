@@ -14,4 +14,3 @@ ClearAllGroupsAction::ClearAllGroupsAction(
 void ClearAllGroupsAction::apply() { m_apply_func(); }
 
 void ClearAllGroupsAction::unapply() { m_unapply_func(); }
-

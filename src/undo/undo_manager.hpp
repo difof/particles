@@ -139,4 +139,3 @@ class UndoManager {
     ImGuiID m_interactionId = 0;
     unsigned long long m_interactionSeq = 0;
 };
-

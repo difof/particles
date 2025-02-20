@@ -14,4 +14,3 @@ ResizeGroupAction::ResizeGroupAction(int group_index, int old_size,
 void ResizeGroupAction::apply() { m_apply_func(); }
 
 void ResizeGroupAction::unapply() { m_unapply_func(); }
-
