@@ -5,8 +5,8 @@
 
 #include "../../undo/undo_manager.hpp"
 #include "../../undo/value_action.hpp"
-#include "../../window_config.hpp"
 #include "../renderer.hpp"
+#include "../types/window.hpp"
 
 class RenderConfigUI : public IRenderer {
   public:

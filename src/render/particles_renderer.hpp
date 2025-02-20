@@ -5,22 +5,22 @@
 #include <raylib.h>
 #include <raymath.h>
 
-#include "../window_config.hpp"
 #include "renderer.hpp"
 #include "types/config.hpp"
+#include "types/window.hpp"
 
 class ParticlesRenderer : public IRenderer {
   public:
     ParticlesRenderer(const WindowConfig &wcfg)
         : m_wcfg(wcfg),
-          m_rt(LoadRenderTexture(wcfg.render_width, wcfg.screen_height)) {}
+          m_rt(LoadRenderTexture(wcfg.screen_width, wcfg.screen_height)) {}
 
     ~ParticlesRenderer() override { UnloadRenderTexture(m_rt); }
 
     void resize(const WindowConfig &wcfg) {
         UnloadRenderTexture(m_rt);
         m_wcfg = wcfg;
-        m_rt = LoadRenderTexture(wcfg.render_width, wcfg.screen_height);
+        m_rt = LoadRenderTexture(wcfg.screen_width, wcfg.screen_height);
     }
 
     RenderTexture2D &texture() { return m_rt; }

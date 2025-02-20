@@ -14,8 +14,8 @@
 #include "../../undo/resize_group_action.hpp"
 #include "../../undo/undo_manager.hpp"
 #include "../../undo/value_action.hpp"
-#include "../../window_config.hpp"
 #include "../renderer.hpp"
+#include "../types/window.hpp"
 #include "smart_randomizer.hpp"
 
 class EditorUI : public IRenderer {

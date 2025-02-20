@@ -8,7 +8,7 @@ void MenuBarUI::handle_new_project(Context &ctx) {
     try {
         ctx.save.new_project(data);
         // Use current window/render sizes for bounds (avoid small default)
-        data.sim_config.bounds_width = (float)ctx.wcfg.render_width;
+        data.sim_config.bounds_width = (float)ctx.wcfg.screen_width;
         data.sim_config.bounds_height = (float)ctx.wcfg.screen_height;
 
         // Apply the new project data

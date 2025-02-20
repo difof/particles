@@ -5,6 +5,7 @@
 #include "mailbox/mailbox.hpp"
 #include "render/manager.hpp"
 #include "render/types/config.hpp"
+#include "render/types/window.hpp"
 #include "save_manager.hpp"
 #include "simulation/simulation.hpp"
 #include "simulation/world.hpp"
@@ -12,7 +13,6 @@
 #include "utility/default_seed.hpp"
 #include "utility/exceptions.hpp"
 #include "utility/logger.hpp"
-#include "window_config.hpp"
 
 void run() {
     LOG_INFO("Starting particles application");
@@ -35,9 +35,7 @@ void run() {
         screenH = window_state.height;
     }
 
-    int texW = screenW;
-
-    WindowConfig wcfg = {screenW, screenH, 0, texW};
+    WindowConfig wcfg = {screenW, screenH};
     Config rcfg;
     rcfg.interpolate = true;
     rcfg.core_size = 1.5f;
@@ -48,7 +46,7 @@ void run() {
     rcfg.inner_rgb_gain = .52f;
 
     mailbox::SimulationConfigSnapshot scfg = {};
-    scfg.bounds_width = (float)wcfg.render_width;
+    scfg.bounds_width = (float)wcfg.screen_width;
     scfg.bounds_height = (float)wcfg.screen_height;
     scfg.target_tps = 0;
     scfg.time_scale = 1.0f;
@@ -70,8 +68,7 @@ void run() {
 
     ImGui::GetIO().IniFilename = nullptr;
 
-    RenderManager rman({wcfg.screen_width, wcfg.screen_height, wcfg.panel_width,
-                        wcfg.render_width});
+    RenderManager rman(wcfg);
 
     sim.begin();
 
@@ -108,7 +105,6 @@ void run() {
 
             wcfg.screen_width = newWidth;
             wcfg.screen_height = newHeight;
-            wcfg.render_width = newWidth;
 
             rman.resize(wcfg);
         }

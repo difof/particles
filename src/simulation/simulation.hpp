@@ -15,9 +15,9 @@
 #include "../utility/exceptions.hpp"
 #include "../utility/logger.hpp"
 #include "../utility/math.hpp"
-#include "../window_config.hpp"
 #include "multicore.hpp"
 #include "neighborindex.hpp"
+#include "render/types/window.hpp"
 #include "uniformgrid.hpp"
 #include "world.hpp"
 

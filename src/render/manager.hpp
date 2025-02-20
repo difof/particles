@@ -5,9 +5,9 @@
 #include <raylib.h>
 #include <string>
 
-#include "../window_config.hpp"
 #include "particles_renderer.hpp"
 #include "types/context.hpp"
+#include "types/window.hpp"
 #include "ui/editor_ui.hpp"
 #include "ui/inspector_ui.hpp"
 #include "ui/menu_bar_ui.hpp"

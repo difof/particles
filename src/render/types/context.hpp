@@ -4,8 +4,8 @@
 #include "../../save_manager.hpp"
 #include "../../simulation/simulation.hpp"
 #include "../../undo/undo_manager.hpp"
-#include "../../window_config.hpp"
 #include "config.hpp"
+#include "window.hpp"
 
 // per-frame context passed to renderers
 struct Context {

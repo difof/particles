@@ -117,7 +117,7 @@ void SaveManager::new_project(ProjectData &data) {
 
     data.seed = particles::utility::create_default_seed();
 
-    data.window_config = {1080, 800, 500, 1080};
+    data.window_config = {1080, 800};
 
     LOG_INFO("New project created successfully");
 }
@@ -477,9 +477,7 @@ Config SaveManager::json_to_render_config(const json &j) {
 json SaveManager::window_config_to_json(
     const ProjectData::WindowConfig &config) {
     return json{{"screen_width", config.screen_width},
-                {"screen_height", config.screen_height},
-                {"panel_width", config.panel_width},
-                {"render_width", config.render_width}};
+                {"screen_height", config.screen_height}};
 }
 
 SaveManager::ProjectData::WindowConfig
@@ -491,12 +489,6 @@ SaveManager::json_to_window_config(const json &j) {
     }
     if (j.contains("screen_height")) {
         config.screen_height = j["screen_height"];
-    }
-    if (j.contains("panel_width")) {
-        config.panel_width = j["panel_width"];
-    }
-    if (j.contains("render_width")) {
-        config.render_width = j["render_width"];
     }
 
     return config;

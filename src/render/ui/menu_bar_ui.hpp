@@ -5,10 +5,10 @@
 #include <string>
 
 #include "../../save_manager.hpp"
-#include "../../window_config.hpp"
 #include "../file_dialog.hpp"
 #include "../renderer.hpp"
 #include "../types/config.hpp"
+#include "../types/window.hpp"
 
 class MenuBarUI : public IRenderer {
   public:

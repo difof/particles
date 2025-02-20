@@ -117,7 +117,7 @@ class InspectorUI : public IRenderer {
 
         const auto &world = ctx.world_snapshot;
         mailbox::SimulationConfigSnapshot scfg = ctx.sim.get_config();
-        const float rt_w = (float)ctx.wcfg.render_width;
+        const float rt_w = (float)ctx.wcfg.screen_width;
         const float rt_h = (float)ctx.wcfg.screen_height;
         const float ox = std::floor((rt_w - scfg.bounds_width) * 0.5f);
         const float oy = std::floor((rt_h - scfg.bounds_height) * 0.5f);
@@ -331,7 +331,7 @@ class InspectorUI : public IRenderer {
             return;
         const int totalParticles = ctx.world_snapshot.get_particles_size();
         mailbox::SimulationConfigSnapshot scfg = ctx.sim.get_config();
-        const float rt_w = (float)ctx.wcfg.render_width;
+        const float rt_w = (float)ctx.wcfg.screen_width;
         const float rt_h = (float)ctx.wcfg.screen_height;
         const float ox = std::floor((rt_w - scfg.bounds_width) * 0.5f);
         const float oy = std::floor((rt_h - scfg.bounds_height) * 0.5f);

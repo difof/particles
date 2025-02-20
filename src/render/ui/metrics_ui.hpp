@@ -33,7 +33,7 @@ class MetricsUI : public IRenderer {
 
         ImGui::Begin("[1] metrics", &ctx.rcfg.show_metrics_ui);
 
-        const float width = (float)ctx.wcfg.panel_width;
+        const float width = (float)ctx.wcfg.screen_width * 0.25f;
         const float height = (float)ctx.wcfg.screen_height * 0.30f;
         ImGui::SetWindowPos(ImVec2{10.f, (float)ctx.wcfg.screen_height * 0.72f},
                             ImGuiCond_Appearing);
