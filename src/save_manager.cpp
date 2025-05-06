@@ -117,7 +117,7 @@ void SaveManager::new_project(ProjectData &data) {
 
     data.seed = particles::utility::create_default_seed();
 
-    data.window_config = {1080, 800};
+    data.window_config = {1080, 800, 500, 1080};
 
     LOG_INFO("New project created successfully");
 }

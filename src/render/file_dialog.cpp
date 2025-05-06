@@ -1,15 +1,23 @@
-#include "file_dialog.hpp"
-#include "misc/cpp/imgui_stdlib.h"
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <tinydir.h>
 
+#include "file_dialog.hpp"
+#include "misc/cpp/imgui_stdlib.h"
+
+/**
+ * @brief Normalize directory path by ensuring it ends with a slash
+ * @param path directory path to normalize
+ * @return normalized directory path
+ */
 static std::string normalize_dir(const std::string &path) {
-    if (path.empty())
+    if (path.empty()) {
         return std::string(".");
-    if (path.back() == '/')
+    }
+    if (path.back() == '/') {
         return path;
+    }
     return path + "/";
 }
 
@@ -22,17 +30,19 @@ void FileDialog::open(Mode mode, const std::string &title,
     m_canceled = false;
     m_selected_path.clear();
 
-    if (!start_dir.empty())
+    if (!start_dir.empty()) {
         m_current_dir = start_dir;
-    else
+    } else {
         m_current_dir = ".";
+    }
     ensure_current_dir();
     list_directory();
 }
 
 bool FileDialog::render() {
-    if (!m_open)
+    if (!m_open) {
         return false;
+    }
 
     bool closed_this_frame = false;
 
@@ -142,13 +152,15 @@ void FileDialog::list_directory() {
 
     while (dir.has_next) {
         tinydir_file file;
-        if (tinydir_readfile(&dir, &file) == -1)
+        if (tinydir_readfile(&dir, &file) == -1) {
             break;
+        }
         tinydir_next(&dir);
 
         std::string name = file.name;
-        if (name == "." || name == "..")
+        if (name == "." || name == "..") {
             continue;
+        }
         Entry e;
         e.name = name;
         e.is_dir = file.is_dir != 0;
@@ -166,12 +178,14 @@ void FileDialog::list_directory() {
 }
 
 void FileDialog::go_up_dir() {
-    if (m_current_dir.empty())
+    if (m_current_dir.empty()) {
         return;
+    }
     // Remove trailing slash if any
     std::string path = m_current_dir;
-    if (!path.empty() && path.back() == '/')
+    if (!path.empty() && path.back() == '/') {
         path.pop_back();
+    }
     auto pos = path.find_last_of('/');
     if (pos == std::string::npos) {
         m_current_dir = ".";
@@ -183,10 +197,12 @@ void FileDialog::go_up_dir() {
 }
 
 void FileDialog::enter_dir(const std::string &name) {
-    if (name.empty())
+    if (name.empty()) {
         return;
-    if (m_current_dir.empty() || m_current_dir == "/")
+    }
+    if (m_current_dir.empty() || m_current_dir == "/") {
         m_current_dir = "/" + name;
-    else
+    } else {
         m_current_dir = normalize_dir(m_current_dir) + name;
+    }
 }
