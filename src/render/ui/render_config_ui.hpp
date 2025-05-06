@@ -5,7 +5,7 @@
 
 #include "../../undo/undo_manager.hpp"
 #include "../../undo/value_action.hpp"
-#include "../renderer.hpp"
+#include "../irenderer.hpp"
 #include "../types/window.hpp"
 
 class RenderConfigUI : public IRenderer {

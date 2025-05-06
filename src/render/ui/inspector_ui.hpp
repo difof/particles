@@ -5,7 +5,7 @@
 #include <raylib.h>
 #include <rlImGui.h>
 
-#include "../renderer.hpp"
+#include "../irenderer.hpp"
 
 // Internal helpers local to this translation unit.
 namespace {

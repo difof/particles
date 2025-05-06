@@ -5,7 +5,7 @@
 #include <imgui.h>
 #include <raylib.h>
 
-#include "../renderer.hpp"
+#include "../irenderer.hpp"
 #include "../types/config.hpp"
 
 class MetricsUI : public IRenderer {

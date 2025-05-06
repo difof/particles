@@ -14,7 +14,7 @@
 #include "../../undo/resize_group_action.hpp"
 #include "../../undo/undo_manager.hpp"
 #include "../../undo/value_action.hpp"
-#include "../renderer.hpp"
+#include "../irenderer.hpp"
 #include "../types/window.hpp"
 #include "smart_randomizer.hpp"
 

@@ -6,7 +6,7 @@
 
 #include "../../save_manager.hpp"
 #include "../file_dialog.hpp"
-#include "../renderer.hpp"
+#include "../irenderer.hpp"
 #include "../types/config.hpp"
 #include "../types/window.hpp"
 

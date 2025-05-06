@@ -5,6 +5,7 @@
 #include <raylib.h>
 #include <string>
 
+#include "irenderer.hpp"
 #include "particles_renderer.hpp"
 #include "types/context.hpp"
 #include "types/window.hpp"

@@ -5,7 +5,7 @@
 #include <raylib.h>
 #include <raymath.h>
 
-#include "renderer.hpp"
+#include "irenderer.hpp"
 #include "types/config.hpp"
 #include "types/window.hpp"
 
