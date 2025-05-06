@@ -3,7 +3,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "render/file_dialog.hpp"
+#include "render/ui/file_dialog.hpp"
 
 /**
  * @brief Test helper class to access FileDialog internals for testing
