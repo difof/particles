@@ -2,8 +2,9 @@
 
 #include <chrono>
 #include <functional>
-#include <raylib.h>
 #include <string>
+
+#include <raylib.h>
 
 #include "irenderer.hpp"
 #include "particles_renderer.hpp"
@@ -16,22 +17,47 @@
 #include "ui/render_config_ui.hpp"
 #include "ui/sim_config_ui.hpp"
 
-// Manages render textures and frame orchestration.
+/**
+ * @brief Manages render textures and frame orchestration for the particle
+ * simulation.
+ *
+ * This class coordinates the rendering pipeline, handling particle rendering,
+ * UI components, and frame timing with interpolation support.
+ */
 class RenderManager {
   public:
     RenderManager(const WindowConfig &wcfg) : m_wcfg(wcfg), m_particles(wcfg) {}
+    ~RenderManager() = default;
+    RenderManager(const RenderManager &) = delete;
+    RenderManager(RenderManager &&) = delete;
+    RenderManager &operator=(const RenderManager &) = delete;
+    RenderManager &operator=(RenderManager &&) = delete;
 
-    ~RenderManager() {}
-
+    /**
+     * @brief Resizes the render manager and all components to match new window
+     * config.
+     * @param wcfg New window configuration
+     */
     void resize(const WindowConfig &wcfg) {
         m_wcfg = wcfg;
         m_particles.resize(wcfg);
         m_inspector.resize();
     }
 
-    // Access to menu bar for setting current file path
+    /**
+     * @brief Gets access to the menu bar for setting current file path.
+     * @return Reference to the menu bar UI component
+     */
     MenuBarUI &get_menu_bar() { return m_menu_bar; }
 
+    /**
+     * @brief Renders a single frame with interpolation support.
+     * @param sim Simulation to render
+     * @param rcfg Render configuration
+     * @param save_manager Save manager for file operations
+     * @param undo_manager Undo manager for action history
+     * @return true if the application should exit, false otherwise
+     */
     bool draw_frame(Simulation &sim, Config &rcfg, SaveManager &save_manager,
                     UndoManager &undo_manager) {
         auto view = sim.begin_read_draw();
@@ -50,12 +76,13 @@ class RenderManager {
                     .count();
             const long long target_ns =
                 now_ns - (long long)(rcfg.interp_delay_ms * 1'000'000.0f);
-            if (target_ns <= view.t0)
+            if (target_ns <= view.t0) {
                 alpha = 0.0f;
-            else if (target_ns >= view.t1)
+            } else if (target_ns >= view.t1) {
                 alpha = 1.0f;
-            else
+            } else {
                 alpha = float(target_ns - view.t0) / float(view.t1 - view.t0);
+            }
         }
 
         Context ctx{
