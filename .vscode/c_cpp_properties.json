@@ -3,10 +3,21 @@
         {
             "name": "Mac",
             "includePath": [
-                "${workspaceFolder}/extlib/**",
-                "${workspaceFolder}/src/**"
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/extlib/imgui",
+                "${workspaceFolder}/extlib/rlimgui",
+                "${workspaceFolder}/extlib/raylib/src",
+                "${workspaceFolder}/extlib/tinydir",
+                "${workspaceFolder}/extlib/fmt/include",
+                "${workspaceFolder}/extlib/nlohmann-json/single_include",
+                "${workspaceFolder}/extlib/catch2/extras"
             ],
-            "defines": [],
+            "defines": [
+                "PLATFORM_MACOS",
+                "ARCH_X64",
+                "USE_X86_SSE",
+                "DEBUG"
+            ],
             "macFrameworkPath": [
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
