@@ -122,40 +122,39 @@ void SaveManager::new_project(ProjectData &data) {
     LOG_INFO("New project created successfully");
 }
 
-std::shared_ptr<mailbox::command::SeedSpec> SaveManager::extract_current_seed(
+std::optional<mailbox::command::SeedSpec> SaveManager::extract_current_seed(
     const mailbox::WorldSnapshot &world_snapshot) {
-    auto seed = std::make_shared<mailbox::command::SeedSpec>();
-
     const int G = world_snapshot.get_groups_size();
     if (G == 0) {
-        return nullptr;
+        return std::nullopt;
     }
 
-    seed->sizes.clear();
+    mailbox::command::SeedSpec seed;
+    seed.sizes.clear();
     for (int g = 0; g < G; ++g) {
-        seed->sizes.push_back(world_snapshot.get_group_size(g));
+        seed.sizes.push_back(world_snapshot.get_group_size(g));
     }
 
-    seed->colors.clear();
+    seed.colors.clear();
     for (int g = 0; g < G; ++g) {
-        seed->colors.push_back(world_snapshot.get_group_color(g));
+        seed.colors.push_back(world_snapshot.get_group_color(g));
     }
 
-    seed->r2.clear();
+    seed.r2.clear();
     for (int g = 0; g < G; ++g) {
-        seed->r2.push_back(world_snapshot.r2_of(g));
+        seed.r2.push_back(world_snapshot.r2_of(g));
     }
 
-    seed->rules.clear();
+    seed.rules.clear();
     for (int gsrc = 0; gsrc < G; ++gsrc) {
         for (int gdst = 0; gdst < G; ++gdst) {
-            seed->rules.push_back(world_snapshot.rule_val(gsrc, gdst));
+            seed.rules.push_back(world_snapshot.rule_val(gsrc, gdst));
         }
     }
 
-    seed->enabled.clear();
+    seed.enabled.clear();
     for (int g = 0; g < G; ++g) {
-        seed->enabled.push_back(world_snapshot.is_group_enabled(g));
+        seed.enabled.push_back(world_snapshot.is_group_enabled(g));
     }
 
     return seed;
@@ -204,8 +203,8 @@ Color SaveManager::json_to_color(const json &j) {
 }
 
 json SaveManager::seed_to_json(
-    const std::shared_ptr<mailbox::command::SeedSpec> &seed) {
-    if (!seed) {
+    const std::optional<mailbox::command::SeedSpec> &seed) {
+    if (!seed.has_value()) {
         return json::object();
     }
 
@@ -237,42 +236,42 @@ json SaveManager::seed_to_json(
     return j;
 }
 
-std::shared_ptr<mailbox::command::SeedSpec>
+std::optional<mailbox::command::SeedSpec>
 SaveManager::json_to_seed(const json &j) {
-    auto seed = std::make_shared<mailbox::command::SeedSpec>();
+    mailbox::command::SeedSpec seed;
 
     if (j.contains("groups")) {
         const auto &groups = j["groups"];
-        seed->sizes.clear();
-        seed->colors.clear();
-        seed->r2.clear();
-        seed->enabled.clear();
-        seed->rules.clear();
+        seed.sizes.clear();
+        seed.colors.clear();
+        seed.r2.clear();
+        seed.enabled.clear();
+        seed.rules.clear();
 
         for (const auto &g : groups) {
             if (g.contains("size")) {
-                seed->sizes.push_back(g["size"].get<int>());
+                seed.sizes.push_back(g["size"].get<int>());
             }
             if (g.contains("color")) {
-                seed->colors.push_back(json_to_color(g["color"]));
+                seed.colors.push_back(json_to_color(g["color"]));
             }
             if (g.contains("r2")) {
-                seed->r2.push_back(g["r2"].get<float>());
+                seed.r2.push_back(g["r2"].get<float>());
             }
             if (g.contains("enabled")) {
-                seed->enabled.push_back(g["enabled"].get<bool>());
+                seed.enabled.push_back(g["enabled"].get<bool>());
             }
         }
 
         const std::size_t G = groups.size();
-        seed->rules.resize(G * G, 0.0f);
+        seed.rules.resize(G * G, 0.0f);
         for (std::size_t i = 0; i < G; ++i) {
             const auto &gi = groups[i];
             if (gi.contains("rules") && gi["rules"].is_array()) {
                 const auto &row = gi["rules"];
                 const std::size_t cols = std::min<std::size_t>(row.size(), G);
                 for (std::size_t jcol = 0; jcol < cols; ++jcol) {
-                    seed->rules[i * G + jcol] = row[jcol].get<float>();
+                    seed.rules[i * G + jcol] = row[jcol].get<float>();
                 }
             }
         }
@@ -282,26 +281,26 @@ SaveManager::json_to_seed(const json &j) {
 
     // Legacy flat arrays fallback
     if (j.contains("sizes")) {
-        seed->sizes = j["sizes"].get<std::vector<int>>();
+        seed.sizes = j["sizes"].get<std::vector<int>>();
     }
 
     if (j.contains("colors")) {
-        seed->colors.clear();
+        seed.colors.clear();
         for (const auto &color_json : j["colors"]) {
-            seed->colors.push_back(json_to_color(color_json));
+            seed.colors.push_back(json_to_color(color_json));
         }
     }
 
     if (j.contains("r2")) {
-        seed->r2 = j["r2"].get<std::vector<float>>();
+        seed.r2 = j["r2"].get<std::vector<float>>();
     }
 
     if (j.contains("rules")) {
-        seed->rules = j["rules"].get<std::vector<float>>();
+        seed.rules = j["rules"].get<std::vector<float>>();
     }
 
     if (j.contains("enabled")) {
-        seed->enabled = j["enabled"].get<std::vector<bool>>();
+        seed.enabled = j["enabled"].get<std::vector<bool>>();
     }
 
     return seed;

@@ -123,10 +123,9 @@ class ParticleEditorUI : public IRenderer {
     /**
      * @brief Creates backup state for undo operations.
      * @param ctx The rendering context.
-     * @return Shared pointer to backup state.
+     * @return Backup state.
      */
-    std::shared_ptr<mailbox::command::SeedSpec>
-    create_backup_state(Context &ctx);
+    mailbox::command::SeedSpec create_backup_state(Context &ctx);
 
     /**
      * @brief Applies rule patch to simulation.

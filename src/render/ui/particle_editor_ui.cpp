@@ -165,13 +165,13 @@ void ParticleEditorUI::render_group_management_controls(Context &ctx) {
     if (ImGui::Button("Disable All")) {
         LOG_DEBUG("Disable All Groups button pressed");
         // Create a rule patch to disable all groups
-        auto patch = std::make_shared<mailbox::command::RulePatch>();
-        patch->groups = m_editor.m_group_count;
-        patch->r2 = m_editor.m_radius_squared;
-        patch->rules = m_editor.m_rules;
-        patch->colors = m_editor.m_colors;
-        patch->enabled = std::vector<bool>(m_editor.m_group_count, false);
-        patch->hot = true;
+        mailbox::command::RulePatch patch;
+        patch.groups = m_editor.m_group_count;
+        patch.r2 = m_editor.m_radius_squared;
+        patch.rules = m_editor.m_rules;
+        patch.colors = m_editor.m_colors;
+        patch.enabled = std::vector<bool>(m_editor.m_group_count, false);
+        patch.hot = true;
 
         // Apply the patch
         sim.push_command(mailbox::command::ApplyRules{patch});
@@ -188,13 +188,13 @@ void ParticleEditorUI::render_group_management_controls(Context &ctx) {
     if (ImGui::Button("Enable All")) {
         LOG_DEBUG("Enable All Groups button pressed");
         // Create a rule patch to enable all groups
-        auto patch = std::make_shared<mailbox::command::RulePatch>();
-        patch->groups = m_editor.m_group_count;
-        patch->r2 = m_editor.m_radius_squared;
-        patch->rules = m_editor.m_rules;
-        patch->colors = m_editor.m_colors;
-        patch->enabled = std::vector<bool>(m_editor.m_group_count, true);
-        patch->hot = true;
+        mailbox::command::RulePatch patch;
+        patch.groups = m_editor.m_group_count;
+        patch.r2 = m_editor.m_radius_squared;
+        patch.rules = m_editor.m_rules;
+        patch.colors = m_editor.m_colors;
+        patch.enabled = std::vector<bool>(m_editor.m_group_count, true);
+        patch.hot = true;
 
         // Apply the patch
         sim.push_command(mailbox::command::ApplyRules{patch});
@@ -452,27 +452,26 @@ void ParticleEditorUI::render_apply_controls(Context &ctx) {
     }
 }
 
-std::shared_ptr<mailbox::command::SeedSpec>
-ParticleEditorUI::create_backup_state(Context &ctx) {
+mailbox::command::SeedSpec ParticleEditorUI::create_backup_state(Context &ctx) {
     const auto &world = ctx.world_snapshot;
-    auto backup_state = std::make_shared<mailbox::command::SeedSpec>();
+    mailbox::command::SeedSpec backup_state;
     const int G = world.get_groups_size();
 
-    backup_state->sizes.resize(G);
-    backup_state->colors.resize(G);
-    backup_state->r2.resize(G);
-    backup_state->enabled.resize(G);
-    backup_state->rules.resize(G * G);
+    backup_state.sizes.resize(G);
+    backup_state.colors.resize(G);
+    backup_state.r2.resize(G);
+    backup_state.enabled.resize(G);
+    backup_state.rules.resize(G * G);
 
     for (int g = 0; g < G; ++g) {
-        backup_state->sizes[g] =
+        backup_state.sizes[g] =
             world.get_group_end(g) - world.get_group_start(g);
-        backup_state->colors[g] = world.get_group_color(g);
-        backup_state->r2[g] = world.r2_of(g);
-        backup_state->enabled[g] = world.is_group_enabled(g);
+        backup_state.colors[g] = world.get_group_color(g);
+        backup_state.r2[g] = world.r2_of(g);
+        backup_state.enabled[g] = world.is_group_enabled(g);
         const auto rowv = world.rules_of(g);
         for (int j = 0; j < G; ++j) {
-            backup_state->rules[g * G + j] = rowv.get(j);
+            backup_state.rules[g * G + j] = rowv.get(j);
         }
     }
 
@@ -492,13 +491,13 @@ void ParticleEditorUI::apply_rule_patch(Context &ctx, bool hot) {
     }
 
     // Then apply the rule patch
-    auto patch = std::make_shared<mailbox::command::RulePatch>();
-    patch->groups = m_editor.m_group_count;
-    patch->r2 = m_editor.m_radius_squared;
-    patch->rules = m_editor.m_rules;
-    patch->colors = m_editor.m_colors;
-    patch->enabled = m_editor.m_enabled;
-    patch->hot = hot;
+    mailbox::command::RulePatch patch;
+    patch.groups = m_editor.m_group_count;
+    patch.r2 = m_editor.m_radius_squared;
+    patch.rules = m_editor.m_rules;
+    patch.colors = m_editor.m_colors;
+    patch.enabled = m_editor.m_enabled;
+    patch.hot = hot;
     sim.push_command(mailbox::command::ApplyRules{patch});
     m_editor.m_dirty = false;
 }

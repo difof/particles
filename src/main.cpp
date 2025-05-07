@@ -81,8 +81,9 @@ void run() {
             sim.update_config(data.sim_config);
             rcfg = data.render_config;
 
-            if (data.seed) {
-                sim.push_command(mailbox::command::SeedWorld{data.seed});
+            if (data.seed.has_value()) {
+                sim.push_command(
+                    mailbox::command::SeedWorld{data.seed.value()});
                 loaded_project = true;
             }
             rman.get_menu_bar().set_current_filepath(last_file);

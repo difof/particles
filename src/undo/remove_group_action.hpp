@@ -16,8 +16,7 @@ class RemoveGroupAction : public IAction {
      * @param group_index Index of the group to remove.
      * @param backup_state Backup state before removal.
      */
-    RemoveGroupAction(int group_index,
-                      std::shared_ptr<mailbox::command::SeedSpec> backup_state);
+    RemoveGroupAction(int group_index, mailbox::command::SeedSpec backup_state);
 
     const char *name() const override { return "Remove Group"; }
     void apply() override;
@@ -39,7 +38,7 @@ class RemoveGroupAction : public IAction {
 
   private:
     int m_group_index;
-    std::shared_ptr<mailbox::command::SeedSpec> m_backup_state;
+    mailbox::command::SeedSpec m_backup_state;
     std::function<void()> m_apply_func;
     std::function<void()> m_unapply_func;
 };

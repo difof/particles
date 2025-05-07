@@ -617,10 +617,21 @@ inline void Simulation::kernel_pos(int start, int end, KernelData &data) {
 // Command handler implementations
 void Simulation::handle_seed_world(const mailbox::command::SeedWorld &cmd,
                                    mailbox::SimulationConfigSnapshot &cfg) {
-    if (cmd.seed) {
-        m_initial_seed = *cmd.seed;
-        m_current_seed = *cmd.seed;
-        apply_seed(*cmd.seed, cfg);
+    if (cmd.clear_world) {
+        clear_world();
+        m_initial_seed.reset();
+        m_current_seed.reset();
+        m_t_window_steps = 0;
+        m_t_window_start = steady_clock::now();
+        m_total_steps = 0;
+
+        // Publish stats immediately after clearing to reflect the reset step
+        // count
+        publish_stats_immediately(1, std::chrono::nanoseconds(0));
+    } else {
+        m_initial_seed = cmd.seed;
+        m_current_seed = cmd.seed;
+        apply_seed(cmd.seed, cfg);
         m_t_window_steps = 0;
         m_t_window_start = steady_clock::now();
         m_total_steps = 0;
@@ -653,12 +664,8 @@ void Simulation::handle_reset_world(mailbox::SimulationConfigSnapshot &cfg) {
 
 void Simulation::handle_apply_rules(const mailbox::command::ApplyRules &cmd,
                                     mailbox::SimulationConfigSnapshot &cfg) {
-    if (!cmd.patch) {
-        return;
-    }
-
     const int groups_count = m_world.get_groups_size();
-    const mailbox::command::RulePatch &p = *cmd.patch;
+    const mailbox::command::RulePatch &p = cmd.patch;
 
     auto apply_colors_if_any = [&](int group_count) {
         if (!p.colors.empty() && (int)p.colors.size() == group_count) {

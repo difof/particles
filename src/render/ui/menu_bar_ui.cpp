@@ -16,8 +16,9 @@ void MenuBarUI::handle_new_project(Context &ctx) {
         ctx.rcfg = data.render_config;
 
         // Send new seed to simulation
-        if (data.seed) {
-            ctx.sim.push_command(mailbox::command::SeedWorld{data.seed});
+        if (data.seed.has_value()) {
+            ctx.sim.push_command(
+                mailbox::command::SeedWorld{data.seed.value()});
         }
 
         // Clear current file path (unsaved new project)
@@ -91,8 +92,9 @@ void MenuBarUI::handle_open_file(Context &ctx, const std::string &filepath) {
         ctx.rcfg = data.render_config;
 
         // Send loaded seed to simulation
-        if (data.seed) {
-            ctx.sim.push_command(mailbox::command::SeedWorld{data.seed});
+        if (data.seed.has_value()) {
+            ctx.sim.push_command(
+                mailbox::command::SeedWorld{data.seed.value()});
         }
 
         m_current_filepath = filepath;

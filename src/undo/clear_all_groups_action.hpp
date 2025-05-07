@@ -15,8 +15,7 @@ class ClearAllGroupsAction : public IAction {
      * @brief Construct a clear all groups action.
      * @param backup_state Backup state before clearing.
      */
-    ClearAllGroupsAction(
-        std::shared_ptr<mailbox::command::SeedSpec> backup_state);
+    ClearAllGroupsAction(mailbox::command::SeedSpec backup_state);
 
     const char *name() const override { return "Clear All Groups"; }
     void apply() override;
@@ -37,7 +36,7 @@ class ClearAllGroupsAction : public IAction {
     void set_unapply_func(std::function<void()> func) { m_unapply_func = func; }
 
   private:
-    std::shared_ptr<mailbox::command::SeedSpec> m_backup_state;
+    mailbox::command::SeedSpec m_backup_state;
     std::function<void()> m_apply_func;
     std::function<void()> m_unapply_func;
 };

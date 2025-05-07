@@ -19,11 +19,12 @@ struct RulePatch {
 };
 
 struct ApplyRules {
-    std::shared_ptr<RulePatch> patch;
+    RulePatch patch;
 };
 
 struct SeedWorld {
-    std::shared_ptr<SeedSpec> seed; // null means clear world
+    SeedSpec seed;
+    bool clear_world = false; // explicit flag to clear world instead of seeding
 };
 
 struct ResetWorld {};

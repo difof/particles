@@ -36,7 +36,7 @@ class SaveManager {
         Config render_config;
 
         /** @brief Particle seed specification for reproducible simulations */
-        std::shared_ptr<mailbox::command::SeedSpec> seed;
+        std::optional<mailbox::command::SeedSpec> seed;
 
         /**
          * @brief Window configuration parameters.
@@ -101,9 +101,9 @@ class SaveManager {
     /**
      * @brief Extract current particle seed from world snapshot.
      * @param world_snapshot Current world state snapshot
-     * @return Shared pointer to seed specification
+     * @return Optional seed specification
      */
-    std::shared_ptr<mailbox::command::SeedSpec>
+    std::optional<mailbox::command::SeedSpec>
     extract_current_seed(const mailbox::WorldSnapshot &world_snapshot);
 
     /**
@@ -167,14 +167,14 @@ class SaveManager {
      * @param seed Seed specification to serialize
      * @return JSON object containing seed data
      */
-    json seed_to_json(const std::shared_ptr<mailbox::command::SeedSpec> &seed);
+    json seed_to_json(const std::optional<mailbox::command::SeedSpec> &seed);
 
     /**
      * @brief Convert JSON to seed specification.
      * @param j JSON object containing seed data
      * @return Deserialized seed specification
      */
-    std::shared_ptr<mailbox::command::SeedSpec> json_to_seed(const json &j);
+    std::optional<mailbox::command::SeedSpec> json_to_seed(const json &j);
 
     /**
      * @brief Convert simulation configuration to JSON.
