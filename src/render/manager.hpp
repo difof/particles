@@ -10,10 +10,10 @@
 #include "particles_renderer.hpp"
 #include "types/context.hpp"
 #include "types/window.hpp"
-#include "ui/editor_ui.hpp"
 #include "ui/inspector_ui.hpp"
 #include "ui/menu_bar_ui.hpp"
 #include "ui/metrics_ui.hpp"
+#include "ui/particle_editor_ui.hpp"
 #include "ui/render_config_ui.hpp"
 #include "ui/sim_config_ui.hpp"
 
@@ -137,7 +137,7 @@ class RenderManager {
     ParticlesRenderer m_particles;
     InspectorUI m_inspector{};
     MenuBarUI m_menu_bar;
-    EditorUI m_editor;
+    ParticleEditorUI m_editor;
     RenderConfigUI m_render_config;
     SimConfigUI m_sim_config;
     MetricsUI m_metrics;
