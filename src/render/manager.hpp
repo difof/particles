@@ -115,7 +115,6 @@ class RenderManager {
 
         rlImGuiBegin();
         {
-            ImGui::ShowDemoWindow();
             m_menu_bar.render(ctx);
             m_editor.render(ctx);
             m_render_config.render(ctx);
