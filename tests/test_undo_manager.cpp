@@ -492,13 +492,13 @@ TEST_CASE("UndoManager - Default Actions", "[undo_manager]") {
         backup_state->sizes = {100, 200};
         backup_state->colors = {{255, 0, 0, 255}, {0, 255, 0, 255}};
 
-        auto action = std::make_unique<RemoveGroupAction>(1, backup_state);
+        auto action = std::make_unique<RemoveGroupAction>(1, *backup_state);
 
         REQUIRE(std::string(action->name()) == "Remove Group");
 
         // Test that it doesn't coalesce
         auto other_action =
-            std::make_unique<RemoveGroupAction>(0, backup_state);
+            std::make_unique<RemoveGroupAction>(0, *backup_state);
         REQUIRE_FALSE(action->canCoalesce(*other_action));
         REQUIRE_FALSE(action->coalesce(*other_action));
     }
@@ -520,13 +520,13 @@ TEST_CASE("UndoManager - Default Actions", "[undo_manager]") {
         backup_state->colors = {
             {255, 0, 0, 255}, {0, 255, 0, 255}, {0, 0, 255, 255}};
 
-        auto action = std::make_unique<ClearAllGroupsAction>(backup_state);
+        auto action = std::make_unique<ClearAllGroupsAction>(*backup_state);
 
         REQUIRE(std::string(action->name()) == "Clear All Groups");
 
         // Test that it doesn't coalesce
         auto other_action =
-            std::make_unique<ClearAllGroupsAction>(backup_state);
+            std::make_unique<ClearAllGroupsAction>(*backup_state);
         REQUIRE_FALSE(action->canCoalesce(*other_action));
         REQUIRE_FALSE(action->coalesce(*other_action));
     }

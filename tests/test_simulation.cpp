@@ -293,7 +293,7 @@ TEST_CASE("Simulation seed world command", "[simulation]") {
     seed->enabled = {true, true};
 
     mailbox::command::SeedWorld seed_cmd;
-    seed_cmd.seed = seed;
+    seed_cmd.seed = *seed;
     sim.push_command(seed_cmd);
 
     // Wait for command to be processed
@@ -458,7 +458,7 @@ TEST_CASE("Simulation apply rules command", "[simulation]") {
     patch->hot = true;
 
     mailbox::command::ApplyRules apply_cmd;
-    apply_cmd.patch = patch;
+    apply_cmd.patch = *patch;
     sim.push_command(apply_cmd);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

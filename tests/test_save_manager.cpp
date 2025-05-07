@@ -33,7 +33,7 @@ TEST_CASE("SaveManager - Basic functionality", "[json_manager]") {
         REQUIRE(data.render_config.glow_enabled == true);
 
         // Check seed data
-        REQUIRE(data.seed != nullptr);
+        REQUIRE(data.seed.has_value());
         REQUIRE(data.seed->sizes.size() == 5);
         REQUIRE(data.seed->colors.size() == 5);
         REQUIRE(data.seed->r2.size() == 5);
@@ -77,7 +77,7 @@ TEST_CASE("SaveManager - Basic functionality", "[json_manager]") {
         REQUIRE(loaded_data.render_config.background_color.a == 255);
 
         // Verify seed data
-        REQUIRE(loaded_data.seed != nullptr);
+        REQUIRE(loaded_data.seed.has_value());
         REQUIRE(loaded_data.seed->sizes.size() ==
                 original_data.seed->sizes.size());
         REQUIRE(loaded_data.seed->colors.size() ==
@@ -157,7 +157,7 @@ TEST_CASE("SaveManager - World seed extraction", "[json_manager]") {
         snapshot.set_particle_groups(world.get_particle_groups());
 
         auto seed = manager.extract_current_seed(snapshot);
-        REQUIRE(seed == nullptr); // No groups in empty world
+        REQUIRE(!seed.has_value()); // No groups in empty world
     }
 
     SECTION("Extract from world with groups") {
@@ -193,7 +193,7 @@ TEST_CASE("SaveManager - World seed extraction", "[json_manager]") {
 
         // Extract seed
         auto seed = manager.extract_current_seed(snapshot);
-        REQUIRE(seed != nullptr);
+        REQUIRE(seed.has_value());
 
         // Verify extracted data
         REQUIRE(seed->sizes.size() == 2);
