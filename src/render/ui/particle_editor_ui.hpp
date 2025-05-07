@@ -44,7 +44,7 @@ class ParticleEditorUI : public IRenderer {
      */
     void render(Context &ctx) override;
 
-  private:
+  protected:
     /**
      * @brief Renders the main UI components.
      * @param ctx The rendering context.
@@ -134,7 +134,7 @@ class ParticleEditorUI : public IRenderer {
      */
     void apply_rule_patch(Context &ctx, bool hot);
 
-  private:
+  protected:
     struct EditorState {
         int m_group_count = 0;
         std::vector<float> m_radius_squared;
@@ -142,13 +142,8 @@ class ParticleEditorUI : public IRenderer {
         std::vector<int> m_sizes;
         std::vector<Color> m_colors;
         std::vector<bool> m_enabled;
-        std::vector<bool> m_size_pending;
         bool m_live_apply = false;
         bool m_dirty = false;
-    };
-
-  private:
-    EditorState m_editor;
-    int m_last_seen_groups = -1;
-    int m_last_seen_particles = -1;
+        bool m_should_refresh_next_frame = false;
+    } m_editor;
 };

@@ -15,21 +15,12 @@ void ParticleEditorUI::render_ui(Context &ctx) {
     ImGui::Begin("[2] Particle & Rule Editor", &ctx.rcfg.show_editor);
     ImGui::SetWindowSize(ImVec2{600, 700}, ImGuiCond_FirstUseEver);
 
-    // Refresh if group/particle counts changed, or if we have pending size
-    // changes
-    bool has_pending_sizes = false;
-    for (int g = 0; g < m_editor.m_group_count; ++g) {
-        if (m_editor.m_size_pending[g]) {
-            has_pending_sizes = true;
-            break;
-        }
-    }
-
-    if (m_last_seen_groups != stats.groups ||
-        m_last_seen_particles != stats.particles || has_pending_sizes) {
+    // Refresh if group/particle counts changed (structural changes) or if we
+    // should refresh next frame
+    if (m_editor.m_group_count != stats.groups ||
+        m_editor.m_group_count != stats.particles ||
+        m_editor.m_should_refresh_next_frame) {
         refresh_editor_from_world(ctx);
-        m_last_seen_groups = stats.groups;
-        m_last_seen_particles = stats.particles;
     }
 
     ImGui::Text("Groups: %d", stats.groups);
@@ -68,23 +59,11 @@ void ParticleEditorUI::refresh_editor_from_world(Context &ctx) {
     m_editor.m_sizes.resize(group_count);
     m_editor.m_colors.resize(group_count);
     m_editor.m_enabled.resize(group_count);
-    m_editor.m_size_pending.resize(group_count, false);
 
     for (int g = 0; g < group_count; ++g) {
         m_editor.m_radius_squared[g] = world.r2_of(g);
         m_editor.m_colors[g] = world.get_group_color(g);
-        // Only update sizes if we don't have pending local changes for this
-        // group
-        if (!m_editor.m_size_pending[g]) {
-            m_editor.m_sizes[g] =
-                world.get_group_end(g) - world.get_group_start(g);
-        } else {
-            // Check if simulation has caught up with our local changes
-            int sim_size = world.get_group_end(g) - world.get_group_start(g);
-            if (sim_size == m_editor.m_sizes[g]) {
-                m_editor.m_size_pending[g] = false;
-            }
-        }
+        m_editor.m_sizes[g] = world.get_group_end(g) - world.get_group_start(g);
         m_editor.m_enabled[g] = world.is_group_enabled(g);
 
         const auto rowv = world.rules_of(g);
@@ -99,6 +78,7 @@ void ParticleEditorUI::refresh_editor_from_world(Context &ctx) {
         }
     }
     m_editor.m_dirty = false;
+    m_editor.m_should_refresh_next_frame = false;
 }
 
 void ParticleEditorUI::render_group_management_controls(Context &ctx) {
@@ -242,16 +222,10 @@ void ParticleEditorUI::render_group_editor(Context &ctx, int group_index) {
     if (ImGui::InputInt("Size", &new_size, 100, 1000)) {
         new_size = std::max(0, new_size);
         if (new_size != m_editor.m_sizes[group_index]) {
-            // Get current simulation state for comparison
-            const auto &world = ctx.world_snapshot;
-            int sim_size = world.get_group_end(group_index) -
-                           world.get_group_start(group_index);
-
             LOG_DEBUG("Group " + std::to_string(group_index) + " size change:");
             LOG_DEBUG("  - Local editor: " +
                       std::to_string(m_editor.m_sizes[group_index]) + " -> " +
                       std::to_string(new_size));
-            LOG_DEBUG("  - Simulation: " + std::to_string(sim_size));
 
             int old_size = m_editor.m_sizes[group_index];
             auto backup_state = create_backup_state(ctx);
@@ -274,18 +248,18 @@ void ParticleEditorUI::render_group_editor(Context &ctx, int group_index) {
 
             ctx.undo.push(std::move(undo_action));
 
+            // Update local state immediately
+            m_editor.m_sizes[group_index] = new_size;
+            m_editor.m_dirty = true;
+
             // Only apply immediately if live apply is enabled
             if (m_editor.m_live_apply) {
                 ctx.sim.push_command(
                     mailbox::command::ResizeGroup{group_index, new_size});
                 ctx.sim.force_stats_publish();
+                m_editor.m_should_refresh_next_frame = true;
             }
 
-            m_editor.m_sizes[group_index] = new_size;
-            m_editor.m_size_pending[group_index] =
-                true; // Mark this group as having pending size changes
-            m_editor.m_dirty =
-                true; // Mark as dirty to prevent refresh from overwriting
             LOG_DEBUG("  - Updated local editor to: " +
                       std::to_string(m_editor.m_sizes[group_index]));
         }
@@ -357,6 +331,19 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
                           " to " + std::to_string(val));
                 m_editor.m_rules[gi * m_editor.m_group_count + gj] = val;
                 m_editor.m_dirty = true;
+
+                // If live apply is enabled, push command and mark for refresh
+                if (m_editor.m_live_apply) {
+                    mailbox::command::RulePatch patch;
+                    patch.groups = m_editor.m_group_count;
+                    patch.r2 = m_editor.m_radius_squared;
+                    patch.rules = m_editor.m_rules;
+                    patch.colors = m_editor.m_colors;
+                    patch.enabled = m_editor.m_enabled;
+                    patch.hot = true;
+                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
+                    m_editor.m_should_refresh_next_frame = true;
+                }
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit()) {
@@ -481,16 +468,7 @@ mailbox::command::SeedSpec ParticleEditorUI::create_backup_state(Context &ctx) {
 void ParticleEditorUI::apply_rule_patch(Context &ctx, bool hot) {
     auto &sim = ctx.sim;
 
-    // Apply any pending size changes first
-    for (int g = 0; g < m_editor.m_group_count; ++g) {
-        if (m_editor.m_size_pending[g]) {
-            sim.push_command(
-                mailbox::command::ResizeGroup{g, m_editor.m_sizes[g]});
-            m_editor.m_size_pending[g] = false;
-        }
-    }
-
-    // Then apply the rule patch
+    // Apply the rule patch
     mailbox::command::RulePatch patch;
     patch.groups = m_editor.m_group_count;
     patch.r2 = m_editor.m_radius_squared;
@@ -499,7 +477,10 @@ void ParticleEditorUI::apply_rule_patch(Context &ctx, bool hot) {
     patch.enabled = m_editor.m_enabled;
     patch.hot = hot;
     sim.push_command(mailbox::command::ApplyRules{patch});
+
+    // Clear dirty flag and mark for refresh on next frame
     m_editor.m_dirty = false;
+    m_editor.m_should_refresh_next_frame = true;
 }
 
 void ParticleEditorUI::render_group_enabled_checkbox(Context &ctx,
@@ -531,6 +512,19 @@ void ParticleEditorUI::render_group_enabled_checkbox(Context &ctx,
                           (e ? "true" : "false"));
                 m_editor.m_enabled[gi] = e;
                 m_editor.m_dirty = true;
+
+                // If live apply is enabled, push command and mark for refresh
+                if (m_editor.m_live_apply) {
+                    mailbox::command::RulePatch patch;
+                    patch.groups = m_editor.m_group_count;
+                    patch.r2 = m_editor.m_radius_squared;
+                    patch.rules = m_editor.m_rules;
+                    patch.colors = m_editor.m_colors;
+                    patch.enabled = m_editor.m_enabled;
+                    patch.hot = true;
+                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
+                    m_editor.m_should_refresh_next_frame = true;
+                }
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit())
@@ -589,6 +583,19 @@ void ParticleEditorUI::render_group_color_picker(Context &ctx,
                           std::to_string(c.a) + ")");
                 m_editor.m_colors[gi] = c;
                 m_editor.m_dirty = true;
+
+                // If live apply is enabled, push command and mark for refresh
+                if (m_editor.m_live_apply) {
+                    mailbox::command::RulePatch patch;
+                    patch.groups = m_editor.m_group_count;
+                    patch.r2 = m_editor.m_radius_squared;
+                    patch.rules = m_editor.m_rules;
+                    patch.colors = m_editor.m_colors;
+                    patch.enabled = m_editor.m_enabled;
+                    patch.hot = true;
+                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
+                    m_editor.m_should_refresh_next_frame = true;
+                }
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit())
@@ -626,6 +633,19 @@ void ParticleEditorUI::render_group_radius_slider(Context &ctx,
                           " (radius = " + std::to_string(std::sqrt(v)) + ")");
                 m_editor.m_radius_squared[gi] = v;
                 m_editor.m_dirty = true;
+
+                // If live apply is enabled, push command and mark for refresh
+                if (m_editor.m_live_apply) {
+                    mailbox::command::RulePatch patch;
+                    patch.groups = m_editor.m_group_count;
+                    patch.r2 = m_editor.m_radius_squared;
+                    patch.rules = m_editor.m_rules;
+                    patch.colors = m_editor.m_colors;
+                    patch.enabled = m_editor.m_enabled;
+                    patch.hot = true;
+                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
+                    m_editor.m_should_refresh_next_frame = true;
+                }
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit())
