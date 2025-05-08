@@ -64,11 +64,17 @@ bool FileDialog::render() {
 
         ImGui::Separator();
 
-        // List entries
         ImGui::BeginChild("##fd_entries", ImVec2(600, 300), true);
-        for (const auto &e : m_entries) {
+        for (size_t i = 0; i < m_entries.size(); ++i) {
+            const auto &e = m_entries[i];
+
+            if (e.name.empty()) {
+                continue;
+            }
+
             if (e.is_dir) {
-                if (ImGui::Selectable(("[DIR] " + e.name).c_str(), false)) {
+                std::string display_name = "[DIR] " + e.name;
+                if (ImGui::Selectable(display_name.c_str(), false)) {
                     enter_dir(e.name);
                     list_directory();
                 }
@@ -150,21 +156,40 @@ void FileDialog::list_directory() {
         return;
     }
 
-    while (dir.has_next) {
+    int max_entries = 10000;
+    int entry_count = 0;
+
+    while (dir.has_next && entry_count < max_entries) {
         tinydir_file file;
         if (tinydir_readfile(&dir, &file) == -1) {
             break;
         }
         tinydir_next(&dir);
 
+        if (strlen(file.name) == 0) {
+            continue;
+        }
+
         std::string name = file.name;
+
         if (name == "." || name == "..") {
             continue;
         }
+
+        if (name.length() > 255) {
+            continue;
+        }
+
         Entry e;
         e.name = name;
         e.is_dir = file.is_dir != 0;
+
+        if (m_entries.capacity() == m_entries.size()) {
+            m_entries.reserve(m_entries.size() + 100);
+        }
+
         m_entries.push_back(e);
+        entry_count++;
     }
 
     tinydir_close(&dir);
@@ -181,7 +206,6 @@ void FileDialog::go_up_dir() {
     if (m_current_dir.empty()) {
         return;
     }
-    // Remove trailing slash if any
     std::string path = m_current_dir;
     if (!path.empty() && path.back() == '/') {
         path.pop_back();
