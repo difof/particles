@@ -1,25 +1,22 @@
 # Particle Simulator
 
-Some particle simulation, based on some dude's basic idea on internet.
-Got a little obsessed and added a bunch of random stuff.
-Since the stupid little shit of Apple doesn't support OpenGL compute shaders, I will never parallelize using GPGPU.
-Why? Because Apple is a little silly fucking shit sometimes, and their Metal API + ObjectiveC feels like coding in r*st.
-And Vulkan? That will probably take me a month to just draw a rectangle in and I'm super lazy for some crap like that for such small project.
-So, here we are, stuff being simulated on CPU cores - 2. The good thing is I can later on add headless rendering, to like .. render big worlds on a server.
+A real-time particle physics simulation that explores emergent behaviors through simple force based interactions. This project implements a multi-threaded CPU based particle system with spatial optimization techniques.
 
-I haven't stress tested, but my simple M1 can run 15k particles at ~80 TPS, though N=15k is way too much and chaotic.
-Bigger group radius and more cramped particles eat the TPS, because of obvious reasons, like more interactions should be mathed each step.
-Uniform grids are a big deal in speeding the sim up. Actually that's the only real optimization I added, apart from parallelism.
-So bigger cells need more compute, and more particles in each cell need even more compute.
+## Architecture & Design Decisions
 
-The idea is simple, for each particle in the world, apply neighbour particles's forces in a radius on self.
-And this creates some crazy emergent behavior with just a few force rules! Kinda works like real world particles like electrons and shit, I guess.
-Later on I will try making the simulation less static and boring, because once the "creatures" form, nothing new would happen. 
-They would just move around, consume or create other "creatures" and the cycle repeats. By "creature" I mean cell like life like beings
-that emerge with a bunch of particles. I won't share screen shots because you must compile and see for yourself.
-I won't even point out the website of such simulation which you can render in your browser. Because you must put the effort in finding things out.
+**CPU-First Approach**: While GPU compute shaders would offer significant performance benefits, this implementation focuses on CPU parallelism for broader compatibility and easier deployment. The current architecture allows for future headless server side rendering capabilities, enabling large scale simulations without requiring specialized graphics hardware.
 
-# Build
+**Performance Characteristics**: On Apple M1 hardware, the simulation achieves ~80 TPS (ticks per second) with 15,000 particles. Performance scales inversely with particle density and interaction radius, larger groups and tighter particle packing increase computational complexity due to the quadratic nature of neighbor force calculations.
+
+**Spatial Optimization**: The simulation uses uniform grid spatial partitioning to reduce neighbor search complexity from O(n²) to approximately O(n). This optimization is crucial for maintaining interactive frame rates with larger particle counts.
+
+## Simulation Mechanics
+
+The core simulation applies force based interactions between particles within a defined radius. Each particle calculates forces from neighboring particles, creating emergent behaviors that resemble natural particle systems. Simple force rules generate complex, self organizing patterns that can form stable structures resembling cellular life forms.
+
+The emergent behaviors include particle clustering, dynamic group formation, and self sustaining patterns that evolve over time. Future development aims to introduce more dynamic interactions to prevent static equilibrium states and create more engaging evolutionary behaviors.
+
+# Build (MacOS/Linux)
 
 First install these dependencies:
 
@@ -36,36 +33,18 @@ Then run these:
 git clone https://github.com/difof/particles
 cd particles
 git submodule update --init --recursive
-task run-release
+task run
 ```
 
 # TODO
 
-- move seed into something else and keep a base in simulation to reset to, base will be updated if theres new seed. new commands: update existing rules (no reset), upload seed (reset)
-- grid inside world
-    - world interface for external access (out of sim class)
-- break down main
-    - render class
-    - ui class
-        - break down ui
-        - windows for ui parts
-- clean up world class as it's the very first thing ever made in this shit
-- save load rules and settings to/from json
-- have a whole look at the var naming etc, make them clear snake_case
-- density heatmap is ok, but also add temp map (cells with a lot of movement)
-- 2d camera and movable texture
-- resizable texture & bounds
 - screenshot & video
 - use lua programmable seeds
 - probably use luajit for kernels!
 - more emergent behavior
-
-# FIXME
-
-- DrawRegionInspector and render_tex share same interpolation logic. repeating myself
-- draw grids and velocities in a different layer/render target
-- target tps is not accurately capping the exact tps
-- when reset, total steps wont zero
+- remote view
+- integrate metal
+- integrate glsl compute
 
 # License
-Don't fork, don't copy, don't sell. I'll find you and feed your entire bloodline to the chicken.
+AGLP-3-only
