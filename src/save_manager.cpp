@@ -378,6 +378,9 @@ json SaveManager::render_config_to_json(const Config &config) {
                 {"inner_rgb_gain", config.inner_rgb_gain},
                 {"final_additive_blit", config.final_additive_blit},
                 {"background_color", color_to_json(config.background_color)},
+                {"border_enabled", config.border_enabled},
+                {"border_color", color_to_json(config.border_color)},
+                {"border_width", config.border_width},
                 {"show_density_heat", config.show_density_heat},
                 {"heat_alpha", config.heat_alpha},
                 {"show_velocity_field", config.show_velocity_field},
@@ -437,6 +440,15 @@ Config SaveManager::json_to_render_config(const json &j) {
     }
     if (j.contains("background_color")) {
         config.background_color = json_to_color(j["background_color"]);
+    }
+    if (j.contains("border_enabled")) {
+        config.border_enabled = j["border_enabled"];
+    }
+    if (j.contains("border_color")) {
+        config.border_color = json_to_color(j["border_color"]);
+    }
+    if (j.contains("border_width")) {
+        config.border_width = j["border_width"];
     }
     if (j.contains("show_density_heat")) {
         config.show_density_heat = j["show_density_heat"];

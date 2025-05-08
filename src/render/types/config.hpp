@@ -35,6 +35,11 @@ struct Config {
     // background
     Color background_color = {0, 0, 0, 255}; // black background
 
+    // border
+    bool border_enabled = false;
+    Color border_color = {255, 255, 255, 255}; // white border
+    float border_width = 2.0f;                 // border thickness in pixels
+
     // overlays
     bool show_density_heat = false;
     float heat_alpha = 0.6f; // 0..1 overlay opacity

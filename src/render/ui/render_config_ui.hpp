@@ -28,6 +28,7 @@ class RenderConfigUI : public IRenderer {
     void render_ui(Context &ctx);
     void render_interpolation_section(Context &ctx);
     void render_background_section(Context &ctx);
+    void render_border_section(Context &ctx);
     void render_particle_rendering_section(Context &ctx);
     void render_glow_settings(Context &ctx);
     void render_overlays_section(Context &ctx, std::function<void(bool)> mark);

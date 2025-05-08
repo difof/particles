@@ -182,6 +182,25 @@ void ParticlesRenderer::render_grid_overlays(
     }
 }
 
+void ParticlesRenderer::render_border(const Context &ctx,
+                                      const CameraTransform &transform) const {
+    auto &rcfg = ctx.rcfg;
+
+    if (!rcfg.border_enabled) {
+        return;
+    }
+
+    // Calculate border rectangle in screen coordinates
+    float border_x = transform.ox_cam;
+    float border_y = transform.oy_cam;
+    float border_width = transform.bounds_w * transform.zoom;
+    float border_height = transform.bounds_h * transform.zoom;
+
+    // Draw border as a rectangle outline
+    DrawRectangleLinesEx({border_x, border_y, border_width, border_height},
+                         rcfg.border_width, rcfg.border_color);
+}
+
 void ParticlesRenderer::render(Context &ctx) {
     BeginTextureMode(m_rt);
     ClearBackground(ctx.rcfg.background_color);
@@ -191,6 +210,7 @@ void ParticlesRenderer::render(Context &ctx) {
 
     render_particles(ctx, camera_transform);
     render_grid_overlays(ctx, camera_transform);
+    render_border(ctx, camera_transform);
 
     if (camera_transform.use_scissor) {
         EndScissorMode();

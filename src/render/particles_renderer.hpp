@@ -159,6 +159,14 @@ class ParticlesRenderer : public IRenderer {
                               const CameraTransform &transform) const;
 
     /**
+     * @brief Renders border around simulation bounds
+     * @param ctx Rendering context
+     * @param transform Camera transformation data
+     */
+    void render_border(const Context &ctx,
+                       const CameraTransform &transform) const;
+
+    /**
      * @brief Gets or creates the glow texture for particle effects
      * @return Glow texture with radial gradient
      */

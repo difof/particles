@@ -21,6 +21,7 @@ void RenderConfigUI::render_ui(Context &ctx) {
 
     render_interpolation_section(ctx);
     render_background_section(ctx);
+    render_border_section(ctx);
     render_particle_rendering_section(ctx);
     render_overlays_section(ctx, mark);
 
@@ -79,6 +80,47 @@ void RenderConfigUI::render_background_section(Context &ctx) {
                   after, [&](const Color &c) {
                       rcfg.background_color = c;
                   });
+    }
+}
+
+void RenderConfigUI::render_border_section(Context &ctx) {
+    auto &rcfg = ctx.rcfg;
+
+    ImGui::SeparatorText("Border");
+    {
+        bool before = rcfg.border_enabled;
+        if (ImGui::Checkbox("Border enabled", &rcfg.border_enabled)) {
+            push_rcfg(ctx, "render.border_enabled", "Border enabled", before,
+                      rcfg.border_enabled, [&](const bool &v) {
+                          rcfg.border_enabled = v;
+                      });
+        }
+    }
+    if (rcfg.border_enabled) {
+        ImVec4 border_color =
+            ImVec4(rcfg.border_color.r / 255.0f, rcfg.border_color.g / 255.0f,
+                   rcfg.border_color.b / 255.0f, rcfg.border_color.a / 255.0f);
+        if (ImGui::ColorEdit4("Border Color", (float *)&border_color,
+                              ImGuiColorEditFlags_NoAlpha)) {
+            Color before = rcfg.border_color;
+            rcfg.border_color = {(unsigned char)(border_color.x * 255),
+                                 (unsigned char)(border_color.y * 255),
+                                 (unsigned char)(border_color.z * 255),
+                                 (unsigned char)(border_color.w * 255)};
+            Color after = rcfg.border_color;
+            push_rcfg(ctx, "render.border_color", "Border Color", before, after,
+                      [&](const Color &c) {
+                          rcfg.border_color = c;
+                      });
+        }
+        float before = rcfg.border_width;
+        if (ImGui::SliderFloat("Border width (px)", &rcfg.border_width, 0.5f,
+                               10.0f, "%.1f")) {
+            push_rcfg(ctx, "render.border_width", "Border width (px)", before,
+                      rcfg.border_width, [&](const float &v) {
+                          rcfg.border_width = v;
+                      });
+        }
     }
 }
 
