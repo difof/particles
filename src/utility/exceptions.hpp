@@ -50,4 +50,13 @@ class ConfigError : public ParticlesException {
         : ParticlesException("Configuration error: " + message) {}
 };
 
+/**
+ * Exception for UI-related errors
+ */
+class UIError : public ParticlesException {
+  public:
+    explicit UIError(const std::string &message)
+        : ParticlesException("UI error: " + message) {}
+};
+
 } // namespace particles

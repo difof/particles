@@ -1,32 +1,218 @@
 #include "menu_bar_ui.hpp"
 #include <filesystem>
-#include <iostream>
 #include <raylib.h>
+
+#include "../../mailbox/command/cmds.hpp"
+#include "../../utility/exceptions.hpp"
+#include "../../utility/logger.hpp"
+
+void MenuBarUI::render(Context &ctx) {
+    if (!ctx.rcfg.show_ui)
+        return;
+    render_ui(ctx);
+}
+
+void MenuBarUI::set_current_filepath(const std::string &filepath) {
+    m_current_filepath = filepath;
+}
+
+void MenuBarUI::render_ui(Context &ctx) {
+    auto &sim = ctx.sim;
+    mailbox::SimulationConfigSnapshot scfg = sim.get_config();
+    bool scfg_updated = false;
+    auto mark = [&scfg_updated](bool s) {
+        if (s)
+            scfg_updated = true;
+    };
+
+    if (ImGui::BeginMainMenuBar()) {
+        render_project_indicator(ctx);
+        render_file_menu(ctx);
+        render_edit_menu(ctx);
+        render_windows_menu(ctx);
+        render_controls_menu(ctx);
+        ImGui::EndMainMenuBar();
+    }
+
+    if (scfg_updated) {
+        sim.update_config(scfg);
+    }
+
+    render_file_dialog(ctx);
+}
+
+void MenuBarUI::render_project_indicator(Context &ctx) {
+    const char *label_prefix = "Project: ";
+    std::string name;
+    if (m_current_filepath.empty()) {
+        name = "<unsaved>";
+    } else {
+        size_t pos = m_current_filepath.find_last_of('/');
+        if (pos == std::string::npos || pos + 1 >= m_current_filepath.size())
+            name = m_current_filepath;
+        else
+            name = m_current_filepath.substr(pos + 1);
+    }
+    std::string btn = std::string(label_prefix) + name;
+    if (ImGui::SmallButton(btn.c_str())) {
+        handle_open_project(ctx);
+    }
+    if (!m_current_filepath.empty() && ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", m_current_filepath.c_str());
+    }
+    ImGui::SameLine();
+}
+
+void MenuBarUI::render_file_menu(Context &ctx) {
+    if (ImGui::BeginMenu("File")) {
+        if (ImGui::MenuItem("New", "Ctrl+N")) {
+            handle_new_project(ctx);
+        }
+        if (ImGui::MenuItem("Open", "Ctrl+O")) {
+            handle_open_project(ctx);
+        }
+        if (ImGui::MenuItem("Save", "Ctrl+S")) {
+            handle_save_project(ctx);
+        }
+        if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S")) {
+            handle_save_as_project(ctx);
+        }
+        ImGui::Separator();
+
+        auto recent_files = ctx.save.get_recent_files();
+        if (!recent_files.empty()) {
+            for (const auto &file : recent_files) {
+                if (ImGui::MenuItem(file.c_str())) {
+                    handle_open_file(ctx, file);
+                }
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Clear Recent Files")) {
+                ctx.save.clear_recent_files();
+            }
+        }
+
+        if (ImGui::MenuItem("Exit", "ESC")) {
+            ctx.should_exit = true;
+        }
+
+        ImGui::EndMenu();
+    }
+}
+
+void MenuBarUI::render_edit_menu(Context &ctx) {
+    if (ImGui::BeginMenu("Edit")) {
+        bool canUndo = ctx.undo.canUndo();
+        bool canRedo = ctx.undo.canRedo();
+        if (!canUndo)
+            ImGui::BeginDisabled();
+        if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+            ctx.undo.undo();
+        }
+        if (!canUndo)
+            ImGui::EndDisabled();
+        if (!canRedo)
+            ImGui::BeginDisabled();
+        if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+            ctx.undo.redo();
+        }
+        if (!canRedo)
+            ImGui::EndDisabled();
+        ImGui::EndMenu();
+    }
+}
+
+void MenuBarUI::render_windows_menu(Context &ctx) {
+    if (ImGui::BeginMenu("Windows")) {
+        if (ImGui::MenuItem("Toggle UI", "U")) {
+            ctx.rcfg.show_ui = !ctx.rcfg.show_ui;
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Show metrics window", "1")) {
+            ctx.rcfg.show_metrics_ui = true;
+        }
+        if (ImGui::MenuItem("Open Particle & Rule Editor", "2")) {
+            ctx.rcfg.show_editor = true;
+        }
+        if (ImGui::MenuItem("Open Render Config", "3")) {
+            ctx.rcfg.show_render_config = true;
+        }
+        if (ImGui::MenuItem("Open Simulation Config", "4")) {
+            ctx.rcfg.show_sim_config = true;
+        }
+        ImGui::EndMenu();
+    }
+}
+
+void MenuBarUI::render_controls_menu(Context &ctx) {
+    if (ImGui::BeginMenu("Controls")) {
+        if (ImGui::MenuItem("Reset world", "R")) {
+            ctx.sim.push_command(mailbox::command::ResetWorld{});
+        }
+        if (ImGui::MenuItem("Pause/Resume", "SPACE")) {
+            if (ctx.sim.get_run_state() == Simulation::RunState::Running) {
+                ctx.sim.push_command(mailbox::command::Pause{});
+            } else if (ctx.sim.get_run_state() ==
+                       Simulation::RunState::Paused) {
+                ctx.sim.push_command(mailbox::command::Resume{});
+            }
+        }
+        if (ImGui::MenuItem("One Step", "S")) {
+            ctx.sim.push_command(mailbox::command::OneStep{});
+        }
+        ImGui::EndMenu();
+    }
+}
+
+void MenuBarUI::render_file_dialog(Context &ctx) {
+    if (!m_file_dialog_open) {
+        return;
+    }
+
+    if (m_file_dialog.render()) {
+        m_file_dialog_open = false;
+        if (m_file_dialog.has_result() && !m_file_dialog.canceled()) {
+            const std::string path = m_file_dialog.selected_path();
+            if (m_pending_action == PendingAction::Open) {
+                {
+                    handle_open_file(ctx, path);
+                }
+            } else if (m_pending_action == PendingAction::SaveAs) {
+                SaveManager::ProjectData data;
+                data.sim_config = ctx.sim.get_config();
+                data.render_config = ctx.rcfg;
+                data.seed = ctx.save.extract_current_seed(ctx.world_snapshot);
+                ctx.save.save_project(path, data);
+                m_current_filepath = path;
+                LOG_INFO("Project saved successfully to: " + path);
+            }
+        }
+        m_pending_action = PendingAction::None;
+    }
+}
 
 void MenuBarUI::handle_new_project(Context &ctx) {
     SaveManager::ProjectData data;
     try {
         ctx.save.new_project(data);
-        // Use current window/render sizes for bounds (avoid small default)
         data.sim_config.bounds_width = (float)ctx.wcfg.screen_width;
         data.sim_config.bounds_height = (float)ctx.wcfg.screen_height;
 
-        // Apply the new project data
         ctx.sim.update_config(data.sim_config);
         ctx.rcfg = data.render_config;
 
-        // Send new seed to simulation
         if (data.seed.has_value()) {
             ctx.sim.push_command(
                 mailbox::command::SeedWorld{data.seed.value()});
         }
 
-        // Clear current file path (unsaved new project)
         m_current_filepath.clear();
 
-        std::cout << "New project created" << std::endl;
+        LOG_INFO("New project created successfully");
     } catch (const particles::IOError &e) {
-        std::cerr << "Error creating new project: " << e.what() << std::endl;
+        LOG_ERROR("Failed to create new project: " + std::string(e.what()));
+        throw particles::UIError("Failed to create new project: " +
+                                 std::string(e.what()));
     }
 }
 
@@ -42,32 +228,29 @@ void MenuBarUI::handle_open_project(Context &ctx) {
 
 void MenuBarUI::handle_save_project(Context &ctx) {
     if (m_current_filepath.empty()) {
-        // No current file, do save as instead (open dialog)
         handle_save_as_project(ctx);
         return;
     }
 
-    // Collect current state
     SaveManager::ProjectData data;
     data.sim_config = ctx.sim.get_config();
     data.render_config = ctx.rcfg;
 
-    // Extract current seed from world
     data.seed = ctx.save.extract_current_seed(ctx.world_snapshot);
 
     try {
         ctx.save.save_project(m_current_filepath, data);
-        std::cout << "Project saved to: " << m_current_filepath << std::endl;
+        LOG_INFO("Project saved successfully to: " + m_current_filepath);
     } catch (const particles::IOError &e) {
-        std::cerr << "Failed to save project: " << e.what() << std::endl;
+        LOG_ERROR("Failed to save project: " + std::string(e.what()));
+        throw particles::UIError("Failed to save project to '" +
+                                 m_current_filepath + "': " + e.what());
     }
 }
 
 void MenuBarUI::handle_save_as_project(Context &ctx) {
     if (!m_file_dialog_open) {
-        // Prefill filename if we have a current one
         if (!m_current_filepath.empty()) {
-            // Extract filename portion
             auto pos = m_current_filepath.find_last_of('/');
             if (pos != std::string::npos && pos + 1 < m_current_filepath.size())
                 m_file_dialog.set_filename(m_current_filepath.substr(pos + 1));
@@ -87,19 +270,19 @@ void MenuBarUI::handle_open_file(Context &ctx, const std::string &filepath) {
     SaveManager::ProjectData data;
     try {
         ctx.save.load_project(filepath, data);
-        // Apply the loaded project data
         ctx.sim.update_config(data.sim_config);
         ctx.rcfg = data.render_config;
 
-        // Send loaded seed to simulation
         if (data.seed.has_value()) {
             ctx.sim.push_command(
                 mailbox::command::SeedWorld{data.seed.value()});
         }
 
         m_current_filepath = filepath;
-        std::cout << "Project loaded from: " << filepath << std::endl;
+        LOG_INFO("Project loaded successfully from: " + filepath);
     } catch (const particles::IOError &e) {
-        std::cerr << "Failed to load project: " << e.what() << std::endl;
+        LOG_ERROR("Failed to load project: " + std::string(e.what()));
+        throw particles::UIError("Failed to load project from '" + filepath +
+                                 "': " + e.what());
     }
 }

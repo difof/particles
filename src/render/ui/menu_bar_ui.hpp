@@ -10,202 +10,119 @@
 #include "../types/window.hpp"
 #include "file_dialog.hpp"
 
+/**
+ * @brief Main menu bar UI component for the particle simulator
+ */
 class MenuBarUI : public IRenderer {
   public:
     MenuBarUI() = default;
     ~MenuBarUI() override = default;
+    MenuBarUI(const MenuBarUI &) = delete;
+    MenuBarUI &operator=(const MenuBarUI &) = delete;
+    MenuBarUI(MenuBarUI &&) = delete;
+    MenuBarUI &operator=(MenuBarUI &&) = delete;
 
-    // File operations
+    /**
+     * @brief Render the menu bar UI
+     * @param ctx The rendering context containing simulation and UI state
+     */
+    void render(Context &ctx) override;
 
-    void render(Context &ctx) override {
-        if (!ctx.rcfg.show_ui)
-            return;
-        render_ui(ctx);
-    }
-
-    // Set current file path (used when loading files outside of menu)
-    void set_current_filepath(const std::string &filepath) {
-        m_current_filepath = filepath;
-    }
+    /**
+     * @brief Set the current file path for the project
+     * @param filepath The path to the current project file
+     */
+    void set_current_filepath(const std::string &filepath);
 
   private:
-    std::string m_current_filepath;
-    FileDialog m_file_dialog;
-    bool m_file_dialog_open = false;
+    /**
+     * @brief Internal method to render the UI components
+     * @param ctx The rendering context
+     */
+    void render_ui(Context &ctx);
+
+    /**
+     * @brief Render the project indicator button
+     * @param ctx The rendering context
+     */
+    void render_project_indicator(Context &ctx);
+
+    /**
+     * @brief Render the File menu
+     * @param ctx The rendering context
+     */
+    void render_file_menu(Context &ctx);
+
+    /**
+     * @brief Render the Edit menu
+     * @param ctx The rendering context
+     */
+    void render_edit_menu(Context &ctx);
+
+    /**
+     * @brief Render the Windows menu
+     * @param ctx The rendering context
+     */
+    void render_windows_menu(Context &ctx);
+
+    /**
+     * @brief Render the Controls menu
+     * @param ctx The rendering context
+     */
+    void render_controls_menu(Context &ctx);
+
+    /**
+     * @brief Render the file dialog if open
+     * @param ctx The rendering context
+     */
+    void render_file_dialog(Context &ctx);
+
+    /**
+     * @brief Handle creating a new project
+     * @param ctx The rendering context
+     * @throws particles::UIError if project creation fails
+     */
+    void handle_new_project(Context &ctx);
+
+    /**
+     * @brief Handle opening a project file dialog
+     * @param ctx The rendering context
+     */
+    void handle_open_project(Context &ctx);
+
+    /**
+     * @brief Handle saving the current project
+     * @param ctx The rendering context
+     * @throws particles::UIError if project saving fails
+     */
+    void handle_save_project(Context &ctx);
+
+    /**
+     * @brief Handle save as project file dialog
+     * @param ctx The rendering context
+     */
+    void handle_save_as_project(Context &ctx);
+
+    /**
+     * @brief Handle opening a specific file
+     * @param ctx The rendering context
+     * @param filepath The path to the file to open
+     * @throws particles::UIError if file loading fails
+     */
+    void handle_open_file(Context &ctx, const std::string &filepath);
+
+    /** @brief Enumeration of pending file operations */
     enum class PendingAction { None, Open, SaveAs };
+
+    /** @brief Currently pending file operation */
     PendingAction m_pending_action = PendingAction::None;
 
-    void render_ui(Context &ctx) {
-        auto &sim = ctx.sim;
-        auto &rcfg = ctx.rcfg;
-        mailbox::SimulationConfigSnapshot scfg = sim.get_config();
-        bool scfg_updated = false;
-        auto mark = [&scfg_updated](bool s) {
-            if (s)
-                scfg_updated = true;
-        };
+    /** @brief Current project file path */
+    std::string m_current_filepath;
 
-        // Create main menu bar
-        if (ImGui::BeginMainMenuBar()) {
-            // Current project indicator (click to open project)
-            {
-                const char *label_prefix = "Project: ";
-                std::string name;
-                if (m_current_filepath.empty()) {
-                    name = "<unsaved>";
-                } else {
-                    size_t pos = m_current_filepath.find_last_of('/');
-                    if (pos == std::string::npos ||
-                        pos + 1 >= m_current_filepath.size())
-                        name = m_current_filepath;
-                    else
-                        name = m_current_filepath.substr(pos + 1);
-                }
-                std::string btn = std::string(label_prefix) + name;
-                if (ImGui::SmallButton(btn.c_str())) {
-                    handle_open_project(ctx);
-                }
-                if (!m_current_filepath.empty() && ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("%s", m_current_filepath.c_str());
-                }
-                ImGui::SameLine();
-            }
-            // File menu
-            if (ImGui::BeginMenu("File")) {
-                if (ImGui::MenuItem("New", "Ctrl+N")) {
-                    handle_new_project(ctx);
-                }
-                if (ImGui::MenuItem("Open", "Ctrl+O")) {
-                    handle_open_project(ctx);
-                }
-                if (ImGui::MenuItem("Save", "Ctrl+S")) {
-                    handle_save_project(ctx);
-                }
-                if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S")) {
-                    handle_save_as_project(ctx);
-                }
-                ImGui::Separator();
+    /** @brief File dialog for opening/saving projects */
+    FileDialog m_file_dialog;
 
-                // Recent files
-                auto recent_files = ctx.save.get_recent_files();
-                if (!recent_files.empty()) {
-                    for (const auto &file : recent_files) {
-                        if (ImGui::MenuItem(file.c_str())) {
-                            handle_open_file(ctx, file);
-                        }
-                    }
-                    ImGui::Separator();
-                    if (ImGui::MenuItem("Clear Recent Files")) {
-                        ctx.save.clear_recent_files();
-                    }
-                }
-
-                if (ImGui::MenuItem("Exit", "ESC")) {
-                    ctx.should_exit = true;
-                }
-
-                ImGui::EndMenu();
-            }
-
-            // Edit menu
-            if (ImGui::BeginMenu("Edit")) {
-                bool canUndo = ctx.undo.canUndo();
-                bool canRedo = ctx.undo.canRedo();
-                if (!canUndo)
-                    ImGui::BeginDisabled();
-                if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
-                    ctx.undo.undo();
-                }
-                if (!canUndo)
-                    ImGui::EndDisabled();
-                if (!canRedo)
-                    ImGui::BeginDisabled();
-                if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
-                    ctx.undo.redo();
-                }
-                if (!canRedo)
-                    ImGui::EndDisabled();
-                ImGui::EndMenu();
-            }
-
-            // Windows menu
-            if (ImGui::BeginMenu("Windows")) {
-                if (ImGui::MenuItem("Toggle UI", "U")) {
-                    ctx.rcfg.show_ui = !ctx.rcfg.show_ui;
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem("Show metrics window", "1")) {
-                    ctx.rcfg.show_metrics_ui = true;
-                }
-                if (ImGui::MenuItem("Open Particle & Rule Editor", "2")) {
-                    ctx.rcfg.show_editor = true;
-                }
-                if (ImGui::MenuItem("Open Render Config", "3")) {
-                    ctx.rcfg.show_render_config = true;
-                }
-                if (ImGui::MenuItem("Open Simulation Config", "4")) {
-                    ctx.rcfg.show_sim_config = true;
-                }
-                ImGui::EndMenu();
-            }
-
-            // Controls menu
-            if (ImGui::BeginMenu("Controls")) {
-                if (ImGui::MenuItem("Reset world", "R")) {
-                    sim.push_command(mailbox::command::ResetWorld{});
-                }
-                if (ImGui::MenuItem("Pause/Resume", "SPACE")) {
-                    if (sim.get_run_state() == Simulation::RunState::Running) {
-                        sim.push_command(mailbox::command::Pause{});
-                    } else if (sim.get_run_state() ==
-                               Simulation::RunState::Paused) {
-                        sim.push_command(mailbox::command::Resume{});
-                    }
-                }
-                if (ImGui::MenuItem("One Step", "S")) {
-                    sim.push_command(mailbox::command::OneStep{});
-                }
-                ImGui::EndMenu();
-            }
-
-            ImGui::EndMainMenuBar();
-        }
-
-        if (scfg_updated) {
-            sim.update_config(scfg);
-        }
-
-        // Render file dialog if open
-        if (m_file_dialog_open) {
-            if (m_file_dialog.render()) {
-                m_file_dialog_open = false;
-                if (m_file_dialog.has_result() && !m_file_dialog.canceled()) {
-                    const std::string path = m_file_dialog.selected_path();
-                    if (m_pending_action == PendingAction::Open) {
-                        handle_open_file(ctx, path);
-                    } else if (m_pending_action == PendingAction::SaveAs) {
-                        // Collect current state and save
-                        SaveManager::ProjectData data;
-                        data.sim_config = ctx.sim.get_config();
-                        data.render_config = ctx.rcfg;
-                        data.seed =
-                            ctx.save.extract_current_seed(ctx.world_snapshot);
-                        try {
-                            ctx.save.save_project(path, data);
-                            m_current_filepath = path;
-                        } catch (const particles::IOError &e) {
-                            // Error handling is done in the catch block
-                        }
-                    }
-                }
-                m_pending_action = PendingAction::None;
-            }
-        }
-    }
-
-    void handle_new_project(Context &ctx);
-    void handle_open_project(Context &ctx);
-    void handle_save_project(Context &ctx);
-    void handle_save_as_project(Context &ctx);
-    void handle_open_file(Context &ctx, const std::string &filepath);
+    /** @brief Whether the file dialog is currently open */
+    bool m_file_dialog_open = false;
 };
