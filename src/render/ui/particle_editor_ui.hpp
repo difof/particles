@@ -118,7 +118,7 @@ class ParticleEditorUI : public IRenderer {
      * @brief Renders apply controls and utility buttons.
      * @param ctx The rendering context.
      */
-    void render_apply_controls(Context &ctx);
+    void render_randomize_controls(Context &ctx);
 
     /**
      * @brief Creates backup state for undo operations.
@@ -142,7 +142,6 @@ class ParticleEditorUI : public IRenderer {
         std::vector<int> m_sizes;
         std::vector<Color> m_colors;
         std::vector<bool> m_enabled;
-        bool m_live_apply = false;
         bool m_dirty = false;
         bool m_should_refresh_next_frame = false;
     } m_editor;

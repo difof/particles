@@ -24,9 +24,10 @@ void ParticleEditorUI::render_ui(Context &ctx) {
     }
 
     ImGui::Text("Groups: %d", stats.groups);
+    ImGui::SameLine();
+    ImGui::Text("| negative forces attract, positive repels");
     ImGui::Separator();
 
-    ImGui::Checkbox("Live apply", &m_editor.m_live_apply);
     render_group_management_controls(ctx);
 
     ImGui::Separator();
@@ -38,11 +39,11 @@ void ParticleEditorUI::render_ui(Context &ctx) {
     }
     ImGui::EndChild();
 
-    render_apply_controls(ctx);
+    render_randomize_controls(ctx);
 
-    // Auto apply when live apply is enabled
+    // Always apply changes live
     bool can_hot_apply = (m_editor.m_group_count == stats.groups);
-    if (m_editor.m_live_apply && m_editor.m_dirty) {
+    if (m_editor.m_dirty) {
         apply_rule_patch(ctx, can_hot_apply);
     }
 
@@ -252,13 +253,11 @@ void ParticleEditorUI::render_group_editor(Context &ctx, int group_index) {
             m_editor.m_sizes[group_index] = new_size;
             m_editor.m_dirty = true;
 
-            // Only apply immediately if live apply is enabled
-            if (m_editor.m_live_apply) {
-                ctx.sim.push_command(
-                    mailbox::command::ResizeGroup{group_index, new_size});
-                ctx.sim.force_stats_publish();
-                m_editor.m_should_refresh_next_frame = true;
-            }
+            // Always apply immediately
+            ctx.sim.push_command(
+                mailbox::command::ResizeGroup{group_index, new_size});
+            ctx.sim.force_stats_publish();
+            m_editor.m_should_refresh_next_frame = true;
 
             LOG_DEBUG("  - Updated local editor to: " +
                       std::to_string(m_editor.m_sizes[group_index]));
@@ -280,7 +279,9 @@ void ParticleEditorUI::render_group_properties(Context &ctx, int group_index) {
 
 void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
                                                 int target_index) {
-    ImGui::PushID(target_index);
+    // Create unique ID by combining source and target indices
+    int unique_id = group_index * 1000 + target_index;
+    ImGui::PushID(unique_id);
 
     auto to_imvec4 = [](Color c) -> ImVec4 {
         return ImVec4(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f);
@@ -292,20 +293,22 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
                        ImGuiColorEditFlags_NoTooltip |
                            ImGuiColorEditFlags_NoPicker |
                            ImGuiColorEditFlags_NoDragDrop,
-                       ImVec2(14, 14));
-    ImGui::SameLine(0.0f, 6.0f);
+                       ImVec2(12, 12));
+    ImGui::SameLine();
     ImGui::Text("g%d  \xE2\x86\x92  g%d", group_index, target_index);
-    ImGui::SameLine(0.0f, 6.0f);
+    ImGui::SameLine();
     ImGui::ColorButton("dst", cdst,
                        ImGuiColorEditFlags_NoTooltip |
                            ImGuiColorEditFlags_NoPicker |
                            ImGuiColorEditFlags_NoDragDrop,
-                       ImVec2(14, 14));
+                       ImVec2(12, 12));
 
     float &v =
         m_editor.m_rules[group_index * m_editor.m_group_count + target_index];
     float before_v = v;
-    if (ImGui::SliderFloat("Strength", &v, -3.14f, 3.14f, "%.3f")) {
+
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("", &v, -3.14f, 3.14f, "%.3f")) {
         LOG_DEBUG("Rule strength g" + std::to_string(group_index) + "->g" +
                   std::to_string(target_index) + " changed from " +
                   std::to_string(before_v) + " to " + std::to_string(v));
@@ -317,6 +320,7 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
         }
         const int gi = group_index;
         const int gj = target_index;
+        auto &sim_ref = ctx.sim; // Capture the simulation reference directly
         ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<float>(
             (std::string("m_editor.rule.") + std::to_string(gi) + "." +
              std::to_string(gj))
@@ -325,25 +329,23 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
             []() {
                 return 0.f;
             },
-            [&, gi, gj](const float &val) {
+            [&sim_ref, gi, gj, this](const float &val) {
                 LOG_DEBUG("Undo/Redo action: Setting rule strength g" +
                           std::to_string(gi) + "->g" + std::to_string(gj) +
                           " to " + std::to_string(val));
                 m_editor.m_rules[gi * m_editor.m_group_count + gj] = val;
                 m_editor.m_dirty = true;
 
-                // If live apply is enabled, push command and mark for refresh
-                if (m_editor.m_live_apply) {
-                    mailbox::command::RulePatch patch;
-                    patch.groups = m_editor.m_group_count;
-                    patch.r2 = m_editor.m_radius_squared;
-                    patch.rules = m_editor.m_rules;
-                    patch.colors = m_editor.m_colors;
-                    patch.enabled = m_editor.m_enabled;
-                    patch.hot = true;
-                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
-                    m_editor.m_should_refresh_next_frame = true;
-                }
+                // Always apply live
+                mailbox::command::RulePatch patch;
+                patch.groups = m_editor.m_group_count;
+                patch.r2 = m_editor.m_radius_squared;
+                patch.rules = m_editor.m_rules;
+                patch.colors = m_editor.m_colors;
+                patch.enabled = m_editor.m_enabled;
+                patch.hot = true;
+                sim_ref.push_command(mailbox::command::ApplyRules{patch});
+                m_editor.m_should_refresh_next_frame = true;
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit()) {
@@ -351,49 +353,24 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
         }
         m_editor.m_dirty = true;
     }
-    ImGui::Separator();
     ImGui::PopID();
 }
 
 void ParticleEditorUI::render_group_rules(Context &ctx, int group_index) {
     if (ImGui::TreeNode("Rules Row")) {
-        // First render the same group rule (group_index -> group_index)
         render_single_group_rule(ctx, group_index, group_index);
+        ImGui::Separator();
 
-        // Then render the rest in normal order, skipping the same group rule
-        for (int j = 0; j < m_editor.m_group_count; ++j) {
-            if (j == group_index) {
-                continue;
-            }
+        for (int j = group_index + 1; j < m_editor.m_group_count; ++j) {
             render_single_group_rule(ctx, group_index, j);
+            render_single_group_rule(ctx, j, group_index);
+            ImGui::Separator();
         }
         ImGui::TreePop();
     }
 }
 
-void ParticleEditorUI::render_apply_controls(Context &ctx) {
-    auto &sim = ctx.sim;
-    mailbox::SimulationStatsSnapshot stats = sim.get_stats();
-    bool can_hot_apply = (m_editor.m_group_count == stats.groups);
-
-    if (!can_hot_apply)
-        ImGui::BeginDisabled();
-    if (ImGui::Button("Apply (hot, no reseed)")) {
-        LOG_DEBUG("Apply (hot, no reseed) button pressed");
-        apply_rule_patch(ctx, true);
-    }
-    if (!can_hot_apply) {
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Group count/order changed. Hot apply disabled.");
-    }
-
-    ImGui::SameLine();
-    if (ImGui::Button("Apply & Reseed")) {
-        LOG_DEBUG("Apply & Reseed button pressed");
-        apply_rule_patch(ctx, false);
-    }
-
+void ParticleEditorUI::render_randomize_controls(Context &ctx) {
     if (ImGui::Button("Make symmetric (w_ij = w_ji)")) {
         LOG_DEBUG("Make symmetric button pressed");
         for (int i = 0; i < m_editor.m_group_count; ++i) {
@@ -500,31 +477,30 @@ void ParticleEditorUI::render_group_enabled_checkbox(Context &ctx,
         }
 
         const int gi = group_index;
+        auto &sim_ref = ctx.sim; // Capture the simulation reference directly
         ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<bool>(
             (std::string("m_editor.enabled.") + std::to_string(gi)).c_str(),
             "Group enabled",
             []() {
                 return false;
             },
-            [&, gi](const bool &e) {
+            [&sim_ref, gi, this](const bool &e) {
                 LOG_DEBUG("Undo/Redo action: Setting group " +
                           std::to_string(gi) + " enabled to " +
                           (e ? "true" : "false"));
                 m_editor.m_enabled[gi] = e;
                 m_editor.m_dirty = true;
 
-                // If live apply is enabled, push command and mark for refresh
-                if (m_editor.m_live_apply) {
-                    mailbox::command::RulePatch patch;
-                    patch.groups = m_editor.m_group_count;
-                    patch.r2 = m_editor.m_radius_squared;
-                    patch.rules = m_editor.m_rules;
-                    patch.colors = m_editor.m_colors;
-                    patch.enabled = m_editor.m_enabled;
-                    patch.hot = true;
-                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
-                    m_editor.m_should_refresh_next_frame = true;
-                }
+                // Always apply live
+                mailbox::command::RulePatch patch;
+                patch.groups = m_editor.m_group_count;
+                patch.r2 = m_editor.m_radius_squared;
+                patch.rules = m_editor.m_rules;
+                patch.colors = m_editor.m_colors;
+                patch.enabled = m_editor.m_enabled;
+                patch.hot = true;
+                sim_ref.push_command(mailbox::command::ApplyRules{patch});
+                m_editor.m_should_refresh_next_frame = true;
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit())
@@ -569,13 +545,14 @@ void ParticleEditorUI::render_group_color_picker(Context &ctx,
         if (ImGui::IsItemActivated())
             ctx.undo.beginInteraction(id);
         const int gi = group_index;
+        auto &sim_ref = ctx.sim; // Capture the simulation reference directly
         ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<Color>(
             (std::string("m_editor.color.") + std::to_string(gi)).c_str(),
             "Group color",
             []() {
                 return Color{};
             },
-            [&, gi](const Color &c) {
+            [&sim_ref, gi, this](const Color &c) {
                 LOG_DEBUG("Undo/Redo action: Setting group " +
                           std::to_string(gi) + " color to (" +
                           std::to_string(c.r) + "," + std::to_string(c.g) +
@@ -584,18 +561,16 @@ void ParticleEditorUI::render_group_color_picker(Context &ctx,
                 m_editor.m_colors[gi] = c;
                 m_editor.m_dirty = true;
 
-                // If live apply is enabled, push command and mark for refresh
-                if (m_editor.m_live_apply) {
-                    mailbox::command::RulePatch patch;
-                    patch.groups = m_editor.m_group_count;
-                    patch.r2 = m_editor.m_radius_squared;
-                    patch.rules = m_editor.m_rules;
-                    patch.colors = m_editor.m_colors;
-                    patch.enabled = m_editor.m_enabled;
-                    patch.hot = true;
-                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
-                    m_editor.m_should_refresh_next_frame = true;
-                }
+                // Always apply live
+                mailbox::command::RulePatch patch;
+                patch.groups = m_editor.m_group_count;
+                patch.r2 = m_editor.m_radius_squared;
+                patch.rules = m_editor.m_rules;
+                patch.colors = m_editor.m_colors;
+                patch.enabled = m_editor.m_enabled;
+                patch.hot = true;
+                sim_ref.push_command(mailbox::command::ApplyRules{patch});
+                m_editor.m_should_refresh_next_frame = true;
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit())
@@ -620,13 +595,14 @@ void ParticleEditorUI::render_group_radius_slider(Context &ctx,
         if (ImGui::IsItemActivated())
             ctx.undo.beginInteraction(id);
         const int gi = group_index;
+        auto &sim_ref = ctx.sim; // Capture the simulation reference directly
         ctx.undo.push(std::unique_ptr<IAction>(new ValueAction<float>(
             (std::string("m_editor.r2.") + std::to_string(gi)).c_str(),
             "Radius^2",
             []() {
                 return 0.f;
             },
-            [&, gi](const float &v) {
+            [&sim_ref, gi, this](const float &v) {
                 LOG_DEBUG("Undo/Redo action: Setting group " +
                           std::to_string(gi) + " radius^2 to " +
                           std::to_string(v) +
@@ -634,18 +610,16 @@ void ParticleEditorUI::render_group_radius_slider(Context &ctx,
                 m_editor.m_radius_squared[gi] = v;
                 m_editor.m_dirty = true;
 
-                // If live apply is enabled, push command and mark for refresh
-                if (m_editor.m_live_apply) {
-                    mailbox::command::RulePatch patch;
-                    patch.groups = m_editor.m_group_count;
-                    patch.r2 = m_editor.m_radius_squared;
-                    patch.rules = m_editor.m_rules;
-                    patch.colors = m_editor.m_colors;
-                    patch.enabled = m_editor.m_enabled;
-                    patch.hot = true;
-                    ctx.sim.push_command(mailbox::command::ApplyRules{patch});
-                    m_editor.m_should_refresh_next_frame = true;
-                }
+                // Always apply live
+                mailbox::command::RulePatch patch;
+                patch.groups = m_editor.m_group_count;
+                patch.r2 = m_editor.m_radius_squared;
+                patch.rules = m_editor.m_rules;
+                patch.colors = m_editor.m_colors;
+                patch.enabled = m_editor.m_enabled;
+                patch.hot = true;
+                sim_ref.push_command(mailbox::command::ApplyRules{patch});
+                m_editor.m_should_refresh_next_frame = true;
             },
             before, after)));
         if (ImGui::IsItemDeactivatedAfterEdit())
