@@ -117,7 +117,7 @@ void SaveManager::new_project(ProjectData &data) {
 
     data.seed = particles::utility::create_default_seed();
 
-    data.window_config = {1080, 800, 500, 1080};
+    data.window_config = {500, 1080};
 
     LOG_INFO("New project created successfully");
 }
@@ -279,31 +279,7 @@ SaveManager::json_to_seed(const json &j) {
         return seed;
     }
 
-    // Legacy flat arrays fallback
-    if (j.contains("sizes")) {
-        seed.sizes = j["sizes"].get<std::vector<int>>();
-    }
-
-    if (j.contains("colors")) {
-        seed.colors.clear();
-        for (const auto &color_json : j["colors"]) {
-            seed.colors.push_back(json_to_color(color_json));
-        }
-    }
-
-    if (j.contains("r2")) {
-        seed.r2 = j["r2"].get<std::vector<float>>();
-    }
-
-    if (j.contains("rules")) {
-        seed.rules = j["rules"].get<std::vector<float>>();
-    }
-
-    if (j.contains("enabled")) {
-        seed.enabled = j["enabled"].get<std::vector<bool>>();
-    }
-
-    return seed;
+    return std::nullopt;
 }
 
 json SaveManager::sim_config_to_json(
@@ -487,19 +463,19 @@ Config SaveManager::json_to_render_config(const json &j) {
 
 json SaveManager::window_config_to_json(
     const ProjectData::WindowConfig &config) {
-    return json{{"screen_width", config.screen_width},
-                {"screen_height", config.screen_height}};
+    return json{{"panel_width", config.panel_width},
+                {"render_width", config.render_width}};
 }
 
 SaveManager::ProjectData::WindowConfig
 SaveManager::json_to_window_config(const json &j) {
     ProjectData::WindowConfig config = {};
 
-    if (j.contains("screen_width")) {
-        config.screen_width = j["screen_width"];
+    if (j.contains("panel_width")) {
+        config.panel_width = j["panel_width"];
     }
-    if (j.contains("screen_height")) {
-        config.screen_height = j["screen_height"];
+    if (j.contains("render_width")) {
+        config.render_width = j["render_width"];
     }
 
     return config;
@@ -568,6 +544,8 @@ void SaveManager::save_window_state(const WindowState &state) {
         j["height"] = state.height;
         j["x"] = state.x;
         j["y"] = state.y;
+        j["screen_width"] = state.screen_width;
+        j["screen_height"] = state.screen_height;
 
         std::string config_path = get_config_path();
         std::filesystem::create_directories(
@@ -618,6 +596,12 @@ SaveManager::WindowState SaveManager::load_window_state() const {
             }
             if (ws.contains("y")) {
                 state.y = ws["y"];
+            }
+            if (ws.contains("screen_width")) {
+                state.screen_width = ws["screen_width"];
+            }
+            if (ws.contains("screen_height")) {
+                state.screen_height = ws["screen_height"];
             }
         }
     } catch (const std::exception &e) {

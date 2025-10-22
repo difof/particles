@@ -40,8 +40,6 @@ TEST_CASE("SaveManager - Basic functionality", "[json_manager]") {
         REQUIRE(data.seed->rules.size() == 25); // 5x5 matrix
 
         // Check window config
-        REQUIRE(data.window_config.screen_width == 1080);
-        REQUIRE(data.window_config.screen_height == 800);
         REQUIRE(data.window_config.panel_width == 500);
         REQUIRE(data.window_config.render_width == 1080);
     }
@@ -250,6 +248,8 @@ TEST_CASE("SaveManager - Window state persistence", "[json_manager]") {
         original_state.height = 1080;
         original_state.x = 100;
         original_state.y = 200;
+        original_state.screen_width = 2560;
+        original_state.screen_height = 1440;
 
         // Save window state
         REQUIRE_NOTHROW(manager.save_window_state(original_state));
@@ -261,6 +261,8 @@ TEST_CASE("SaveManager - Window state persistence", "[json_manager]") {
         REQUIRE(loaded_state.height == 1080);
         REQUIRE(loaded_state.x == 100);
         REQUIRE(loaded_state.y == 200);
+        REQUIRE(loaded_state.screen_width == 2560);
+        REQUIRE(loaded_state.screen_height == 1440);
     }
 }
 

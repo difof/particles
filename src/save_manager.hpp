@@ -42,10 +42,6 @@ class SaveManager {
          * @brief Window configuration parameters.
          */
         struct WindowConfig {
-            /** @brief Screen width in pixels */
-            int screen_width;
-            /** @brief Screen height in pixels */
-            int screen_height;
             /** @brief Control panel width in pixels */
             int panel_width;
             /** @brief Render area width in pixels */
@@ -65,6 +61,10 @@ class SaveManager {
         int x = 0;
         /** @brief Window Y position in pixels */
         int y = 0;
+        /** @brief Screen width in pixels */
+        int screen_width = 1080;
+        /** @brief Screen height in pixels */
+        int screen_height = 800;
     };
 
     SaveManager();
