@@ -16,6 +16,16 @@ void MenuBarUI::set_current_filepath(const std::string &filepath) {
     m_current_filepath = filepath;
 }
 
+void MenuBarUI::trigger_new_project(Context &ctx) { handle_new_project(ctx); }
+
+void MenuBarUI::trigger_open_project(Context &ctx) { handle_open_project(ctx); }
+
+void MenuBarUI::trigger_save_project(Context &ctx) { handle_save_project(ctx); }
+
+void MenuBarUI::trigger_save_as_project(Context &ctx) {
+    handle_save_as_project(ctx);
+}
+
 void MenuBarUI::render_ui(Context &ctx) {
     auto &sim = ctx.sim;
     mailbox::SimulationConfigSnapshot scfg = sim.get_config();

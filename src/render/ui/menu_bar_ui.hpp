@@ -34,6 +34,30 @@ class MenuBarUI : public IRenderer {
      */
     void set_current_filepath(const std::string &filepath);
 
+    /**
+     * @brief Trigger new project creation
+     * @param ctx The rendering context
+     */
+    void trigger_new_project(Context &ctx);
+
+    /**
+     * @brief Trigger open project dialog
+     * @param ctx The rendering context
+     */
+    void trigger_open_project(Context &ctx);
+
+    /**
+     * @brief Trigger save project
+     * @param ctx The rendering context
+     */
+    void trigger_save_project(Context &ctx);
+
+    /**
+     * @brief Trigger save as project dialog
+     * @param ctx The rendering context
+     */
+    void trigger_save_as_project(Context &ctx);
+
   private:
     /**
      * @brief Internal method to render the UI components

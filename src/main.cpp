@@ -2,9 +2,12 @@
 #include <raylib.h>
 #include <rlImGui.h>
 
+#include "input/key_manager.hpp"
+#include "input/keys.hpp"
 #include "mailbox/mailbox.hpp"
 #include "render/manager.hpp"
 #include "render/types/config.hpp"
+#include "render/types/context.hpp"
 #include "render/types/window.hpp"
 #include "save_manager.hpp"
 #include "simulation/simulation.hpp"
@@ -72,6 +75,10 @@ void run() {
 
     sim.begin();
 
+    KeyManager key_manager;
+    bool keys_setup = false;
+    bool should_exit = false;
+
     // Try to load last project, otherwise use default seed
     bool loaded_project = false;
     if (!last_file.empty()) {
@@ -110,26 +117,21 @@ void run() {
             rman.resize(wcfg);
         }
 
-        // auto world_snapshot = sim.get_world_snapshot();
-
         if (rman.draw_frame(sim, rcfg, json_manager, undo_manager))
             break;
 
-        bool ctrl_cmd = IsKeyDown(KEY_LEFT_CONTROL) ||
-                        IsKeyDown(KEY_RIGHT_CONTROL) ||
-                        IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
-        bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
-        if (ctrl_cmd && IsKeyPressed(KEY_Z)) {
-            if (shift) {
-                undo_manager.redo();
-            } else {
-                undo_manager.undo();
-            }
-        }
-        if (ctrl_cmd && IsKeyPressed(KEY_Y)) {
-            undo_manager.redo();
+        // Setup keys on first frame (after we have access to RenderManager)
+        if (!keys_setup) {
+            setup_keys(key_manager, sim, rcfg, json_manager, undo_manager,
+                       rman.get_menu_bar(), should_exit);
+            keys_setup = true;
         }
 
+        if (should_exit) {
+            break;
+        }
+
+        // Check ImGui capture state
         bool imgui_mouse_captured = false;
         bool imgui_keyboard_captured = false;
         if (rcfg.show_ui) {
@@ -138,60 +140,13 @@ void run() {
             imgui_keyboard_captured = io.WantCaptureKeyboard;
         }
 
-        if (IsKeyPressed(KEY_R)) {
-            sim.push_command(mailbox::command::ResetWorld{});
-        }
-        if (IsKeyPressed(KEY_U)) {
-            rcfg.show_ui = !rcfg.show_ui;
-        }
-        if (IsKeyPressed(KEY_S) ||
-            (IsKeyPressedRepeat(KEY_S) &&
-             sim.get_run_state() == Simulation::RunState::Paused)) {
-            sim.push_command(mailbox::command::OneStep{});
-        }
-        if (IsKeyPressed(KEY_SPACE)) {
-            if (sim.get_run_state() == Simulation::RunState::Running) {
-                sim.push_command(mailbox::command::Pause{});
-            } else if (sim.get_run_state() == Simulation::RunState::Paused) {
-                sim.push_command(mailbox::command::Resume{});
-            }
-        }
+        // Process keyboard input
+        key_manager.process(imgui_keyboard_captured);
 
-        if (!imgui_keyboard_captured) {
-            if (IsKeyPressed(KEY_ONE)) {
-                rcfg.show_metrics_ui = !rcfg.show_metrics_ui;
-            }
-            if (IsKeyPressed(KEY_TWO)) {
-                rcfg.show_editor = !rcfg.show_editor;
-            }
-            if (IsKeyPressed(KEY_THREE)) {
-                rcfg.show_render_config = !rcfg.show_render_config;
-            }
-            if (IsKeyPressed(KEY_FOUR)) {
-                rcfg.show_sim_config = !rcfg.show_sim_config;
-            }
-        }
-
-        const float pan_speed = 10.0f;
-        const float zoom_step = 0.1f;
-        const float min_zoom_log = -3.0f; // 0.125x zoom
-        const float max_zoom_log = 3.0f;  // 8x zoom
-
-        if (!imgui_keyboard_captured) {
-            if (IsKeyDown(KEY_LEFT)) {
-                rcfg.camera.x -= pan_speed;
-            }
-            if (IsKeyDown(KEY_RIGHT)) {
-                rcfg.camera.x += pan_speed;
-            }
-            if (IsKeyDown(KEY_UP)) {
-                rcfg.camera.y -= pan_speed;
-            }
-            if (IsKeyDown(KEY_DOWN)) {
-                rcfg.camera.y += pan_speed;
-            }
-        }
-
+        // Mouse handling
+        bool ctrl_cmd = IsKeyDown(KEY_LEFT_CONTROL) ||
+                        IsKeyDown(KEY_RIGHT_CONTROL) ||
+                        IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
         if (!ctrl_cmd && !imgui_mouse_captured &&
             IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 delta = GetMouseDelta();
@@ -200,23 +155,13 @@ void run() {
             rcfg.camera.y -= delta.y / zoom;
         }
 
-        if (!imgui_keyboard_captured) {
-            if (IsKeyPressed(KEY_MINUS)) {
-                rcfg.camera.zoom_log =
-                    std::clamp(rcfg.camera.zoom_log - zoom_step, min_zoom_log,
-                               max_zoom_log);
-            }
-            if (IsKeyPressed(KEY_EQUAL)) {
-                rcfg.camera.zoom_log =
-                    std::clamp(rcfg.camera.zoom_log + zoom_step, min_zoom_log,
-                               max_zoom_log);
-            }
-        }
-
+        // Mouse wheel zoom
         if (!imgui_mouse_captured) {
             float wheel = GetMouseWheelMove();
             if (wheel != 0) {
                 const float zoom_scale = 0.1f * wheel;
+                const float min_zoom_log = -3.0f; // 0.125x zoom
+                const float max_zoom_log = 3.0f;  // 8x zoom
                 rcfg.camera.zoom_log =
                     std::clamp(rcfg.camera.zoom_log + zoom_scale, min_zoom_log,
                                max_zoom_log);
