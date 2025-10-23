@@ -32,13 +32,34 @@ void ParticleEditorUI::render_ui(Context &ctx) {
 
     ImGui::Separator();
 
-    ImGui::BeginChild("GroupsRulesChild", ImVec2(0, 400), true,
+    // Calculate available space for layout
+    ImVec2 available_space = ImGui::GetContentRegionAvail();
+
+    // Define height for the randomizer buttons
+    float button_height = 30.0f; // Height for each button row
+    float button_spacing = ImGui::GetStyle().ItemSpacing.y;
+
+    // Calculate total height needed for buttons (2 rows of buttons + spacing)
+    float total_button_height = (button_height * 2) + button_spacing;
+
+    // Calculate height for the group editor (remaining space minus button area)
+    float group_editor_height = available_space.y - total_button_height;
+
+    // Ensure minimum height for group editor
+    group_editor_height = std::max(group_editor_height, 200.0f);
+
+    // Position the group editor to fill available space
+    ImGui::BeginChild("GroupsRulesChild", ImVec2(0, group_editor_height), true,
                       ImGuiWindowFlags_AlwaysVerticalScrollbar);
     for (int g = 0; g < m_editor.m_group_count; ++g) {
         render_group_editor(ctx, g);
     }
     ImGui::EndChild();
 
+    // Add spacing between group editor and buttons
+    ImGui::Dummy(ImVec2(0, button_spacing));
+
+    // Position the randomizer buttons at the bottom
     render_randomize_controls(ctx);
 
     // Always apply changes live
