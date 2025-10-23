@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 
+// Forward declaration
+class SaveManager;
+
 /**
  * @brief Simple ImGui-based file dialog using tinydir
  *
@@ -40,9 +43,11 @@ class FileDialog {
      * @param mode Dialog mode (Open or Save)
      * @param title Dialog window title
      * @param start_dir Starting directory path
+     * @param save_manager SaveManager instance for persisting dialog state
      */
     void open(Mode mode, const std::string &title,
-              const std::string &start_dir = "");
+              const std::string &start_dir = "",
+              SaveManager *save_manager = nullptr);
 
     /**
      * @brief Render the dialog and return true when closed
@@ -113,4 +118,5 @@ class FileDialog {
     bool m_has_result = false;
     bool m_canceled = false;
     std::string m_selected_path;
+    SaveManager *m_save_manager = nullptr;
 };

@@ -161,6 +161,28 @@ class SaveManager {
      */
     WindowState load_window_state() const;
 
+    /**
+     * @brief Get the last file dialog directory path
+     * @return last file dialog directory path
+     */
+    const std::string &get_last_file_dialog_path() const {
+        return m_last_file_dialog_path;
+    }
+
+    /**
+     * @brief Set the last file dialog directory path
+     * @param path directory path to save
+     */
+    void set_last_file_dialog_path(const std::string &path) {
+        m_last_file_dialog_path = path;
+    }
+
+    /**
+     * @brief Update and save the last file dialog directory path
+     * @param path directory path to save
+     */
+    void update_last_file_dialog_path(const std::string &path);
+
   private:
     /**
      * @brief Convert seed specification to JSON.
@@ -240,6 +262,9 @@ class SaveManager {
     /** @brief Path to the last opened file */
     std::string m_last_file;
 
+    /** @brief Last directory used in file dialog */
+    std::string m_last_file_dialog_path;
+
     /** @brief Maximum number of recent files to keep */
     static constexpr int MAX_RECENT_FILES = 10;
 
@@ -248,6 +273,10 @@ class SaveManager {
 
     /** @brief JSON key for last opened file */
     static constexpr const char *LAST_FILE_KEY = "last_file";
+
+    /** @brief JSON key for last file dialog path */
+    static constexpr const char *LAST_FILE_DIALOG_PATH_KEY =
+        "last_file_dialog_path";
 
     /** @brief JSON key for window state */
     static constexpr const char *WINDOW_STATE_KEY = "window_state";

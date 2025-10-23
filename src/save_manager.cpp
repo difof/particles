@@ -191,6 +191,11 @@ void SaveManager::set_last_opened_file(const std::string &filepath) {
     save_config();
 }
 
+void SaveManager::update_last_file_dialog_path(const std::string &path) {
+    m_last_file_dialog_path = path;
+    save_config();
+}
+
 json SaveManager::color_to_json(const Color &color) {
     return json{{"r", color.r}, {"g", color.g}, {"b", color.b}, {"a", color.a}};
 }
@@ -523,6 +528,7 @@ void SaveManager::save_config() {
 
         j[RECENT_FILES_KEY] = m_recent_files;
         j[LAST_FILE_KEY] = m_last_file;
+        j[LAST_FILE_DIALOG_PATH_KEY] = m_last_file_dialog_path;
 
         std::filesystem::create_directories(
             std::filesystem::path(config_path).parent_path());
@@ -631,6 +637,11 @@ void SaveManager::load_config() {
 
         if (j.contains(LAST_FILE_KEY)) {
             m_last_file = j[LAST_FILE_KEY].get<std::string>();
+        }
+
+        if (j.contains(LAST_FILE_DIALOG_PATH_KEY)) {
+            m_last_file_dialog_path =
+                j[LAST_FILE_DIALOG_PATH_KEY].get<std::string>();
         }
     } catch (const std::exception &e) {
         std::cerr << "Error loading config: " << e.what() << std::endl;

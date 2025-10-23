@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <tinydir.h>
 
+#include "../../save_manager.hpp"
 #include "file_dialog.hpp"
 #include "misc/cpp/imgui_stdlib.h"
 
@@ -22,16 +23,20 @@ static std::string normalize_dir(const std::string &path) {
 }
 
 void FileDialog::open(Mode mode, const std::string &title,
-                      const std::string &start_dir) {
+                      const std::string &start_dir, SaveManager *save_manager) {
     m_mode = mode;
     m_title = title;
     m_open = true;
     m_has_result = false;
     m_canceled = false;
     m_selected_path.clear();
+    m_save_manager = save_manager;
 
     if (!start_dir.empty()) {
         m_current_dir = start_dir;
+    } else if (m_save_manager &&
+               !m_save_manager->get_last_file_dialog_path().empty()) {
+        m_current_dir = m_save_manager->get_last_file_dialog_path();
     } else {
         m_current_dir = ".";
     }
@@ -122,6 +127,12 @@ bool FileDialog::render() {
                 m_has_result = true;
                 m_canceled = false;
                 m_open = false;
+
+                // Save current directory to SaveManager
+                if (m_save_manager) {
+                    m_save_manager->update_last_file_dialog_path(m_current_dir);
+                }
+
                 ImGui::CloseCurrentPopup();
                 closed_this_frame = true;
             }
@@ -218,6 +229,11 @@ void FileDialog::go_up_dir() {
     } else {
         m_current_dir = path.substr(0, pos);
     }
+
+    // Save current directory to SaveManager
+    if (m_save_manager) {
+        m_save_manager->set_last_file_dialog_path(m_current_dir);
+    }
 }
 
 void FileDialog::enter_dir(const std::string &name) {
@@ -228,5 +244,10 @@ void FileDialog::enter_dir(const std::string &name) {
         m_current_dir = "/" + name;
     } else {
         m_current_dir = normalize_dir(m_current_dir) + name;
+    }
+
+    // Save current directory to SaveManager
+    if (m_save_manager) {
+        m_save_manager->set_last_file_dialog_path(m_current_dir);
     }
 }

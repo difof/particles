@@ -17,7 +17,6 @@ struct Context {
     // World snapshot for safe access
     mailbox::WorldSnapshot world_snapshot;
 
-    // Managers for UI operations
     SaveManager &save;
     UndoManager &undo;
 

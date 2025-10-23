@@ -229,7 +229,8 @@ void MenuBarUI::handle_new_project(Context &ctx) {
 void MenuBarUI::handle_open_project(Context &ctx) {
     if (!m_file_dialog_open) {
         m_file_dialog.set_filename("");
-        m_file_dialog.open(FileDialog::Mode::Open, "Open Project");
+        m_file_dialog.open(FileDialog::Mode::Open, "Open Project", "",
+                           &ctx.save);
         m_file_dialog_open = true;
         m_pending_action = PendingAction::Open;
         return;
@@ -269,7 +270,8 @@ void MenuBarUI::handle_save_as_project(Context &ctx) {
         } else {
             m_file_dialog.set_filename("project.json");
         }
-        m_file_dialog.open(FileDialog::Mode::Save, "Save Project");
+        m_file_dialog.open(FileDialog::Mode::Save, "Save Project", "",
+                           &ctx.save);
         m_file_dialog_open = true;
         m_pending_action = PendingAction::SaveAs;
         return;
