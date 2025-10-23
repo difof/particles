@@ -87,6 +87,29 @@ bool FileDialog::render() {
                 if (ImGui::Selectable(e.name.c_str(), false)) {
                     m_file_name = e.name;
                 }
+
+                // Check for double-click on JSON files
+                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+                    // Check if file has .json extension
+                    if (e.name.length() >= 5 &&
+                        e.name.substr(e.name.length() - 5) == ".json") {
+                        // Auto-open the JSON file
+                        std::string base = normalize_dir(m_current_dir);
+                        m_selected_path = base + e.name;
+                        m_has_result = true;
+                        m_canceled = false;
+                        m_open = false;
+
+                        // Save current directory to SaveManager
+                        if (m_save_manager) {
+                            m_save_manager->update_last_file_dialog_path(
+                                m_current_dir);
+                        }
+
+                        ImGui::CloseCurrentPopup();
+                        closed_this_frame = true;
+                    }
+                }
             }
         }
         ImGui::EndChild();
