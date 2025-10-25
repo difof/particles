@@ -11,6 +11,7 @@ vars:
     - test_simulation
     - test_undo_manager
     - test_file_dialog
+    - test_version_tracking
 
 tasks:
   premake:
