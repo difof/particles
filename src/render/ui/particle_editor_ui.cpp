@@ -382,10 +382,12 @@ void ParticleEditorUI::render_group_rules(Context &ctx, int group_index) {
         render_single_group_rule(ctx, group_index, group_index);
         ImGui::Separator();
 
-        for (int j = group_index + 1; j < m_editor.m_group_count; ++j) {
-            render_single_group_rule(ctx, group_index, j);
-            render_single_group_rule(ctx, j, group_index);
-            ImGui::Separator();
+        for (int j = 0; j < m_editor.m_group_count; ++j) {
+            if (j != group_index) {
+                render_single_group_rule(ctx, group_index, j);
+                render_single_group_rule(ctx, j, group_index);
+                ImGui::Separator();
+            }
         }
         ImGui::TreePop();
     }
