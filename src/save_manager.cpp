@@ -347,12 +347,7 @@ SaveManager::json_to_sim_config(const json &j) {
 }
 
 json SaveManager::render_config_to_json(const Config &config) {
-    return json{{"show_ui", config.show_ui},
-                {"show_metrics_ui", config.show_metrics_ui},
-                {"show_editor", config.show_editor},
-                {"show_render_config", config.show_render_config},
-                {"show_sim_config", config.show_sim_config},
-                {"interpolate", config.interpolate},
+    return json{{"interpolate", config.interpolate},
                 {"interp_delay_ms", config.interp_delay_ms},
                 {"glow_enabled", config.glow_enabled},
                 {"core_size", config.core_size},
@@ -380,21 +375,6 @@ json SaveManager::render_config_to_json(const Config &config) {
 Config SaveManager::json_to_render_config(const json &j) {
     Config config = {};
 
-    if (j.contains("show_ui")) {
-        config.show_ui = j["show_ui"];
-    }
-    if (j.contains("show_metrics_ui")) {
-        config.show_metrics_ui = j["show_metrics_ui"];
-    }
-    if (j.contains("show_editor")) {
-        config.show_editor = j["show_editor"];
-    }
-    if (j.contains("show_render_config")) {
-        config.show_render_config = j["show_render_config"];
-    }
-    if (j.contains("show_sim_config")) {
-        config.show_sim_config = j["show_sim_config"];
-    }
     if (j.contains("interpolate")) {
         config.interpolate = j["interpolate"];
     }
