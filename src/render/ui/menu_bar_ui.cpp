@@ -26,6 +26,35 @@ void MenuBarUI::trigger_save_as_project(Context &ctx) {
     handle_save_as_project(ctx);
 }
 
+void MenuBarUI::capture_saved_state(const Context &ctx) {
+    m_saved_undo_version = ctx.undo.get_state_version();
+    m_saved_file_version = ctx.save.get_file_operation_version();
+    m_saved_past_size = ctx.undo.get_past_size();
+}
+
+void MenuBarUI::capture_saved_state(const UndoManager &undo_manager,
+                                    const SaveManager &save_manager) {
+    m_saved_undo_version = undo_manager.get_state_version();
+    m_saved_file_version = save_manager.get_file_operation_version();
+    m_saved_past_size = undo_manager.get_past_size();
+}
+
+bool MenuBarUI::has_unsaved_changes(const Context &ctx) const {
+    // Check file operation version first
+    if (ctx.save.get_file_operation_version() != m_saved_file_version) {
+        return true;
+    }
+
+    // Check undo state - we're at the saved state if:
+    // 1. We're at the exact same version, OR
+    // 2. We've undone back to having the same number of actions in our past
+    bool undo_at_saved_state =
+        (ctx.undo.get_state_version() == m_saved_undo_version) ||
+        (ctx.undo.get_past_size() == m_saved_past_size);
+
+    return !undo_at_saved_state;
+}
+
 void MenuBarUI::render_ui(Context &ctx) {
     auto &sim = ctx.sim;
     mailbox::SimulationConfigSnapshot scfg = sim.get_config();
@@ -63,6 +92,12 @@ void MenuBarUI::render_project_indicator(Context &ctx) {
         else
             name = m_current_filepath.substr(pos + 1);
     }
+
+    // Check for unsaved changes and prepend asterisk
+    if (has_unsaved_changes(ctx)) {
+        name = "*" + name;
+    }
+
     std::string btn = std::string(label_prefix) + name;
     if (ImGui::SmallButton(btn.c_str())) {
         handle_open_project(ctx);
@@ -192,9 +227,21 @@ void MenuBarUI::render_file_dialog(Context &ctx) {
                 data.sim_config = ctx.sim.get_config();
                 data.render_config = ctx.rcfg;
                 data.seed = ctx.save.extract_current_seed(ctx.world_snapshot);
-                ctx.save.save_project(path, data);
-                m_current_filepath = path;
-                LOG_INFO("Project saved successfully to: " + path);
+                data.window_config.panel_width = 500;
+                data.window_config.render_width = ctx.wcfg.screen_width;
+
+                try {
+                    ctx.save.save_project(path, data);
+                    m_current_filepath = path;
+                    // Capture version snapshots after successful save as
+                    capture_saved_state(ctx);
+                    LOG_INFO("Project saved successfully to: " + path);
+                } catch (const particles::IOError &e) {
+                    LOG_ERROR("Failed to save project: " +
+                              std::string(e.what()));
+                    throw particles::UIError("Failed to save project to '" +
+                                             path + "': " + e.what());
+                }
             }
         }
         m_pending_action = PendingAction::None;
@@ -217,6 +264,8 @@ void MenuBarUI::handle_new_project(Context &ctx) {
         }
 
         m_current_filepath.clear();
+        // Capture version snapshots after successful new project
+        capture_saved_state(ctx);
 
         LOG_INFO("New project created successfully");
     } catch (const particles::IOError &e) {
@@ -251,6 +300,8 @@ void MenuBarUI::handle_save_project(Context &ctx) {
 
     try {
         ctx.save.save_project(m_current_filepath, data);
+        // Capture version snapshots after successful save
+        capture_saved_state(ctx);
         LOG_INFO("Project saved successfully to: " + m_current_filepath);
     } catch (const particles::IOError &e) {
         LOG_ERROR("Failed to save project: " + std::string(e.what()));
@@ -291,6 +342,8 @@ void MenuBarUI::handle_open_file(Context &ctx, const std::string &filepath) {
         }
 
         m_current_filepath = filepath;
+        // Capture version snapshots after successful load
+        capture_saved_state(ctx);
         LOG_INFO("Project loaded successfully from: " + filepath);
     } catch (const particles::IOError &e) {
         LOG_ERROR("Failed to load project: " + std::string(e.what()));

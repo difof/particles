@@ -58,6 +58,28 @@ class MenuBarUI : public IRenderer {
      */
     void trigger_save_as_project(Context &ctx);
 
+    /**
+     * @brief Capture version snapshots of current saved state
+     * @param ctx The rendering context
+     */
+    void capture_saved_state(const Context &ctx);
+
+    /**
+     * @brief Capture version snapshots of current saved state (direct manager
+     * access)
+     * @param undo_manager The undo manager
+     * @param save_manager The save manager
+     */
+    void capture_saved_state(const UndoManager &undo_manager,
+                             const SaveManager &save_manager);
+
+    /**
+     * @brief Check if there are unsaved changes
+     * @param ctx The rendering context
+     * @return True if there are unsaved changes
+     */
+    bool has_unsaved_changes(const Context &ctx) const;
+
   private:
     /**
      * @brief Internal method to render the UI components
@@ -149,4 +171,13 @@ class MenuBarUI : public IRenderer {
 
     /** @brief Whether the file dialog is currently open */
     bool m_file_dialog_open = false;
+
+    /** @brief Saved undo manager version at last save */
+    unsigned long long m_saved_undo_version = 0;
+
+    /** @brief Saved file operation version at last save */
+    unsigned long long m_saved_file_version = 0;
+
+    /** @brief Number of actions in undo stack when state was saved */
+    size_t m_saved_past_size = 0;
 };

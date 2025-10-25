@@ -17,6 +17,17 @@
 #include "utility/exceptions.hpp"
 #include "utility/logger.hpp"
 
+/**
+ * @brief Capture initial saved state for version tracking
+ * @param rman The render manager
+ * @param undo_manager The undo manager
+ * @param save_manager The save manager
+ */
+void capture_initial_saved_state(RenderManager &rman, UndoManager &undo_manager,
+                                 SaveManager &save_manager) {
+    rman.get_menu_bar().capture_saved_state(undo_manager, save_manager);
+}
+
 void run() {
     LOG_INFO("Starting particles application");
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -94,6 +105,9 @@ void run() {
                 loaded_project = true;
             }
             rman.get_menu_bar().set_current_filepath(last_file);
+
+            // Capture version snapshots after successful load
+            capture_initial_saved_state(rman, undo_manager, json_manager);
         } catch (const particles::IOError &e) {
             LOG_ERROR("Failed to load project: " + std::string(e.what()));
         }
@@ -102,6 +116,9 @@ void run() {
     if (!loaded_project) {
         auto seed = particles::utility::create_default_seed();
         sim.push_command(mailbox::command::SeedWorld{seed});
+
+        // Capture version snapshots for new project
+        capture_initial_saved_state(rman, undo_manager, json_manager);
     }
 
     while (!WindowShouldClose()) {

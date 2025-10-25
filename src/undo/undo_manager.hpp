@@ -32,28 +32,7 @@ class UndoManager {
      * @brief Push a new action onto the undo stack.
      * @param act The action to push (will be moved).
      */
-    void push(std::unique_ptr<IAction> act) {
-        if (!act)
-            return;
-        // If inside an interaction and last entry belongs to this interaction,
-        // try to coalesce with the top action
-        if (m_inInteraction && !m_past.empty() &&
-            m_past.back().seq == m_interactionSeq) {
-            auto &top = m_past.back().act;
-            if (top && top->canCoalesce(*act)) {
-                if (top->coalesce(*act)) {
-                    // Coalesced; future invalidated
-                    m_future.clear();
-                    return;
-                }
-            }
-        }
-        // Normal push path: apply already happened externally; we just record
-        m_past.push_back(
-            {std::move(act), m_inInteraction ? m_interactionSeq : 0});
-        m_future.clear();
-        trim();
-    }
+    void push(std::unique_ptr<IAction> act);
 
     /**
      * @brief Check if undo is available.
@@ -70,31 +49,12 @@ class UndoManager {
     /**
      * @brief Undo the last action.
      */
-    void undo() {
-        if (m_past.empty())
-            return;
-        auto entry = std::move(m_past.back());
-        m_past.pop_back();
-        if (entry.act) {
-            entry.act->unapply();
-            m_future.push_back(std::move(entry));
-        }
-    }
+    void undo();
 
     /**
      * @brief Redo the next action.
      */
-    void redo() {
-        if (m_future.empty())
-            return;
-        auto entry = std::move(m_future.back());
-        m_future.pop_back();
-        if (entry.act) {
-            entry.act->apply();
-            m_past.push_back(std::move(entry));
-            trim();
-        }
-    }
+    void redo();
 
     /**
      * @brief Begin an interaction sequence for coalescing.
@@ -117,6 +77,26 @@ class UndoManager {
         }
     }
 
+    /**
+     * @brief Get the current state version number.
+     * @return Current state version
+     */
+    unsigned long long get_state_version() const { return m_state_version; }
+
+    /**
+     * @brief Check if we're at the exact same state as when the given version
+     * was saved.
+     * @param saved_version The version number when state was saved
+     * @return True if current state matches the saved state
+     */
+    bool is_at_saved_state(unsigned long long saved_version) const;
+
+    /**
+     * @brief Get the number of actions in the undo stack.
+     * @return Number of actions that can be undone
+     */
+    size_t get_past_size() const { return m_past.size(); }
+
   private:
     /**
      * @brief Trim the history to the maximum size.
@@ -138,4 +118,5 @@ class UndoManager {
     bool m_inInteraction = false;
     ImGuiID m_interactionId = 0;
     unsigned long long m_interactionSeq = 0;
+    unsigned long long m_state_version = 0;
 };

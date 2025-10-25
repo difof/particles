@@ -183,6 +183,14 @@ class SaveManager {
      */
     void update_last_file_dialog_path(const std::string &path);
 
+    /**
+     * @brief Get the current file operation version number.
+     * @return Current file operation version
+     */
+    unsigned long long get_file_operation_version() const {
+        return m_file_operation_version;
+    }
+
   private:
     /**
      * @brief Convert seed specification to JSON.
@@ -264,6 +272,9 @@ class SaveManager {
 
     /** @brief Last directory used in file dialog */
     std::string m_last_file_dialog_path;
+
+    /** @brief File operation version counter */
+    unsigned long long m_file_operation_version = 0;
 
     /** @brief Maximum number of recent files to keep */
     static constexpr int MAX_RECENT_FILES = 10;

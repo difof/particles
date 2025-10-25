@@ -40,6 +40,7 @@ void SaveManager::save_project(const std::string &filepath,
 
         add_to_recent(filepath);
         set_last_opened_file(filepath);
+        ++m_file_operation_version;
 
         LOG_INFO("Project saved successfully");
     } catch (const particles::IOError &) {
@@ -83,6 +84,7 @@ void SaveManager::load_project(const std::string &filepath, ProjectData &data) {
 
         add_to_recent(filepath);
         set_last_opened_file(filepath);
+        ++m_file_operation_version;
 
         LOG_INFO("Project loaded successfully");
     } catch (const particles::IOError &) {
@@ -118,6 +120,7 @@ void SaveManager::new_project(ProjectData &data) {
     data.seed = particles::utility::create_default_seed();
 
     data.window_config = {500, 1080};
+    ++m_file_operation_version;
 
     LOG_INFO("New project created successfully");
 }
