@@ -95,7 +95,7 @@ void MenuBarUI::render_project_indicator(Context &ctx) {
 
     // Check for unsaved changes and prepend asterisk
     if (has_unsaved_changes(ctx)) {
-        name = "*" + name;
+        name = name + " *";
     }
 
     std::string btn = std::string(label_prefix) + name;
