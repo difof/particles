@@ -1,6 +1,7 @@
 # Particle Simulator
 
 <video src="./assets/sample.mp4" autoplay loop muted playsinline></video>
+[![Watch the video](assets/sample.jpg)](assets/sample.mp4)
 
 A real-time particle physics simulation that explores emergent behaviors through simple force based interactions. This project implements a multi-threaded CPU based particle system with spatial optimization techniques.
 
