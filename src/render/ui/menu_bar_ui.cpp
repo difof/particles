@@ -185,6 +185,9 @@ void MenuBarUI::render_windows_menu(Context &ctx) {
         if (ImGui::MenuItem("Open Simulation Config", "4")) {
             ctx.rcfg.show_sim_config = true;
         }
+        if (ImGui::MenuItem("Open Undo History", "5")) {
+            ctx.rcfg.show_history_ui = true;
+        }
         ImGui::EndMenu();
     }
 }

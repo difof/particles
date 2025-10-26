@@ -10,6 +10,7 @@
 #include "particles_renderer.hpp"
 #include "types/context.hpp"
 #include "types/window.hpp"
+#include "ui/history_ui.hpp"
 #include "ui/inspector_ui.hpp"
 #include "ui/menu_bar_ui.hpp"
 #include "ui/metrics_ui.hpp"
@@ -120,6 +121,7 @@ class RenderManager {
             m_render_config.render(ctx);
             m_sim_config.render(ctx);
             m_metrics.render(ctx);
+            m_history.render(ctx);
             m_inspector.update_selection_from_mouse(ctx);
             m_inspector.render_ui(ctx, m_particles.texture());
         }
@@ -141,4 +143,5 @@ class RenderManager {
     RenderConfigUI m_render_config;
     SimConfigUI m_sim_config;
     MetricsUI m_metrics;
+    HistoryUI m_history;
 };

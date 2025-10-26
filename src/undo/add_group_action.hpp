@@ -3,6 +3,8 @@
 #include <functional>
 #include <raylib.h>
 
+#include <fmt/format.h>
+
 #include "iaction.hpp"
 
 /**
@@ -20,6 +22,14 @@ class AddGroupAction : public IAction {
     AddGroupAction(int size, Color color, float r2, int group_index);
 
     const char *name() const override { return "Add Group"; }
+
+    const char *get_description() const override {
+        m_description_cache =
+            fmt::format("Add Group: {} particles, color({},{},{},{})", m_size,
+                        m_color.r, m_color.g, m_color.b, m_color.a);
+        return m_description_cache.c_str();
+    }
+
     void apply() override;
     void unapply() override;
     bool canCoalesce(const IAction &other) const override { return false; }
@@ -44,4 +54,5 @@ class AddGroupAction : public IAction {
     int m_group_index;
     std::function<void()> m_apply_func;
     std::function<void()> m_unapply_func;
+    mutable std::string m_description_cache;
 };

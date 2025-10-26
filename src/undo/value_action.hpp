@@ -3,7 +3,25 @@
 #include <functional>
 #include <string>
 
+#include <fmt/format.h>
+#include <raylib.h>
+
 #include "iaction.hpp"
+
+// Custom formatter for Color
+template <>
+struct fmt::formatter<Color> {
+    constexpr auto parse(format_parse_context &ctx) -> decltype(ctx.begin()) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const Color &color, FormatContext &ctx) const
+        -> decltype(ctx.out()) {
+        return fmt::format_to(ctx.out(), "({},{},{},{})", color.r, color.g,
+                              color.b, color.a);
+    }
+};
 
 /**
  * @brief Generic value action operating via getter/setter functions.
@@ -33,6 +51,13 @@ class ValueAction : public IAction {
           m_after(after) {}
 
     const char *name() const override { return m_label.c_str(); }
+
+    const char *get_description() const override {
+        m_description_cache =
+            fmt::format("{}: {} → {}", m_label, m_before, m_after);
+        return m_description_cache.c_str();
+    }
+
     void apply() override { m_set(m_after); }
     void unapply() override { m_set(m_before); }
 
@@ -56,4 +81,5 @@ class ValueAction : public IAction {
     Setter m_set;
     T m_before;
     T m_after;
+    mutable std::string m_description_cache;
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <imgui.h>
 #include <memory>
@@ -97,6 +98,27 @@ class UndoManager {
      */
     size_t get_past_size() const { return m_past.size(); }
 
+    /**
+     * @brief Structure holding action data with timestamp.
+     */
+    struct Entry {
+        std::unique_ptr<IAction> act;
+        unsigned long long seq;
+        std::chrono::time_point<std::chrono::steady_clock> timestamp;
+    };
+
+    /**
+     * @brief Get the past entries for UI display.
+     * @return Const reference to the past entries vector
+     */
+    const std::vector<Entry> &get_past_entries() const { return m_past; }
+
+    /**
+     * @brief Get the future entries for UI display.
+     * @return Const reference to the future entries vector
+     */
+    const std::vector<Entry> &get_future_entries() const { return m_future; }
+
   private:
     /**
      * @brief Trim the history to the maximum size.
@@ -106,12 +128,6 @@ class UndoManager {
             m_past.erase(m_past.begin(),
                          m_past.begin() + (m_past.size() - m_max));
     }
-
-  private:
-    struct Entry {
-        std::unique_ptr<IAction> act;
-        unsigned long long seq;
-    };
     std::vector<Entry> m_past;
     std::vector<Entry> m_future;
     size_t m_max = 500;

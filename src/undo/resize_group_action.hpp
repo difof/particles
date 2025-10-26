@@ -2,6 +2,8 @@
 
 #include <functional>
 
+#include <fmt/format.h>
+
 #include "iaction.hpp"
 
 /**
@@ -18,6 +20,14 @@ class ResizeGroupAction : public IAction {
     ResizeGroupAction(int group_index, int old_size, int new_size);
 
     const char *name() const override { return "Resize Group"; }
+
+    const char *get_description() const override {
+        m_description_cache =
+            fmt::format("Resize Group: group {} {} → {} particles",
+                        m_group_index, m_old_size, m_new_size);
+        return m_description_cache.c_str();
+    }
+
     void apply() override;
     void unapply() override;
     bool canCoalesce(const IAction &other) const override { return false; }
@@ -41,4 +51,5 @@ class ResizeGroupAction : public IAction {
     int m_new_size;
     std::function<void()> m_apply_func;
     std::function<void()> m_unapply_func;
+    mutable std::string m_description_cache;
 };

@@ -17,7 +17,8 @@ void UndoManager::push(std::unique_ptr<IAction> act) {
         }
     }
     // Normal push path: apply already happened externally; we just record
-    m_past.push_back({std::move(act), m_inInteraction ? m_interactionSeq : 0});
+    m_past.push_back({std::move(act), m_inInteraction ? m_interactionSeq : 0,
+                      std::chrono::steady_clock::now()});
     m_future.clear();
     trim();
     ++m_state_version;

@@ -3,6 +3,8 @@
 #include <functional>
 #include <memory>
 
+#include <fmt/format.h>
+
 #include "iaction.hpp"
 #include "mailbox/mailbox.hpp"
 
@@ -19,6 +21,14 @@ class RemoveGroupAction : public IAction {
     RemoveGroupAction(int group_index, mailbox::command::SeedSpec backup_state);
 
     const char *name() const override { return "Remove Group"; }
+
+    const char *get_description() const override {
+        m_description_cache =
+            fmt::format("Remove Group: group {} ({} particles)", m_group_index,
+                        m_backup_state.sizes[m_group_index]);
+        return m_description_cache.c_str();
+    }
+
     void apply() override;
     void unapply() override;
     bool canCoalesce(const IAction &other) const override { return false; }
@@ -41,4 +51,5 @@ class RemoveGroupAction : public IAction {
     mailbox::command::SeedSpec m_backup_state;
     std::function<void()> m_apply_func;
     std::function<void()> m_unapply_func;
+    mutable std::string m_description_cache;
 };

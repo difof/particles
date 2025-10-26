@@ -170,6 +170,10 @@ void setup_keys(KeyManager &key_manager, Simulation &sim, Config &rcfg,
         rcfg.show_sim_config = !rcfg.show_sim_config;
     }); // 4
 
+    key_manager.on_key_pressed(KEY_FIVE, [&rcfg]() {
+        rcfg.show_history_ui = !rcfg.show_history_ui;
+    }); // 5
+
     // Camera controls
     static const float pan_speed = 10.0f;
     key_manager.on_key_down(KEY_LEFT, [&rcfg]() {

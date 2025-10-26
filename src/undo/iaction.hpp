@@ -17,6 +17,13 @@ struct IAction {
     virtual const char *name() const = 0;
 
     /**
+     * @brief Get a detailed description of this action including values.
+     * @return Human-readable description with before/after values if
+     * applicable.
+     */
+    virtual const char *get_description() const { return name(); }
+
+    /**
      * @brief Apply this action (redo).
      */
     virtual void apply() = 0;

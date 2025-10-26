@@ -3,6 +3,8 @@
 #include <functional>
 #include <memory>
 
+#include <fmt/format.h>
+
 #include "iaction.hpp"
 #include "mailbox/mailbox.hpp"
 
@@ -18,6 +20,13 @@ class ClearAllGroupsAction : public IAction {
     ClearAllGroupsAction(mailbox::command::SeedSpec backup_state);
 
     const char *name() const override { return "Clear All Groups"; }
+
+    const char *get_description() const override {
+        m_description_cache = fmt::format("Clear All Groups: {} groups removed",
+                                          m_backup_state.sizes.size());
+        return m_description_cache.c_str();
+    }
+
     void apply() override;
     void unapply() override;
     bool canCoalesce(const IAction &other) const override { return false; }
@@ -39,4 +48,5 @@ class ClearAllGroupsAction : public IAction {
     mailbox::command::SeedSpec m_backup_state;
     std::function<void()> m_apply_func;
     std::function<void()> m_unapply_func;
+    mutable std::string m_description_cache;
 };
