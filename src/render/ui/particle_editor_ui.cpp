@@ -316,7 +316,16 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
                            ImGuiColorEditFlags_NoDragDrop,
                        ImVec2(12, 12));
     ImGui::SameLine();
-    ImGui::Text("g%d  \xE2\x86\x92  g%d", group_index, target_index);
+
+    // Get the force value to determine arrow direction
+    float &v =
+        m_editor.m_rules[group_index * m_editor.m_group_count + target_index];
+    const char *arrow = (v >= 0.0f)
+                            ? "\xE2\x86\x92"
+                            : "\xE2\x86\x90"; // -> for positive (repulsive), <-
+                                              // for negative (attractive)
+
+    ImGui::Text("g%d  %s  g%d", group_index, arrow, target_index);
     ImGui::SameLine();
     ImGui::ColorButton("dst", cdst,
                        ImGuiColorEditFlags_NoTooltip |
@@ -324,8 +333,6 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
                            ImGuiColorEditFlags_NoDragDrop,
                        ImVec2(12, 12));
 
-    float &v =
-        m_editor.m_rules[group_index * m_editor.m_group_count + target_index];
     float before_v = v;
 
     ImGui::SameLine();
