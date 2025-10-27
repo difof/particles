@@ -25,7 +25,7 @@ tasks:
     generates:
       - build/Makefile
       - build/*.make
-    cmd: premake gmake2
+    cmd: premake5 gmake2
 
   embed-static:
     internal: true
