@@ -317,13 +317,11 @@ void ParticleEditorUI::render_single_group_rule(Context &ctx, int group_index,
                        ImVec2(12, 12));
     ImGui::SameLine();
 
-    // Get the force value to determine arrow direction
     float &v =
         m_editor.m_rules[group_index * m_editor.m_group_count + target_index];
-    const char *arrow = (v >= 0.0f)
-                            ? "\xE2\x86\x92"
-                            : "\xE2\x86\x90"; // -> for positive (repulsive), <-
-                                              // for negative (attractive)
+    const char *arrow =
+        (v >= 0.0f) ? "->" : "<-"; // -> for positive (repulsive), <-
+                                   // for negative (attractive)
 
     ImGui::Text("g%d  %s  g%d", group_index, arrow, target_index);
     ImGui::SameLine();
