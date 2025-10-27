@@ -17,6 +17,10 @@
 #include "utility/exceptions.hpp"
 #include "utility/logger.hpp"
 
+extern void setup_style();
+extern unsigned char assets_roboto_regular_ttf[];
+extern unsigned int assets_roboto_regular_ttf_len;
+
 /**
  * @brief Capture initial saved state for version tracking
  * @param rman The render manager
@@ -30,7 +34,6 @@ void capture_initial_saved_state(RenderManager &rman, UndoManager &undo_manager,
 
 void run() {
     LOG_INFO("Starting particles application");
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
     SaveManager json_manager;
     auto window_state = json_manager.load_window_state();
@@ -38,6 +41,7 @@ void run() {
     UndoManager undo_manager;
     std::string last_file = json_manager.get_last_opened_file();
 
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(window_state.width, window_state.height, "Particles");
 
     int monitor = GetCurrentMonitor();
@@ -70,17 +74,28 @@ void run() {
     scfg.sim_threads = -1;
     Simulation sim(scfg);
 
-    if (window_state.x != 0 || window_state.y != 0) {
-        SetWindowPosition(window_state.x, window_state.y);
-    } else {
-        SetWindowPosition(0, 0);
+    {
+        if (window_state.x != 0 || window_state.y != 0) {
+            SetWindowPosition(window_state.x, window_state.y);
+        } else {
+            SetWindowPosition(0, 0);
+        }
+
+        SetWindowSize(wcfg.screen_width, wcfg.screen_height);
+        SetTargetFPS(60);
+        rlImGuiSetup(true);
     }
 
-    SetWindowSize(wcfg.screen_width, wcfg.screen_height);
-    SetTargetFPS(60);
-    rlImGuiSetup(true);
-
-    ImGui::GetIO().IniFilename = nullptr;
+    {
+        setup_style();
+        auto &io = ImGui::GetIO();
+        io.IniFilename = nullptr;
+        auto font_config = ImFontConfig();
+        font_config.FontDataOwnedByAtlas = false;
+        io.FontDefault = io.Fonts->AddFontFromMemoryTTF(
+            assets_roboto_regular_ttf, assets_roboto_regular_ttf_len, 0.f,
+            &font_config);
+    }
 
     RenderManager rman(wcfg);
 
