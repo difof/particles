@@ -19,6 +19,7 @@ struct Config {
     bool show_render_config = false;
     bool show_sim_config = false;
     bool show_history_ui = false;
+    bool show_style_editor = false;
 
     // interpolation
     bool interpolate = true;

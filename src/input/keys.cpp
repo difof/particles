@@ -174,6 +174,12 @@ void setup_keys(KeyManager &key_manager, Simulation &sim, Config &rcfg,
         rcfg.show_history_ui = !rcfg.show_history_ui;
     }); // 5
 
+#ifdef DEBUG
+    key_manager.on_key_pressed(KEY_F4, [&rcfg]() {
+        rcfg.show_style_editor = !rcfg.show_style_editor;
+    });
+#endif
+
     // Camera controls
     static const float pan_speed = 10.0f;
     key_manager.on_key_down(KEY_LEFT, [&rcfg]() {

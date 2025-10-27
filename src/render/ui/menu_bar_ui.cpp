@@ -188,6 +188,13 @@ void MenuBarUI::render_windows_menu(Context &ctx) {
         if (ImGui::MenuItem("Open Undo History", "5")) {
             ctx.rcfg.show_history_ui = true;
         }
+
+#ifdef DEBUG
+        if (ImGui::MenuItem("Open Style Editor", "F4")) {
+            ctx.rcfg.show_style_editor = true;
+        }
+#endif
+
         ImGui::EndMenu();
     }
 }

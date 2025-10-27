@@ -17,6 +17,7 @@
 #include "ui/particle_editor_ui.hpp"
 #include "ui/render_config_ui.hpp"
 #include "ui/sim_config_ui.hpp"
+#include "ui/style_editor.hpp"
 
 /**
  * @brief Manages render textures and frame orchestration for the particle
@@ -122,6 +123,7 @@ class RenderManager {
             m_sim_config.render(ctx);
             m_metrics.render(ctx);
             m_history.render(ctx);
+            m_style_editor.render(ctx);
             m_inspector.update_selection_from_mouse(ctx);
             m_inspector.render_ui(ctx, m_particles.texture());
         }
@@ -144,4 +146,5 @@ class RenderManager {
     SimConfigUI m_sim_config;
     MetricsUI m_metrics;
     HistoryUI m_history;
+    StyleEditorUI m_style_editor;
 };
