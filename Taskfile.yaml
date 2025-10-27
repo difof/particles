@@ -27,6 +27,16 @@ tasks:
       - build/*.make
     cmd: premake gmake2
 
+  embed-static:
+    internal: true
+    sources:
+      - assets/roboto-regular.ttf
+    generates:
+      - src/static/roboto_regular.cpp
+    cmds:
+      - mkdir -p src/static
+      - xxd -i assets/roboto-regular.ttf src/static/roboto_regular.cpp
+
   build-binary:
     internal: true
     requires:
@@ -45,8 +55,10 @@ tasks:
     generates:
       - build/bin/{{.CONFIG}}/{{.PROJECT}}
     deps:
+      - embed-static
       - premake
-    cmd: make -C build config={{.CONFIG}} -j{{.COMPILE_THREADS}} {{.PROJECT}}
+    cmds:
+      - make -C build config={{.CONFIG}} -j{{.COMPILE_THREADS}} {{.PROJECT}}
 
   run-binary:
     internal: true
@@ -139,4 +151,6 @@ tasks:
 
   clean:
     desc: Clean builds
-    cmd: rm -fr build
+    cmds:
+      - rm -fr build
+      - rm -fr src/static
